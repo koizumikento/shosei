@@ -150,6 +150,8 @@ books:
 
 - `path` 先には `book.yml` が存在すること
 - `id` は series 内で一意
+- `books` 配列の順序はシリーズ内の正順序とみなす
+- `number` と `title` は将来の `shosei series sync` で巻一覧や既刊案内を生成する際の基準になる
 
 ## 10. 最小例
 

@@ -60,6 +60,7 @@ repo/
 - repo mode 判定
 - build plan 生成
 - validate plan 生成
+- preflight report 生成
 - 外部ツール adapter
 - diagnostics
 
@@ -93,6 +94,9 @@ shosei-core/src/
 - `preview_book`
 - `doctor`
 - `handoff`
+- `explain_config`
+- `sync_series`
+- `check_pages`
 
 ### 4.2 `config/`
 
@@ -242,6 +246,17 @@ OS 上の実ファイルパス。
 6. build plan 生成
 7. 外部ツール実行
 8. diagnostics 出力
+
+### `shosei validate`
+
+1. CLI で args 取得
+2. repo root 探索
+3. repo mode 判定
+4. target book 解決
+5. config load + merge
+6. validate / preflight plan 生成
+7. validator 実行
+8. summary と structured report を出力
 
 ### `shosei init`
 

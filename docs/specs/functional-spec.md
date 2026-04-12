@@ -197,6 +197,14 @@ project/
 
 原稿・設定・成果物の検証を行う。
 
+`validate` は単なる lint ではなく、提出前の preflight として振る舞う。
+
+原則:
+
+- 有効な出力 target 全体を既定対象にする
+- 例外的に `--target kindle|print` で個別実行できる
+- 人間向け summary と機械可読レポートを両方出せる
+
 - 共通 lint
 - EPUB 検証
 - Kindle 想定検証
@@ -206,6 +214,17 @@ project/
 ### 7.4 `shosei preview`
 
 レイアウト確認用のプレビューを生成または起動する。
+
+実行モード:
+
+- one-shot: 現在状態の preview を生成または起動する
+- watch: 原稿・設定・styles・assets の変更を監視し、preview を再生成する
+
+追加要件:
+
+- `watch` は macOS / Windows / Linux で同じコマンド体系を保つ
+- shell 固有の file watch 構文に依存しない
+- 再生成失敗時も監視プロセスは継続し、差分修正を試しやすくする
 
 確認対象:
 
@@ -240,6 +259,7 @@ project/
 
 - `shosei handoff kindle`
 - `shosei handoff print`
+- `shosei handoff proof`
 
 内容:
 
@@ -250,10 +270,12 @@ project/
 
 ### 7.7 将来候補
 
-- `shosei explain`: 最終有効設定の表示
+- `shosei explain`: 最終有効設定と値の由来の表示
 - `shosei release`: handoff + tag 前提の成果物固定化
 - `shosei chapter add|move|remove`
-- `shosei page add|check`
+- `shosei page add`
+- `shosei page check`: manga のページ順、見開き、panel metadata の確認を含む
+- `shosei series sync`: `series.yml` から巻一覧、既刊案内、派生 metadata を同期
 - `shosei migrate --to series --book-id <id>`
 
 ## 8. 設定ファイル仕様
@@ -494,6 +516,8 @@ git:
 
 ### 15.1 共通
 
+`validate` は target ごとの preflight report を生成する。
+
 - 欠落ファイル
 - リンク切れ
 - metadata 不足
@@ -507,6 +531,7 @@ git:
 - alt
 - language
 - heading hierarchy
+- accessibility metadata
 
 ### 15.3 Kindle
 
@@ -514,6 +539,7 @@ git:
 - cover 整合
 - reflow を壊す要素の警告
 - 必要に応じて Kindle Previewer 連携
+- device preview 由来の警告取り込み
 
 ### 15.4 印刷
 
@@ -531,6 +557,23 @@ git:
 - 左右ページ整合
 - サイズ不一致
 - カラーページ整合
+- guided view / panel metadata の整合
+
+### 15.6 preflight report
+
+出力方針:
+
+- 端末向け summary
+- JSON レポート
+- 必要に応じて外部 validator の詳細成果物への参照
+
+各 issue は次を持つ。
+
+- severity
+- target
+- 発生箇所
+- 原因
+- 修正例
 
 ## 16. Git / バージョン管理
 
@@ -592,14 +635,14 @@ git:
 
 ## 19. 納品仕様
 
-### 18.1 `handoff kindle`
+### 19.1 `handoff kindle`
 
 - EPUB
 - build summary
 - target profile
 - commit hash
 
-### 18.2 `handoff print`
+### 19.2 `handoff print`
 
 - 本文 PDF
 - 必要に応じて表紙 PDF
@@ -611,6 +654,14 @@ git:
   - crop marks
   - fonts embedded
 - commit hash
+
+### 19.3 `handoff proof`
+
+- 校正用 PDF または preview 成果物
+- 参照用 EPUB
+- validation / preflight summary
+- タイトル、巻、target、build 時刻、commit hash を含む manifest
+- 外部校正・編集者が参照すべき注意点一覧
 
 ## 20. MVP の範囲
 
@@ -631,13 +682,19 @@ git:
 ### 推奨
 
 - `preview`
+- `preview --watch`
+- `validate` の preflight report
 - `handoff`
+- `handoff proof`
 - manga のページマニフェスト
 - Git LFS 案内
 - 3 OS CI
 
 ### 将来
 
+- `shosei explain`
+- `shosei series sync`
+- `shosei page check`
 - fixed-layout EPUB の詳細制御
 - Kindle Previewer の深い統合
 - 漫画の guided view/panel metadata

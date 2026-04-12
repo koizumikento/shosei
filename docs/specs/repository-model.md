@@ -152,6 +152,11 @@ repo/
 - 共通 validation policy
 - 巻一覧
 
+補足:
+
+- `books` の並び順はシリーズ内の正順序とみなす
+- 将来の `shosei series sync` はこの情報を基準に既刊案内、巻一覧、派生 metadata を生成する
+
 ## 8. `series` の継承ルール
 
 `series.yml` と各巻の `book.yml` の関係は次の通り。
@@ -204,7 +209,14 @@ shosei handoff --book vol-03
 ```bash
 shosei build --all
 shosei validate --all
+shosei series sync
 ```
+
+`shosei series sync` の方針:
+
+- `series.yml` を正として巻一覧、巻番号、既刊案内を同期する
+- 手書き原稿本文を直接 rewrite するのではなく、派生 metadata や backmatter 生成を優先する
+- 巻固有 `book.yml` の明示 override は保持する
 
 ## 10. `init` の扱い
 

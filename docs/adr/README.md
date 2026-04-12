@@ -13,6 +13,7 @@ Architecture Decision Record の一覧。
 - [ADR-0009: 設定探索は上方探索、継承優先順位は CLI > book.yml > series.yml > profile defaults とする](0009-config-discovery-and-precedence.md)
 - [ADR-0010: single-book から series への移行パスを前提にする](0010-single-book-to-series-migration.md)
 - [ADR-0011: CLI 名は shosei を採用する](0011-cli-name-shosei.md)
+- [ADR-0012: 価値の重心を preflight・explain・handoff に置く](0012-preflight-explain-and-handoff-priority.md)
 
 記法:
 
