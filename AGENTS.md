@@ -52,14 +52,15 @@ Add a deeper `AGENTS.md` only when a subdirectory needs rules that differ from t
 
 Current repo state:
 
-- There is no Rust workspace yet, so do not claim that `cargo` commands have been run unless they actually exist and were executed.
+- Rust workspace exists.
+- Do not claim that `cargo` commands have been run unless they actually exist and were executed.
 
-When the Rust workspace is added, update this file with exact commands for:
+Use these exact commands when validating Rust changes:
 
-- formatting
-- linting
-- tests
-- smoke checks
+- formatting: `cargo fmt`
+- linting: `cargo clippy --workspace --all-targets -- -D warnings`
+- tests: `cargo test --workspace`
+- smoke checks: `cargo run -p shosei-cli --bin shosei -- --help`
 
 ## Generated Files
 

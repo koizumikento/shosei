@@ -1,0 +1,60 @@
+mod args;
+mod exit_code;
+mod output;
+mod prompts;
+
+use anyhow::Result;
+use clap::Parser;
+use shosei_core::{app, cli_api::CommandContext};
+
+use crate::args::{Cli, Commands};
+
+fn main() {
+    let code = match run() {
+        Ok(()) => exit_code::OK,
+        Err(error) => {
+            eprintln!("error: {error}");
+            exit_code::FAILURE
+        }
+    };
+    std::process::exit(code);
+}
+
+fn run() -> Result<()> {
+    let cli = Cli::parse();
+
+    match cli.command {
+        Commands::Init { path } => {
+            output::print_line(prompts::init_mode_banner());
+            let target = path.unwrap_or(std::env::current_dir()?);
+            let result = app::init_project(target);
+            output::print_line(&result.summary);
+        }
+        Commands::Build { book, path } => {
+            let result = app::build_book(&CommandContext::new(path, book))?;
+            output::print_line(&result.summary);
+        }
+        Commands::Validate { book, path } => {
+            let result = app::validate_book(&CommandContext::new(path, book))?;
+            output::print_line(&result.summary);
+        }
+        Commands::Preview { book, path } => {
+            let result = app::preview_book(&CommandContext::new(path, book))?;
+            output::print_line(&result.summary);
+        }
+        Commands::Doctor => {
+            let result = app::doctor();
+            output::print_line(&result.summary);
+        }
+        Commands::Handoff {
+            destination,
+            book,
+            path,
+        } => {
+            let result = app::handoff(&CommandContext::new(path, book), &destination)?;
+            output::print_line(&result.summary);
+        }
+    }
+
+    Ok(())
+}
