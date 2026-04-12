@@ -24,10 +24,20 @@ fn run() -> Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
-        Commands::Init { path } => {
+        Commands::Init {
+            path,
+            non_interactive,
+            force,
+            config_template,
+        } => {
             output::print_line(prompts::init_mode_banner());
             let target = path.unwrap_or(std::env::current_dir()?);
-            let result = app::init_project(target);
+            let result = app::init_project(app::InitProjectOptions {
+                root: target,
+                non_interactive,
+                force,
+                config_template,
+            })?;
             output::print_line(&result.summary);
         }
         Commands::Build { book, path } => {

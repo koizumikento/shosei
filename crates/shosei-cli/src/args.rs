@@ -14,6 +14,12 @@ pub enum Commands {
     Init {
         #[arg(value_name = "PATH")]
         path: Option<PathBuf>,
+        #[arg(long)]
+        non_interactive: bool,
+        #[arg(long)]
+        force: bool,
+        #[arg(long, value_name = "TEMPLATE")]
+        config_template: Option<String>,
     },
     Build {
         #[arg(long)]

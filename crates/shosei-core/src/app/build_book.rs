@@ -16,15 +16,23 @@ pub fn build_book(command: &CommandContext) -> Result<BuildBookResult, RepoError
     )?)?;
 
     if let Some(book) = context.book.clone() {
-        let _config =
-            config::load_book_config(&book.config_path).map_err(|_| RepoError::NotInitialized {
+        let resolved =
+            config::resolve_book_config(&context).map_err(|_| RepoError::NotInitialized {
                 start: book.config_path.display().to_string(),
             })?;
         let plan = pipeline::prose_build_plan(context);
+        let outputs = resolved.outputs();
+        let manuscript_count = resolved.manuscript_files().len();
         return Ok(BuildBookResult {
             summary: format!(
-                "build plan ready for {} with stages: {}",
+                "build plan ready for {} with {} manuscript file(s), outputs: {}, stages: {}",
                 book.id,
+                manuscript_count,
+                if outputs.is_empty() {
+                    "none".to_string()
+                } else {
+                    outputs.join(", ")
+                },
                 plan.stages.join(", ")
             ),
         });

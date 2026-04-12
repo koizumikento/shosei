@@ -15,11 +15,12 @@ This repository defines and implements `shosei`, a Rust CLI for Japanese publish
 
 - `docs/specs/`: functional specs, config schema, repository model, migration rules, Rust architecture
 - `docs/adr/`: accepted decisions and rationale
+- `crates/shosei-cli/`: CLI crate exposing the `shosei` binary
+- `crates/shosei-core/`: core library crate for app flows, repo discovery, config, and pipeline planning
 - `AGENTS.md`: repo-wide agent instructions
 
 Future directories are expected to include:
 
-- `crates/`: Rust workspace crates such as `shosei-cli` and `shosei-core`
 - `tests/`: integration and smoke tests
 - `fixtures/`: test fixtures and sample books
 
@@ -40,6 +41,8 @@ Add a deeper `AGENTS.md` only when a subdirectory needs rules that differ from t
 - Preserve the repository model:
   - `single-book`: root `book.yml`
   - `series`: root `series.yml` plus `books/<book-id>/book.yml`
+- The current CLI surface wired in `crates/shosei-cli` is `init`, `build`, `validate`, `preview`, `doctor`, and `handoff`.
+- For `series` repos, current repo discovery requires either `--book <book-id>` or running the command from inside `books/<book-id>/...`.
 
 ## Editing Rules
 
@@ -60,6 +63,7 @@ Use these exact commands when validating Rust changes:
 - formatting: `cargo fmt`
 - linting: `cargo clippy --workspace --all-targets -- -D warnings`
 - tests: `cargo test --workspace`
+- focused repo discovery checks: `cargo test -p shosei-core --test repo_discovery`
 - smoke checks: `cargo run -p shosei-cli --bin shosei -- --help`
 
 ## Generated Files

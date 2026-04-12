@@ -16,12 +16,21 @@ pub fn validate_book(command: &CommandContext) -> Result<ValidateBookResult, Rep
     )?)?;
 
     if let Some(book) = &context.book {
-        let _config =
-            config::load_book_config(&book.config_path).map_err(|_| RepoError::NotInitialized {
+        let resolved =
+            config::resolve_book_config(&context).map_err(|_| RepoError::NotInitialized {
                 start: book.config_path.display().to_string(),
             })?;
+        let outputs = resolved.outputs();
         return Ok(ValidateBookResult {
-            summary: format!("validation plan ready for {}", book.id),
+            summary: format!(
+                "validation plan ready for {} with outputs: {}",
+                book.id,
+                if outputs.is_empty() {
+                    "none".to_string()
+                } else {
+                    outputs.join(", ")
+                }
+            ),
         });
     }
 
