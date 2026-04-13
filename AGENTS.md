@@ -32,6 +32,13 @@ Add a deeper `AGENTS.md` only when a subdirectory needs rules that differ from t
 - Do not invent implementation details that conflict with `docs/specs/`.
 - Prefer updating specs before scaffolding code when the behavior is still being decided.
 
+## Delegation Rules
+
+- When a task is read-heavy, delegate the reading pass to a sub-agent first.
+- Treat a task as read-heavy when it mainly requires scanning multiple files, specs, ADRs, logs, or diffs before any concrete edit can be made.
+- Use the sub-agent for repository exploration, context gathering, and summary preparation; keep final synthesis, decisions, and file edits in the main agent unless the user asks otherwise.
+- Skip delegation only for small, targeted reads where spawning a sub-agent would add more overhead than value.
+
 ## Implementation Rules
 
 - Implementation language is Rust.
