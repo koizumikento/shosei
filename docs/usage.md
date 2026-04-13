@@ -20,13 +20,14 @@ shosei validate
 
 | Command | Purpose | Status |
 |---|---|---|
-| `shosei init` | project scaffold を作る | available |
-| `shosei explain` | 解決済み設定と値の由来を表示する | available |
-| `shosei build` | 有効な target の成果物を生成する | available |
-| `shosei validate` | config / preflight を検証する | available |
-| `shosei preview` | one-shot preview 成果物を生成する | available |
-| `shosei doctor` | 依存解決結果と導入ヒントを表示する | available |
-| `shosei handoff <destination>` | handoff package を生成する | available |
+| `shosei init` | project scaffold を作る | 利用可能 |
+| `shosei explain` | 解決済み設定と値の由来を表示する | 利用可能 |
+| `shosei build` | 有効な target の成果物を生成する | 利用可能 |
+| `shosei validate` | config / preflight を検証する | 利用可能 |
+| `shosei preview` | one-shot / watch preview を生成する | 利用可能 |
+| `shosei page check` | manga のページ順と見開き候補を検査する | 利用可能 |
+| `shosei doctor` | 依存解決結果と導入ヒントを表示する | 利用可能 |
+| `shosei handoff <destination>` | handoff package を生成する | 利用可能 |
 
 ## Repo discovery
 
@@ -46,6 +47,13 @@ shosei validate --book vol-01
 shosei build --target print
 shosei validate --target kindle
 shosei preview --target print
+```
+
+`page check` は manga project 向けで、ページ順や見開き候補を確認する。
+
+```bash
+shosei page check
+shosei page check --book vol-01
 ```
 
 ## Validate checks
@@ -111,10 +119,24 @@ pdf:
 - `styles/`
 - `dist/`
 - `.gitignore`, `.gitattributes`
+- `.agents/skills/shosei-project/SKILL.md`
 
 ## Preview and doctor
 
-`preview` は v0.1 では one-shot のみで、選択した target の成果物を生成して出力先を返す。
+`preview` は one-shot と `--watch` をサポートする。`--watch` では `book.yml` / `series.yml`、原稿、styles、assets、`shared/` の変更を監視し、再生成失敗時も監視を継続する。
+
+```bash
+shosei preview --watch
+shosei preview --watch --target print
+```
+
+`page check` は `dist/reports/<book-id>-page-check.json` を出しつつ、次を確認する。
+
+- `manga/pages/` の辞書順ページ順
+- 数値順と辞書順がずれるファイル名
+- ページサイズの不一致
+- 見開き候補と `manga.spread_policy_for_kindle` の整合
+- `manga.front_color_pages` と `manga.body_mode` の整合
 
 `doctor` は次の依存について、PATH 解決結果、バージョン、導入ヒントを表示する。
 

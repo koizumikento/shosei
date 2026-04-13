@@ -7,7 +7,7 @@ use anyhow::Result;
 use clap::Parser;
 use shosei_core::{app, cli_api::CommandContext};
 
-use crate::args::{Cli, Commands};
+use crate::args::{Cli, Commands, PageCommands};
 
 fn main() {
     let code = match run() {
@@ -60,11 +60,32 @@ fn run() -> Result<i32> {
                 exit_code::OK
             })
         }
-        Commands::Preview { book, target, path } => {
-            let result = app::preview_book(&CommandContext::new(path, book, target))?;
-            output::print_line(&result.summary);
+        Commands::Preview {
+            book,
+            target,
+            watch,
+            path,
+        } => {
+            let command = CommandContext::new(path, book, target);
+            if watch {
+                app::watch_preview(&command, output::print_line)?;
+            } else {
+                let result = app::preview_book(&command)?;
+                output::print_line(&result.summary);
+            }
             Ok(exit_code::OK)
         }
+        Commands::Page { command } => match command {
+            PageCommands::Check { book, path } => {
+                let result = app::page_check(&CommandContext::new(path, book, None))?;
+                output::print_line(&result.summary);
+                Ok(if result.has_errors {
+                    exit_code::FAILURE
+                } else {
+                    exit_code::OK
+                })
+            }
+        },
         Commands::Doctor => {
             let result = app::doctor();
             output::print_line(&result.summary);

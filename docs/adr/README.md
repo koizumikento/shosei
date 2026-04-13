@@ -17,6 +17,7 @@ Architecture Decision Record の一覧。
 - [ADR-0013: manga のページ順は `manga/pages/` の辞書順を既定にする](0013-manga-page-discovery-fallback.md)
 - [ADR-0014: 外部カバー画像は `book.yml` で明示し、本文ページと分離する](0014-cover-asset-separation.md)
 - [ADR-0015: navigation 構造は source / semantic / navigation で分離する](0015-navigation-structure-separation.md)
+- [ADR-0016: `shosei init` で repo-scoped agent skill template を生成する](0016-init-generates-repo-scoped-agent-skill-template.md)
 
 記法:
 

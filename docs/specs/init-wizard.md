@@ -258,6 +258,7 @@ v0.1 で残す引数は最小限:
 - `dist/`
 - `.gitignore`
 - `.gitattributes`
+- `.agents/skills/shosei-project/SKILL.md`
 
 ### prose
 
@@ -326,6 +327,23 @@ dist/
 *.png filter=lfs diff=lfs merge=lfs -text
 *.jpg filter=lfs diff=lfs merge=lfs -text
 ```
+
+## 12.1 エージェントスキルテンプレート
+
+`shosei init` は repo-scoped な agent skill template を生成する。
+
+ルール:
+
+- 出力先は `.agents/skills/shosei-project/SKILL.md`
+- `SKILL.md` は instruction-first を既定とし、`scripts/`, `references/`, `agents/openai.yaml` は生成しない
+- frontmatter の `description` は、何をする skill かと、いつ使うかを両方書く
+- 本文には少なくとも次を含める
+  - `single-book` / `series` の判定方法
+  - `series` repo での `--book <book-id>` 利用ルール
+  - `shosei explain` を先に使う方針
+  - `validate`, `build`, `preview`, `handoff` の基本導線
+  - config path を repo-relative かつ `/` 区切りで保つルール
+- init 時点の `project.type` と `repo_mode` を skill に埋め込み、利用者があとから project 固有メモを追記できる形にする
 
 ## 13. 実行前チェック
 

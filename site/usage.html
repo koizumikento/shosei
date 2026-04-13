@@ -56,37 +56,42 @@ shosei validate</code></pre>
               <tr>
                 <td><code>shosei init</code></td>
                 <td>project scaffold を作る</td>
-                <td>available</td>
+                <td>利用可能</td>
               </tr>
               <tr>
                 <td><code>shosei explain</code></td>
                 <td>解決済み設定と値の由来を表示する</td>
-                <td>available</td>
+                <td>利用可能</td>
               </tr>
               <tr>
                 <td><code>shosei build</code></td>
                 <td>有効な target の成果物を生成する</td>
-                <td>available</td>
+                <td>利用可能</td>
               </tr>
               <tr>
                 <td><code>shosei validate</code></td>
                 <td>config / preflight を検証する</td>
-                <td>available</td>
+                <td>利用可能</td>
               </tr>
               <tr>
                 <td><code>shosei preview</code></td>
-                <td>one-shot preview 成果物を生成する</td>
-                <td>available</td>
+                <td>one-shot / watch preview を生成する</td>
+                <td>利用可能</td>
+              </tr>
+              <tr>
+                <td><code>shosei page check</code></td>
+                <td>manga のページ順と見開き候補を検査する</td>
+                <td>利用可能</td>
               </tr>
               <tr>
                 <td><code>shosei doctor</code></td>
                 <td>依存解決結果と導入ヒントを表示する</td>
-                <td>available</td>
+                <td>利用可能</td>
               </tr>
               <tr>
                 <td><code>shosei handoff &lt;destination&gt;</code></td>
                 <td>handoff package を生成する</td>
-                <td>available</td>
+                <td>利用可能</td>
               </tr>
             </tbody>
           </table>
@@ -106,6 +111,9 @@ shosei validate --book vol-01</code></pre>
           <pre><code>shosei build --target print
 shosei validate --target kindle
 shosei preview --target print</code></pre>
+          <p><code>page check</code> は manga project 向けで、ページ順や見開き候補を確認します。</p>
+          <pre><code>shosei page check
+shosei page check --book vol-01</code></pre>
         </section>
 
         <section>
@@ -168,12 +176,16 @@ pdf:
             <li>`styles/`</li>
             <li>`dist/`</li>
             <li>`.gitignore`, `.gitattributes`</li>
+            <li>`.agents/skills/shosei-project/SKILL.md`</li>
           </ul>
         </section>
 
         <section>
           <h2>Preview and doctor</h2>
-          <p><code>preview</code> は v0.1 では one-shot のみで、選択した target の成果物を生成して出力先を返します。</p>
+          <p><code>preview</code> は one-shot と <code>--watch</code> をサポートします。<code>--watch</code> では <code>book.yml</code> / <code>series.yml</code>、原稿、styles、assets、<code>shared/</code> の変更を監視し、再生成失敗時も監視を継続します。</p>
+          <pre><code>shosei preview --watch
+shosei preview --watch --target print</code></pre>
+          <p><code>page check</code> は <code>dist/reports/&lt;book-id&gt;-page-check.json</code> を出しつつ、ページ順、ファイル名順序、ページサイズ、見開き候補、カラーポリシーを確認します。</p>
           <p><code>doctor</code> は PATH 解決結果、バージョン、導入ヒントを表示します。</p>
           <ul>
             <li><code>pandoc</code></li>

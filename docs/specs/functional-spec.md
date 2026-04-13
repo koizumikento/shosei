@@ -125,6 +125,10 @@ CLI バイナリ名は `shosei` とする。
 ```text
 project/
   book.yml
+  .agents/
+    skills/
+      shosei-project/
+        SKILL.md
   manuscript/
     00-title.md
     01-chapter-1.md
@@ -168,6 +172,7 @@ project/
 - 設定ファイル生成
 - 標準ディレクトリ作成
 - `.gitignore`, `.gitattributes` の作成
+- repo-scoped agent skill template の生成
 - Git リポジトリ初期化補助
 - 依存チェック案内
 
@@ -249,7 +254,7 @@ v0.1 の最小要件:
 - one-shot を先に実装する
 - `--target kindle|print` を受け付けられる
 - 生成した preview 成果物のパスを端末に表示する
-- `watch` は将来の推奨要件として扱ってよい
+- `--watch` を受け付け、原稿・設定・styles・assets・shared の変化で再生成できる
 
 確認対象:
 
@@ -299,12 +304,30 @@ v0.1 の最小要件:
 - build 情報
 - commit 情報
 
-### 7.8 将来候補
+### 7.8 `shosei page check`
+
+漫画 project のページ順と見開き候補を検査する。
+
+主な責務:
+
+- `manga/pages/` の辞書順をページ順として確認する
+- 数値順と辞書順がずれるファイル名を warning として示す
+- ページサイズ不一致を検出する
+- 見開き候補と `manga.spread_policy_for_kindle` の整合を確認する
+- `manga.front_color_pages` と `manga.body_mode` の整合を確認する
+- 機械可読レポートを出力する
+
+v0.1 の最小要件:
+
+- `project.type: manga` にのみ対応する
+- `dist/reports/<book-id>-page-check.json` を出力する
+- page order と spread candidate を text summary でも示せる
+
+### 7.9 将来候補
 
 - `shosei release`: handoff + tag 前提の成果物固定化
 - `shosei chapter add|move|remove`
 - `shosei page add`
-- `shosei page check`: manga のページ順、見開き、panel metadata の確認を含む
 - `shosei series sync`: `series.yml` から巻一覧、既刊案内、派生 metadata を同期
 - `shosei migrate --to series --book-id <id>`
 
@@ -811,6 +834,7 @@ v0.1 の既定:
 - `validate` の preflight report
 - `handoff`
 - `handoff proof`
+- `page check`
 - manga のページマニフェスト
 - Git LFS 案内
 - 3 OS CI
@@ -819,7 +843,6 @@ v0.1 の既定:
 
 - `shosei explain`
 - `shosei series sync`
-- `shosei page check`
 - fixed-layout EPUB の詳細制御
 - Kindle Previewer の深い統合
 - 漫画の guided view/panel metadata

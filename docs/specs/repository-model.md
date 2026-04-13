@@ -81,6 +81,10 @@
 ```text
 repo/
   book.yml
+  .agents/
+    skills/
+      shosei-project/
+        SKILL.md
   manuscript/
   manga/
   assets/
@@ -100,6 +104,10 @@ repo/
 ```text
 repo/
   series.yml
+  .agents/
+    skills/
+      shosei-project/
+        SKILL.md
   shared/
     assets/
     styles/

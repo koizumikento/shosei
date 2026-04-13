@@ -5,6 +5,8 @@ use std::{
 
 use thiserror::Error;
 
+const SHOSEI_PROJECT_SKILL_TEMPLATE: &str = include_str!("../../templates/shosei-project-skill.md");
+
 #[derive(Debug, Clone)]
 pub struct InitProjectOptions {
     pub root: PathBuf,
@@ -177,6 +179,7 @@ fn init_single_book(root: &Path, template: ProjectTemplate) -> Result<(), InitPr
     write_file(&root.join("styles/base.css"), base_css_contents())?;
     write_file(&root.join("styles/epub.css"), "/* EPUB styles */\n")?;
     write_file(&root.join("styles/print.css"), "/* Print styles */\n")?;
+    write_agent_skill_template(root, template, RepoTemplate::SingleBook)?;
     Ok(())
 }
 
@@ -209,6 +212,7 @@ fn init_series(root: &Path, template: ProjectTemplate) -> Result<(), InitProject
     write_file(&root.join(".gitignore"), gitignore_contents())?;
     write_file(&root.join(".gitattributes"), gitattributes_contents())?;
     write_file(&root.join("shared/styles/base.css"), base_css_contents())?;
+    write_agent_skill_template(root, template, RepoTemplate::Series)?;
     Ok(())
 }
 
@@ -315,6 +319,150 @@ fn base_css_contents() -> &'static str {
     "body {\n  font-family: sans-serif;\n  line-height: 1.8;\n}\n"
 }
 
+fn write_agent_skill_template(
+    root: &Path,
+    template: ProjectTemplate,
+    repo_mode: RepoTemplate,
+) -> Result<(), InitProjectError> {
+    let skill_dir = root.join(".agents/skills/shosei-project");
+    ensure_dir(&skill_dir)?;
+    write_file(
+        &skill_dir.join("SKILL.md"),
+        &agent_skill_contents(template, repo_mode),
+    )
+}
+
+fn agent_skill_contents(template: ProjectTemplate, repo_mode: RepoTemplate) -> String {
+    let replacements = [
+        (
+            "{{DESCRIPTION}}",
+            agent_skill_description(template, repo_mode),
+        ),
+        ("{{REPO_MODE}}", repo_mode_label(repo_mode)),
+        ("{{PROJECT_TYPE}}", template.as_str()),
+        ("{{PRIMARY_CONFIG}}", primary_config_note(repo_mode)),
+        (
+            "{{PRIMARY_CONTENT_PATHS}}",
+            primary_content_paths(template, repo_mode),
+        ),
+        ("{{REPO_MODE_RULES}}", repo_mode_rules(repo_mode)),
+        ("{{EXPLAIN_COMMAND}}", explain_command(repo_mode)),
+        ("{{VALIDATE_COMMAND}}", validate_command(repo_mode)),
+        ("{{PAGE_CHECK_RULE}}", page_check_rule(template, repo_mode)),
+        ("{{BUILD_COMMAND}}", build_command(repo_mode)),
+        ("{{PREVIEW_COMMAND}}", preview_command(repo_mode)),
+        ("{{HANDOFF_COMMAND}}", handoff_command(repo_mode)),
+    ];
+
+    let mut rendered = SHOSEI_PROJECT_SKILL_TEMPLATE.to_string();
+    for (placeholder, value) in replacements {
+        rendered = rendered.replace(placeholder, value);
+    }
+    rendered
+}
+
+fn agent_skill_description(template: ProjectTemplate, repo_mode: RepoTemplate) -> &'static str {
+    match (template, repo_mode) {
+        (ProjectTemplate::Manga, RepoTemplate::Series) => {
+            "Operate this `shosei` manga series repo. Use when the task is to update `series.yml` or `books/<book-id>/book.yml`, edit `books/<book-id>/manga/` inputs, run `shosei explain --book`, `shosei validate --book`, `shosei page check --book`, `shosei build --book`, `shosei preview --book`, or prepare handoff for a volume."
+        }
+        (ProjectTemplate::Manga, RepoTemplate::SingleBook) => {
+            "Operate this `shosei` manga repo. Use when the task is to update `book.yml`, edit `manga/` inputs, run `shosei explain`, `shosei validate`, `shosei page check`, `shosei build`, `shosei preview`, or prepare handoff for this book."
+        }
+        (_, RepoTemplate::Series) => {
+            "Operate this `shosei` series publishing repo. Use when the task is to update `series.yml` or `books/<book-id>/book.yml`, edit `books/<book-id>/manuscript/` or shared assets, run `shosei explain --book`, `shosei validate --book`, `shosei build --book`, `shosei preview --book`, or prepare handoff for a volume."
+        }
+        (_, RepoTemplate::SingleBook) => {
+            "Operate this `shosei` single-book publishing repo. Use when the task is to update `book.yml`, edit `manuscript/` or project assets, run `shosei explain`, `shosei validate`, `shosei build`, `shosei preview`, or prepare handoff for this book."
+        }
+    }
+}
+
+fn repo_mode_label(repo_mode: RepoTemplate) -> &'static str {
+    match repo_mode {
+        RepoTemplate::SingleBook => "single-book",
+        RepoTemplate::Series => "series",
+    }
+}
+
+fn primary_config_note(repo_mode: RepoTemplate) -> &'static str {
+    match repo_mode {
+        RepoTemplate::SingleBook => "`book.yml`",
+        RepoTemplate::Series => "`series.yml` and `books/<book-id>/book.yml`",
+    }
+}
+
+fn primary_content_paths(template: ProjectTemplate, repo_mode: RepoTemplate) -> &'static str {
+    match (template, repo_mode) {
+        (ProjectTemplate::Manga, RepoTemplate::Series) => {
+            "`books/<book-id>/manga/`, `shared/styles/`, `shared/assets/`, `shared/fonts/`"
+        }
+        (ProjectTemplate::Manga, RepoTemplate::SingleBook) => "`manga/`, `assets/`, `styles/`",
+        (_, RepoTemplate::Series) => {
+            "`books/<book-id>/manuscript/`, `shared/styles/`, `shared/assets/`, `shared/fonts/`"
+        }
+        (_, RepoTemplate::SingleBook) => "`manuscript/`, `assets/`, `styles/`",
+    }
+}
+
+fn repo_mode_rules(repo_mode: RepoTemplate) -> &'static str {
+    match repo_mode {
+        RepoTemplate::SingleBook => {
+            "No `--book` flag is needed; run commands from the repository root unless the task explicitly targets a subdirectory."
+        }
+        RepoTemplate::Series => {
+            "From the repository root, pass `--book <book-id>` to `explain`, `build`, `validate`, `preview`, `page check`, and `handoff`, or run those commands from inside `books/<book-id>/...`."
+        }
+    }
+}
+
+fn explain_command(repo_mode: RepoTemplate) -> &'static str {
+    match repo_mode {
+        RepoTemplate::SingleBook => "shosei explain",
+        RepoTemplate::Series => "shosei explain --book vol-01",
+    }
+}
+
+fn validate_command(repo_mode: RepoTemplate) -> &'static str {
+    match repo_mode {
+        RepoTemplate::SingleBook => "shosei validate",
+        RepoTemplate::Series => "shosei validate --book vol-01",
+    }
+}
+
+fn page_check_rule(template: ProjectTemplate, repo_mode: RepoTemplate) -> &'static str {
+    match (template, repo_mode) {
+        (ProjectTemplate::Manga, RepoTemplate::SingleBook) => {
+            "Run `shosei page check` after changing manga page assets, page order, or spread-related settings."
+        }
+        (ProjectTemplate::Manga, RepoTemplate::Series) => {
+            "Run `shosei page check --book vol-01` after changing manga page assets, page order, or spread-related settings."
+        }
+        _ => "Skip `page check` unless this repo is using the manga workflow.",
+    }
+}
+
+fn build_command(repo_mode: RepoTemplate) -> &'static str {
+    match repo_mode {
+        RepoTemplate::SingleBook => "shosei build",
+        RepoTemplate::Series => "shosei build --book vol-01",
+    }
+}
+
+fn preview_command(repo_mode: RepoTemplate) -> &'static str {
+    match repo_mode {
+        RepoTemplate::SingleBook => "shosei preview",
+        RepoTemplate::Series => "shosei preview --book vol-01",
+    }
+}
+
+fn handoff_command(repo_mode: RepoTemplate) -> &'static str {
+    match repo_mode {
+        RepoTemplate::SingleBook => "shosei handoff print",
+        RepoTemplate::Series => "shosei handoff print --book vol-01",
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -339,6 +487,12 @@ mod tests {
         assert!(root.join("book.yml").is_file());
         assert!(root.join("manuscript/01-chapter-1.md").is_file());
         assert!(root.join("styles/base.css").is_file());
+        let skill =
+            fs::read_to_string(root.join(".agents/skills/shosei-project/SKILL.md")).unwrap();
+        assert!(skill.contains("name: \"shosei-project\""));
+        assert!(skill.contains("single-book"));
+        assert!(skill.contains("shosei explain"));
+        assert!(skill.contains("manuscript/"));
         assert!(result.summary.contains("single-book scaffold"));
     }
 
@@ -357,6 +511,12 @@ mod tests {
         assert!(root.join("books/vol-01/book.yml").is_file());
         assert!(root.join("shared/styles/base.css").is_file());
         assert!(root.join("books/vol-01/manga/pages").is_dir());
+        let skill =
+            fs::read_to_string(root.join(".agents/skills/shosei-project/SKILL.md")).unwrap();
+        assert!(skill.contains("series"));
+        assert!(skill.contains("shosei explain --book vol-01"));
+        assert!(skill.contains("shosei page check --book vol-01"));
+        assert!(skill.contains("books/<book-id>/manga/"));
     }
 
     #[test]

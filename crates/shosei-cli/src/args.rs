@@ -48,12 +48,28 @@ pub enum Commands {
         book: Option<String>,
         #[arg(long, value_name = "TARGET", value_parser = ["kindle", "print"])]
         target: Option<String>,
+        #[arg(long)]
+        watch: bool,
         #[arg(long, value_name = "PATH", default_value = ".")]
         path: PathBuf,
+    },
+    Page {
+        #[command(subcommand)]
+        command: PageCommands,
     },
     Doctor,
     Handoff {
         destination: String,
+        #[arg(long)]
+        book: Option<String>,
+        #[arg(long, value_name = "PATH", default_value = ".")]
+        path: PathBuf,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+pub enum PageCommands {
+    Check {
         #[arg(long)]
         book: Option<String>,
         #[arg(long, value_name = "PATH", default_value = ".")]
