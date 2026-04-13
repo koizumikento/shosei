@@ -24,9 +24,9 @@ shosei validate
 | `shosei explain` | 解決済み設定と値の由来を表示する | available |
 | `shosei build` | 有効な target の成果物を生成する | available |
 | `shosei validate` | config / preflight を検証する | available |
-| `shosei preview` | preview 導線 | placeholder |
-| `shosei doctor` | 依存チェック導線 | placeholder |
-| `shosei handoff <destination>` | handoff 導線 | placeholder |
+| `shosei preview` | one-shot preview 成果物を生成する | available |
+| `shosei doctor` | 依存解決結果と導入ヒントを表示する | available |
+| `shosei handoff <destination>` | handoff package を生成する | available |
 
 ## Repo discovery
 
@@ -38,6 +38,14 @@ shosei validate
 shosei explain --book vol-01
 shosei build --book vol-01
 shosei validate --book vol-01
+```
+
+`build` / `validate` / `preview` では、`--target kindle|print` で対象 channel を絞れる。
+
+```bash
+shosei build --target print
+shosei validate --target kindle
+shosei preview --target print
 ```
 
 ## Inspect resolved config
@@ -90,3 +98,16 @@ pdf:
 - `styles/`
 - `dist/`
 - `.gitignore`, `.gitattributes`
+
+## Preview and doctor
+
+`preview` は v0.1 では one-shot のみで、選択した target の成果物を生成して出力先を返す。
+
+`doctor` は次の依存について、PATH 解決結果、バージョン、導入ヒントを表示する。
+
+- `pandoc`
+- `epubcheck`
+- `git`
+- `git-lfs`
+- `weasyprint` / `typst` / `lualatex` のいずれか
+- Kindle Previewer

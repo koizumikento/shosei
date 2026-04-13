@@ -191,7 +191,7 @@ project/
 原則:
 
 - 引数なしで実行できる
-- 個別指定は例外的に `--only` など最小限に留める
+- 個別指定は例外的に `--target kindle|print` など最小限に留める
 - prose と manga でパイプラインを切り替える
 
 ### 7.3 `shosei explain`
@@ -244,6 +244,13 @@ v0.1 の最小要件:
 - shell 固有の file watch 構文に依存しない
 - 再生成失敗時も監視プロセスは継続し、差分修正を試しやすくする
 
+v0.1 の最小要件:
+
+- one-shot を先に実装する
+- `--target kindle|print` を受け付けられる
+- 生成した preview 成果物のパスを端末に表示する
+- `watch` は将来の推奨要件として扱ってよい
+
 確認対象:
 
 - 縦書き/横書き
@@ -269,7 +276,13 @@ v0.1 の最小要件:
 
 - macOS / Windows / Linux で実行ファイル名の差異を吸収して検出する
 - PATH 上の解決結果とバージョンを表示する
-- 不足依存の導入案内を OS 別に出せるようにする
+- 不足依存の導入案内を出せるようにする
+
+v0.1 の最小要件:
+
+- `pandoc`, `epubcheck`, `git`, `git-lfs`, PDF engine, Kindle Previewer を確認対象に含める
+- PATH 解決結果、バージョン、導入ヒントを text 出力で返せる
+- OS 別の詳細導入案内は将来拡張でよい
 
 ### 7.7 `shosei handoff`
 

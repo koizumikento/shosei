@@ -30,18 +30,24 @@ pub enum Commands {
     Build {
         #[arg(long)]
         book: Option<String>,
+        #[arg(long, value_name = "TARGET", value_parser = ["kindle", "print"])]
+        target: Option<String>,
         #[arg(long, value_name = "PATH", default_value = ".")]
         path: PathBuf,
     },
     Validate {
         #[arg(long)]
         book: Option<String>,
+        #[arg(long, value_name = "TARGET", value_parser = ["kindle", "print"])]
+        target: Option<String>,
         #[arg(long, value_name = "PATH", default_value = ".")]
         path: PathBuf,
     },
     Preview {
         #[arg(long)]
         book: Option<String>,
+        #[arg(long, value_name = "TARGET", value_parser = ["kindle", "print"])]
+        target: Option<String>,
         #[arg(long, value_name = "PATH", default_value = ".")]
         path: PathBuf,
     },

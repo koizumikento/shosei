@@ -43,6 +43,10 @@ pub struct ValidationCheck {
     pub tool_status: ToolStatus,
 }
 
+pub fn selected_output_channel(command: &crate::cli_api::CommandContext) -> Option<&str> {
+    command.output_target.as_deref()
+}
+
 #[derive(Debug, Error)]
 pub enum PipelineError {
     #[error("{command} preflight failed: {summary}")]
@@ -66,13 +70,14 @@ pub fn prose_build_plan(
     resolved: &ResolvedBookConfig,
 ) -> Result<BuildPlan, PipelineError> {
     let toolchain = toolchain::inspect_default_toolchain();
-    prose_build_plan_with_toolchain(context, resolved, &toolchain)
+    prose_build_plan_with_toolchain(context, resolved, &toolchain, None)
 }
 
 pub fn prose_build_plan_with_toolchain(
     context: RepoContext,
     resolved: &ResolvedBookConfig,
     toolchain: &toolchain::ToolchainReport,
+    selected_channel: Option<&str>,
 ) -> Result<BuildPlan, PipelineError> {
     let manuscript_files = collect_manuscript_files(resolved);
     let diagnostics = manuscript_file_diagnostics(&manuscript_files);
@@ -83,7 +88,7 @@ pub fn prose_build_plan_with_toolchain(
     Ok(BuildPlan {
         context,
         manuscript_files,
-        outputs: build_outputs(resolved, toolchain),
+        outputs: build_outputs(resolved, toolchain, selected_channel),
         stages: vec![
             "resolve-config",
             "prepare-manuscript",
@@ -98,13 +103,14 @@ pub fn prose_validate_plan(
     resolved: &ResolvedBookConfig,
 ) -> Result<ValidatePlan, PipelineError> {
     let toolchain = toolchain::inspect_default_toolchain();
-    prose_validate_plan_with_toolchain(context, resolved, &toolchain)
+    prose_validate_plan_with_toolchain(context, resolved, &toolchain, None)
 }
 
 pub fn prose_validate_plan_with_toolchain(
     context: RepoContext,
     resolved: &ResolvedBookConfig,
     toolchain: &toolchain::ToolchainReport,
+    selected_channel: Option<&str>,
 ) -> Result<ValidatePlan, PipelineError> {
     let manuscript_files = collect_manuscript_files(resolved);
     let diagnostics = manuscript_file_diagnostics(&manuscript_files);
@@ -118,7 +124,9 @@ pub fn prose_validate_plan_with_toolchain(
         tool: None,
         tool_status: ToolStatus::Planned,
     }];
-    if resolved.effective.outputs.kindle.is_some() {
+    if (selected_channel.is_none() || selected_channel == Some("kindle"))
+        && resolved.effective.outputs.kindle.is_some()
+    {
         checks.push(ValidationCheck {
             name: "kindle-target-check",
             target: "kindle",
@@ -137,7 +145,9 @@ pub fn prose_validate_plan_with_toolchain(
             });
         }
     }
-    if resolved.effective.outputs.print.is_some() {
+    if (selected_channel.is_none() || selected_channel == Some("print"))
+        && resolved.effective.outputs.print.is_some()
+    {
         checks.push(ValidationCheck {
             name: "print-target-check",
             target: "print",
@@ -158,19 +168,20 @@ pub fn manga_build_plan(
     resolved: &ResolvedBookConfig,
 ) -> Result<BuildPlan, PipelineError> {
     let toolchain = toolchain::inspect_default_toolchain();
-    manga_build_plan_with_toolchain(context, resolved, &toolchain)
+    manga_build_plan_with_toolchain(context, resolved, &toolchain, None)
 }
 
 pub fn manga_build_plan_with_toolchain(
     context: RepoContext,
     resolved: &ResolvedBookConfig,
     _toolchain: &toolchain::ToolchainReport,
+    selected_channel: Option<&str>,
 ) -> Result<BuildPlan, PipelineError> {
     let page_files = manga_page_files("build", &context)?;
     Ok(BuildPlan {
         context,
         manuscript_files: page_files,
-        outputs: manga_build_outputs(resolved),
+        outputs: manga_build_outputs(resolved, selected_channel),
         stages: vec![
             "resolve-config",
             "resolve-page-manifest",
@@ -185,13 +196,14 @@ pub fn manga_validate_plan(
     resolved: &ResolvedBookConfig,
 ) -> Result<ValidatePlan, PipelineError> {
     let toolchain = toolchain::inspect_default_toolchain();
-    manga_validate_plan_with_toolchain(context, resolved, &toolchain)
+    manga_validate_plan_with_toolchain(context, resolved, &toolchain, None)
 }
 
 pub fn manga_validate_plan_with_toolchain(
     context: RepoContext,
     resolved: &ResolvedBookConfig,
     _toolchain: &toolchain::ToolchainReport,
+    selected_channel: Option<&str>,
 ) -> Result<ValidatePlan, PipelineError> {
     let page_files = manga_page_files("validate", &context)?;
     let mut checks = vec![
@@ -209,7 +221,9 @@ pub fn manga_validate_plan_with_toolchain(
         },
     ];
 
-    if resolved.effective.outputs.kindle.is_some() {
+    if (selected_channel.is_none() || selected_channel == Some("kindle"))
+        && resolved.effective.outputs.kindle.is_some()
+    {
         checks.push(ValidationCheck {
             name: "kindle-target-check",
             target: "kindle",
@@ -217,7 +231,9 @@ pub fn manga_validate_plan_with_toolchain(
             tool_status: ToolStatus::Planned,
         });
     }
-    if resolved.effective.outputs.print.is_some() {
+    if (selected_channel.is_none() || selected_channel == Some("print"))
+        && resolved.effective.outputs.print.is_some()
+    {
         checks.push(ValidationCheck {
             name: "print-target-check",
             target: "print",
@@ -299,10 +315,13 @@ fn manga_page_files(
 fn build_outputs(
     resolved: &ResolvedBookConfig,
     toolchain: &toolchain::ToolchainReport,
+    selected_channel: Option<&str>,
 ) -> Vec<BuildOutputPlan> {
     let mut outputs = Vec::new();
 
-    if let Some(target) = &resolved.effective.outputs.kindle {
+    if (selected_channel.is_none() || selected_channel == Some("kindle"))
+        && let Some(target) = &resolved.effective.outputs.kindle
+    {
         outputs.push(BuildOutputPlan {
             channel: "kindle",
             target: target.clone(),
@@ -314,7 +333,9 @@ fn build_outputs(
                 .unwrap_or(ToolStatus::Missing),
         });
     }
-    if let Some(target) = &resolved.effective.outputs.print {
+    if (selected_channel.is_none() || selected_channel == Some("print"))
+        && let Some(target) = &resolved.effective.outputs.print
+    {
         outputs.push(BuildOutputPlan {
             channel: "print",
             target: target.clone(),
@@ -330,10 +351,15 @@ fn build_outputs(
     outputs
 }
 
-fn manga_build_outputs(resolved: &ResolvedBookConfig) -> Vec<BuildOutputPlan> {
+fn manga_build_outputs(
+    resolved: &ResolvedBookConfig,
+    selected_channel: Option<&str>,
+) -> Vec<BuildOutputPlan> {
     let mut outputs = Vec::new();
 
-    if let Some(target) = &resolved.effective.outputs.kindle {
+    if (selected_channel.is_none() || selected_channel == Some("kindle"))
+        && let Some(target) = &resolved.effective.outputs.kindle
+    {
         outputs.push(BuildOutputPlan {
             channel: "kindle",
             target: target.clone(),
@@ -342,7 +368,9 @@ fn manga_build_outputs(resolved: &ResolvedBookConfig) -> Vec<BuildOutputPlan> {
             tool_status: ToolStatus::Available,
         });
     }
-    if let Some(target) = &resolved.effective.outputs.print {
+    if (selected_channel.is_none() || selected_channel == Some("print"))
+        && let Some(target) = &resolved.effective.outputs.print
+    {
         outputs.push(BuildOutputPlan {
             channel: "print",
             target: target.clone(),

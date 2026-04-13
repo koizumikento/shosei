@@ -75,18 +75,18 @@ shosei validate</code></pre>
               </tr>
               <tr>
                 <td><code>shosei preview</code></td>
-                <td>preview 導線</td>
-                <td>placeholder</td>
+                <td>one-shot preview 成果物を生成する</td>
+                <td>available</td>
               </tr>
               <tr>
                 <td><code>shosei doctor</code></td>
-                <td>依存チェック導線</td>
-                <td>placeholder</td>
+                <td>依存解決結果と導入ヒントを表示する</td>
+                <td>available</td>
               </tr>
               <tr>
                 <td><code>shosei handoff &lt;destination&gt;</code></td>
-                <td>handoff 導線</td>
-                <td>placeholder</td>
+                <td>handoff package を生成する</td>
+                <td>available</td>
               </tr>
             </tbody>
           </table>
@@ -102,6 +102,10 @@ shosei validate</code></pre>
           <pre><code>shosei explain --book vol-01
 shosei build --book vol-01
 shosei validate --book vol-01</code></pre>
+          <p><code>build</code> / <code>validate</code> / <code>preview</code> では、<code>--target kindle|print</code> で対象 channel を絞れます。</p>
+          <pre><code>shosei build --target print
+shosei validate --target kindle
+shosei preview --target print</code></pre>
         </section>
 
         <section>
@@ -150,6 +154,20 @@ pdf:
             <li>`styles/`</li>
             <li>`dist/`</li>
             <li>`.gitignore`, `.gitattributes`</li>
+          </ul>
+        </section>
+
+        <section>
+          <h2>Preview and doctor</h2>
+          <p><code>preview</code> は v0.1 では one-shot のみで、選択した target の成果物を生成して出力先を返します。</p>
+          <p><code>doctor</code> は PATH 解決結果、バージョン、導入ヒントを表示します。</p>
+          <ul>
+            <li><code>pandoc</code></li>
+            <li><code>epubcheck</code></li>
+            <li><code>git</code></li>
+            <li><code>git-lfs</code></li>
+            <li><code>weasyprint</code> / <code>typst</code> / <code>lualatex</code> のいずれか</li>
+            <li>Kindle Previewer</li>
           </ul>
         </section>
       </article>

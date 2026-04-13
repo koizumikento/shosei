@@ -39,7 +39,7 @@ git:
     )
     .unwrap();
 
-    let error = app::build_book(&CommandContext::new(&root, None)).unwrap_err();
+    let error = app::build_book(&CommandContext::new(&root, None, None)).unwrap_err();
     assert!(matches!(
         error,
         app::BuildBookError::Config(ConfigError::MissingField { field, .. }) if field == "manuscript.chapters"
@@ -73,7 +73,7 @@ git:
     )
     .unwrap();
 
-    let error = app::validate_book(&CommandContext::new(&root, None)).unwrap_err();
+    let error = app::validate_book(&CommandContext::new(&root, None, None)).unwrap_err();
     assert!(matches!(
         error,
         app::ValidateBookError::Config(ConfigError::NoEnabledOutputs { .. })
@@ -111,7 +111,7 @@ git:
     )
     .unwrap();
 
-    let error = app::build_book(&CommandContext::new(&root, None)).unwrap_err();
+    let error = app::build_book(&CommandContext::new(&root, None, None)).unwrap_err();
     match error {
         app::BuildBookError::Pipeline(PipelineError::PreflightFailed { diagnostics, .. }) => {
             assert_eq!(diagnostics.len(), 1);
@@ -152,13 +152,95 @@ git:
     )
     .unwrap();
 
-    let result = app::validate_book(&CommandContext::new(&root, None)).unwrap();
+    let result = app::validate_book(&CommandContext::new(&root, None, None)).unwrap();
     assert!(result.has_errors);
     assert_eq!(result.issue_count, 1);
     assert!(result.report_path.is_file());
     let report = fs::read_to_string(result.report_path).unwrap();
     assert!(report.contains("manuscript file not found"));
     assert!(report.contains("manuscript/01.md"));
+}
+
+#[test]
+fn build_rejects_disabled_selected_target() {
+    let root = temp_dir("build-disabled-target");
+    fs::create_dir_all(root.join("manuscript")).unwrap();
+    fs::write(root.join("manuscript/01.md"), "# Chapter 1\n").unwrap();
+    fs::write(
+        root.join("book.yml"),
+        r#"
+project:
+  type: novel
+  vcs: git
+book:
+  title: "Sample"
+  authors:
+    - "Author"
+  reading_direction: rtl
+layout:
+  binding: right
+manuscript:
+  chapters:
+    - manuscript/01.md
+outputs:
+  kindle:
+    enabled: true
+    target: kindle-ja
+validation:
+  strict: true
+git:
+  lfs: true
+"#,
+    )
+    .unwrap();
+
+    let error =
+        app::build_book(&CommandContext::new(&root, None, Some("print".to_string()))).unwrap_err();
+    assert!(matches!(
+        error,
+        app::BuildBookError::TargetNotEnabled { target } if target == "print"
+    ));
+}
+
+#[test]
+fn validate_rejects_disabled_selected_target() {
+    let root = temp_dir("validate-disabled-target");
+    fs::create_dir_all(root.join("manuscript")).unwrap();
+    fs::write(root.join("manuscript/01.md"), "# Chapter 1\n").unwrap();
+    fs::write(
+        root.join("book.yml"),
+        r#"
+project:
+  type: novel
+  vcs: git
+book:
+  title: "Sample"
+  authors:
+    - "Author"
+  reading_direction: rtl
+layout:
+  binding: right
+manuscript:
+  chapters:
+    - manuscript/01.md
+outputs:
+  kindle:
+    enabled: true
+    target: kindle-ja
+validation:
+  strict: true
+git:
+  lfs: true
+"#,
+    )
+    .unwrap();
+
+    let error = app::validate_book(&CommandContext::new(&root, None, Some("print".to_string())))
+        .unwrap_err();
+    assert!(matches!(
+        error,
+        app::ValidateBookError::TargetNotEnabled { target } if target == "print"
+    ));
 }
 
 #[test]
@@ -187,7 +269,7 @@ outputs:
     )
     .unwrap();
 
-    let result = app::explain_config(&CommandContext::new(&root, None)).unwrap();
+    let result = app::explain_config(&CommandContext::new(&root, None, None)).unwrap();
     assert!(result.summary.contains("explain for default"));
     assert!(result.summary.contains("book.title = Sample [book.yml]"));
     assert!(
@@ -248,8 +330,12 @@ manuscript:
     )
     .unwrap();
 
-    let result =
-        app::explain_config(&CommandContext::new(&root, Some("vol-01".to_string()))).unwrap();
+    let result = app::explain_config(&CommandContext::new(
+        &root,
+        Some("vol-01".to_string()),
+        None,
+    ))
+    .unwrap();
     assert!(
         result
             .summary

@@ -29,8 +29,10 @@ pub struct ToolRecord {
     pub key: &'static str,
     pub display_name: &'static str,
     pub status: ToolStatus,
+    pub detected_as: Option<String>,
     pub resolved_path: Option<PathBuf>,
     pub version: Option<String>,
+    pub install_hint: &'static str,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -56,7 +58,7 @@ struct ToolSpec {
     display_name: &'static str,
     candidates: &'static [&'static str],
     version_args: &'static [&'static str],
-    implemented: bool,
+    install_hint: &'static str,
 }
 
 const TOOL_SPECS: &[ToolSpec] = &[
@@ -65,42 +67,47 @@ const TOOL_SPECS: &[ToolSpec] = &[
         display_name: "pandoc",
         candidates: &["pandoc"],
         version_args: &["--version"],
-        implemented: true,
+        install_hint: "Install pandoc and ensure it is available on PATH.",
     },
     ToolSpec {
         key: "epubcheck",
         display_name: "epubcheck",
         candidates: &["epubcheck", "epubcheck.cmd", "epubcheck.bat"],
         version_args: &["--version"],
-        implemented: true,
+        install_hint: "Install epubcheck and ensure the launcher is available on PATH.",
     },
     ToolSpec {
         key: "git",
         display_name: "git",
         candidates: &["git"],
         version_args: &["--version"],
-        implemented: true,
+        install_hint: "Install Git and ensure `git` is available on PATH.",
     },
     ToolSpec {
         key: "git-lfs",
         display_name: "git-lfs",
         candidates: &["git-lfs"],
         version_args: &["version"],
-        implemented: true,
+        install_hint: "Install Git LFS and run `git lfs install` once for the current user.",
     },
     ToolSpec {
         key: "pdf-engine",
         display_name: "PDF engine",
-        candidates: &[],
-        version_args: &[],
-        implemented: false,
+        candidates: &["weasyprint", "typst", "lualatex"],
+        version_args: &["--version"],
+        install_hint: "Install one supported PDF engine such as weasyprint, typst, or lualatex.",
     },
     ToolSpec {
         key: "kindle-previewer",
         display_name: "Kindle Previewer",
-        candidates: &[],
-        version_args: &[],
-        implemented: false,
+        candidates: &[
+            "Kindle Previewer 3",
+            "Kindle Previewer",
+            "KindlePreviewer",
+            "kindlepreviewer",
+        ],
+        version_args: &["--version"],
+        install_hint: "Install Kindle Previewer if you want device-oriented Kindle checks.",
     },
 ];
 
@@ -183,20 +190,13 @@ fn inspect_tool(
     path_var: Option<&OsString>,
     pathext: Option<&OsString>,
 ) -> ToolRecord {
-    if !spec.implemented {
-        return ToolRecord {
-            key: spec.key,
-            display_name: spec.display_name,
-            status: ToolStatus::NotYetImplemented,
-            resolved_path: None,
-            version: None,
-        };
-    }
-
-    let resolved_path = spec
-        .candidates
-        .iter()
-        .find_map(|candidate| find_in_path(candidate, path_var, pathext));
+    let resolved = spec.candidates.iter().find_map(|candidate| {
+        find_in_path(candidate, path_var, pathext).map(|path| ((*candidate).to_string(), path))
+    });
+    let (detected_as, resolved_path) = match resolved {
+        Some((candidate, path)) => (Some(candidate), Some(path)),
+        None => (None, None),
+    };
     let version = resolved_path
         .as_ref()
         .and_then(|path| read_version(path, spec.version_args));
@@ -209,8 +209,10 @@ fn inspect_tool(
         } else {
             ToolStatus::Missing
         },
+        detected_as,
         resolved_path,
         version,
+        install_hint: spec.install_hint,
     }
 }
 
@@ -302,7 +304,7 @@ mod tests {
         assert_eq!(report.tool("pandoc").unwrap().status, ToolStatus::Missing);
         assert_eq!(
             report.tool("pdf-engine").unwrap().status,
-            ToolStatus::NotYetImplemented
+            ToolStatus::Missing
         );
     }
 

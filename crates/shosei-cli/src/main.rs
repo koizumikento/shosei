@@ -42,17 +42,17 @@ fn run() -> Result<i32> {
             Ok(exit_code::OK)
         }
         Commands::Explain { book, path } => {
-            let result = app::explain_config(&CommandContext::new(path, book))?;
+            let result = app::explain_config(&CommandContext::new(path, book, None))?;
             output::print_line(&result.summary);
             Ok(exit_code::OK)
         }
-        Commands::Build { book, path } => {
-            let result = app::build_book(&CommandContext::new(path, book))?;
+        Commands::Build { book, target, path } => {
+            let result = app::build_book(&CommandContext::new(path, book, target))?;
             output::print_line(&result.summary);
             Ok(exit_code::OK)
         }
-        Commands::Validate { book, path } => {
-            let result = app::validate_book(&CommandContext::new(path, book))?;
+        Commands::Validate { book, target, path } => {
+            let result = app::validate_book(&CommandContext::new(path, book, target))?;
             output::print_line(&result.summary);
             Ok(if result.has_errors {
                 exit_code::FAILURE
@@ -60,8 +60,8 @@ fn run() -> Result<i32> {
                 exit_code::OK
             })
         }
-        Commands::Preview { book, path } => {
-            let result = app::preview_book(&CommandContext::new(path, book))?;
+        Commands::Preview { book, target, path } => {
+            let result = app::preview_book(&CommandContext::new(path, book, target))?;
             output::print_line(&result.summary);
             Ok(exit_code::OK)
         }
@@ -75,7 +75,7 @@ fn run() -> Result<i32> {
             book,
             path,
         } => {
-            let result = app::handoff(&CommandContext::new(path, book), &destination)?;
+            let result = app::handoff(&CommandContext::new(path, book, None), &destination)?;
             output::print_line(&result.summary);
             Ok(exit_code::OK)
         }

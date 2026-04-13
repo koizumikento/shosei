@@ -43,6 +43,8 @@ pub enum ValidateBookError {
     },
     #[error("validation planning is not implemented yet for {project_type}")]
     UnsupportedProjectType { project_type: ProjectType },
+    #[error("requested target `{target}` is not enabled for this book")]
+    TargetNotEnabled { target: String },
 }
 
 pub fn validate_book(command: &CommandContext) -> Result<ValidateBookResult, ValidateBookError> {
@@ -63,11 +65,20 @@ fn validate_book_with_toolchain(
         let resolved = config::resolve_book_config(&context)?;
         let project_type = resolved.effective.project.project_type;
         let report_path = report_path(&resolved);
+        let selected_channel = pipeline::selected_output_channel(command);
         let (plan, mut issues) = match match project_type {
-            ProjectType::Manga => {
-                pipeline::manga_validate_plan_with_toolchain(context, &resolved, toolchain)
-            }
-            _ => pipeline::prose_validate_plan_with_toolchain(context, &resolved, toolchain),
+            ProjectType::Manga => pipeline::manga_validate_plan_with_toolchain(
+                context,
+                &resolved,
+                toolchain,
+                selected_channel,
+            ),
+            _ => pipeline::prose_validate_plan_with_toolchain(
+                context,
+                &resolved,
+                toolchain,
+                selected_channel,
+            ),
         } {
             Ok(plan) => (Some(plan), Vec::new()),
             Err(pipeline::PipelineError::PreflightFailed { diagnostics, .. }) => (
@@ -79,6 +90,14 @@ fn validate_book_with_toolchain(
             ),
         };
         if let Some(plan) = &plan {
+            if plan.checks.len() == 1 && command.output_target.is_some() {
+                return Err(ValidateBookError::TargetNotEnabled {
+                    target: command
+                        .output_target
+                        .clone()
+                        .unwrap_or_else(|| "unknown".to_string()),
+                });
+            }
             issues.extend(issues_from_checks(plan));
             issues.extend(schema_warning_issues(&resolved));
             if project_type == ProjectType::Manga {
@@ -86,7 +105,7 @@ fn validate_book_with_toolchain(
             }
         }
         issues.extend(cover_validation_issues(&resolved));
-        let outputs = resolved.outputs();
+        let outputs = selected_outputs(&resolved, command.output_target.as_deref());
         let report = ValidateReport {
             book_id: book.id.clone(),
             outputs: outputs.clone(),
@@ -523,6 +542,24 @@ fn report_path(resolved: &config::ResolvedBookConfig) -> PathBuf {
         .join(format!("{book_id}-validate.json"))
 }
 
+fn selected_outputs(
+    resolved: &config::ResolvedBookConfig,
+    selected_channel: Option<&str>,
+) -> Vec<String> {
+    let mut outputs = Vec::new();
+    if (selected_channel.is_none() || selected_channel == Some("kindle"))
+        && let Some(target) = &resolved.effective.outputs.kindle
+    {
+        outputs.push(target.clone());
+    }
+    if (selected_channel.is_none() || selected_channel == Some("print"))
+        && let Some(target) = &resolved.effective.outputs.print
+    {
+        outputs.push(target.clone());
+    }
+    outputs
+}
+
 fn write_report(path: &std::path::Path, report: &ValidateReport) -> Result<(), ValidateBookError> {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent).map_err(|source| ValidateBookError::WriteReport {
@@ -568,8 +605,10 @@ mod tests {
                 key: "epubcheck",
                 display_name: "epubcheck",
                 status: epubcheck,
+                detected_as: Some("epubcheck".to_string()),
                 resolved_path: None,
                 version: None,
+                install_hint: "Install epubcheck and ensure the launcher is available on PATH.",
             }],
         }
     }
@@ -735,7 +774,7 @@ manga:
         write_book(&root);
 
         let result = validate_book_with_toolchain(
-            &CommandContext::new(&root, None),
+            &CommandContext::new(&root, None, None),
             &fake_toolchain(ToolStatus::Missing),
         )
         .unwrap();
@@ -753,7 +792,7 @@ manga:
         write_book_with_cover(&root, "error", false);
 
         let result = validate_book_with_toolchain(
-            &CommandContext::new(&root, None),
+            &CommandContext::new(&root, None, None),
             &fake_toolchain(ToolStatus::Available),
         )
         .unwrap();
@@ -770,7 +809,7 @@ manga:
         write_book_with_cover(&root, "warn", false);
 
         let result = validate_book_with_toolchain(
-            &CommandContext::new(&root, None),
+            &CommandContext::new(&root, None, None),
             &fake_toolchain(ToolStatus::Available),
         )
         .unwrap();
@@ -787,7 +826,7 @@ manga:
         write_manga_book(&root);
 
         let result = validate_book_with_toolchain(
-            &CommandContext::new(&root, None),
+            &CommandContext::new(&root, None, None),
             &fake_toolchain(ToolStatus::Missing),
         )
         .unwrap();
@@ -804,7 +843,7 @@ manga:
         write_manga_book_with_missing_image(&root, "warn");
 
         let result = validate_book_with_toolchain(
-            &CommandContext::new(&root, None),
+            &CommandContext::new(&root, None, None),
             &fake_toolchain(ToolStatus::Missing),
         )
         .unwrap();
@@ -823,7 +862,7 @@ manga:
         write_manga_book(&root);
 
         let result = validate_book_with_toolchain(
-            &CommandContext::new(&root, None),
+            &CommandContext::new(&root, None, None),
             &fake_toolchain(ToolStatus::Missing),
         )
         .unwrap();
@@ -842,7 +881,7 @@ manga:
         write_manga_book_with_options(&root, "error", "single-page", 0, "mixed");
 
         let result = validate_book_with_toolchain(
-            &CommandContext::new(&root, None),
+            &CommandContext::new(&root, None, None),
             &fake_toolchain(ToolStatus::Missing),
         )
         .unwrap();
@@ -861,7 +900,7 @@ manga:
         write_manga_book_with_options(&root, "error", "skip", 0, "monochrome");
 
         let result = validate_book_with_toolchain(
-            &CommandContext::new(&root, None),
+            &CommandContext::new(&root, None, None),
             &fake_toolchain(ToolStatus::Missing),
         )
         .unwrap();
@@ -879,7 +918,7 @@ manga:
         write_manga_book_with_options(&root, "error", "split", 1, "mixed");
 
         let result = validate_book_with_toolchain(
-            &CommandContext::new(&root, None),
+            &CommandContext::new(&root, None, None),
             &fake_toolchain(ToolStatus::Missing),
         )
         .unwrap();
@@ -899,7 +938,7 @@ manga:
         write_manga_book_with_options(&root, "error", "split", 1, "monochrome");
 
         let result = validate_book_with_toolchain(
-            &CommandContext::new(&root, None),
+            &CommandContext::new(&root, None, None),
             &fake_toolchain(ToolStatus::Missing),
         )
         .unwrap();
@@ -920,7 +959,7 @@ manga:
         write_manga_book_with_options(&root, "error", "split", 2, "mixed");
 
         let result = validate_book_with_toolchain(
-            &CommandContext::new(&root, None),
+            &CommandContext::new(&root, None, None),
             &fake_toolchain(ToolStatus::Missing),
         )
         .unwrap();
@@ -969,7 +1008,7 @@ manga:
         .unwrap();
 
         let result = validate_book_with_toolchain(
-            &CommandContext::new(&root, None),
+            &CommandContext::new(&root, None, None),
             &fake_toolchain(ToolStatus::Missing),
         )
         .unwrap();
@@ -1020,7 +1059,7 @@ manga:
         .unwrap();
 
         let result = validate_book_with_toolchain(
-            &CommandContext::new(&root, None),
+            &CommandContext::new(&root, None, None),
             &fake_toolchain(ToolStatus::Missing),
         )
         .unwrap();

@@ -362,7 +362,7 @@ mod tests {
             true,
         );
 
-        let result = handoff(&CommandContext::new(&root, None), "kindle").unwrap();
+        let result = handoff(&CommandContext::new(&root, None, None), "kindle").unwrap();
 
         assert!(result.package_dir.is_dir());
         assert!(result.manifest_path.is_file());
@@ -397,7 +397,7 @@ mod tests {
             false,
         );
 
-        let result = handoff(&CommandContext::new(&root, None), "proof").unwrap();
+        let result = handoff(&CommandContext::new(&root, None, None), "proof").unwrap();
         let manifest: Value =
             serde_json::from_str(&fs::read_to_string(result.manifest_path).unwrap()).unwrap();
         assert_eq!(manifest["destination"], "proof");
@@ -413,7 +413,7 @@ mod tests {
             false,
         );
 
-        let error = handoff(&CommandContext::new(&root, None), "web").unwrap_err();
+        let error = handoff(&CommandContext::new(&root, None, None), "web").unwrap_err();
         assert!(matches!(
             error,
             HandoffError::UnsupportedDestination { destination } if destination == "web"

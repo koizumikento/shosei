@@ -11,5 +11,5 @@ pub use doctor::{DoctorResult, doctor};
 pub use explain_config::{ExplainConfigError, ExplainConfigResult, explain_config};
 pub use handoff::{HandoffError, HandoffResult, handoff};
 pub use init_project::{InitProjectError, InitProjectOptions, InitProjectResult, init_project};
-pub use preview_book::{PreviewBookResult, preview_book};
+pub use preview_book::{PreviewBookError, PreviewBookResult, preview_book};
 pub use validate_book::{ValidateBookError, ValidateBookResult, validate_book};

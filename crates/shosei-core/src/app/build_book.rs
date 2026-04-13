@@ -34,6 +34,8 @@ pub enum BuildBookError {
     ExecutionFailed { target: String, log_path: PathBuf },
     #[error("build planning is not implemented yet for {project_type}")]
     UnsupportedProjectType { project_type: ProjectType },
+    #[error("requested target `{target}` is not enabled for this book")]
+    TargetNotEnabled { target: String },
 }
 
 pub fn build_book(command: &CommandContext) -> Result<BuildBookResult, BuildBookError> {
@@ -53,13 +55,34 @@ fn build_book_with_toolchain(
     if let Some(book) = context.book.clone() {
         let resolved = config::resolve_book_config(&context)?;
         let project_type = resolved.effective.project.project_type;
+        let selected_channel = pipeline::selected_output_channel(command);
         let plan = match project_type {
-            ProjectType::Manga => {
-                pipeline::manga_build_plan_with_toolchain(context, &resolved, toolchain)?
-            }
-            _ => pipeline::prose_build_plan_with_toolchain(context, &resolved, toolchain)?,
+            ProjectType::Manga => pipeline::manga_build_plan_with_toolchain(
+                context,
+                &resolved,
+                toolchain,
+                selected_channel,
+            )?,
+            _ => pipeline::prose_build_plan_with_toolchain(
+                context,
+                &resolved,
+                toolchain,
+                selected_channel,
+            )?,
         };
-        let outputs = resolved.outputs();
+        if plan.outputs.is_empty() {
+            return Err(BuildBookError::TargetNotEnabled {
+                target: command
+                    .output_target
+                    .clone()
+                    .unwrap_or_else(|| "unknown".to_string()),
+            });
+        }
+        let outputs = plan
+            .outputs
+            .iter()
+            .map(|output| output.target.clone())
+            .collect::<Vec<_>>();
         let source_count = plan.manuscript_files.len();
         let artifacts = match project_type {
             ProjectType::Manga => execute_manga_build_outputs(&resolved, &plan)?,
@@ -377,8 +400,10 @@ mod tests {
                 } else {
                     ToolStatus::Missing
                 },
+                detected_as: Some("pandoc".to_string()),
                 resolved_path: pandoc_path,
                 version: None,
+                install_hint: "Install pandoc and ensure it is available on PATH.",
             }],
         }
     }
@@ -549,9 +574,11 @@ manga:
         let root = temp_dir("missing-pandoc");
         write_book(&root);
 
-        let error =
-            build_book_with_toolchain(&CommandContext::new(&root, None), &fake_toolchain(None))
-                .unwrap_err();
+        let error = build_book_with_toolchain(
+            &CommandContext::new(&root, None, None),
+            &fake_toolchain(None),
+        )
+        .unwrap_err();
         assert!(matches!(
             error,
             BuildBookError::RequiredToolMissing { tool, target }
@@ -593,7 +620,7 @@ printf 'fake epub' > "$out"
         }
 
         let result = build_book_with_toolchain(
-            &CommandContext::new(&root, None),
+            &CommandContext::new(&root, None, None),
             &fake_toolchain(Some(pandoc)),
         )
         .unwrap();
@@ -645,7 +672,7 @@ printf 'fake epub' > "$out"
         }
 
         let result = build_book_with_toolchain(
-            &CommandContext::new(&root, None),
+            &CommandContext::new(&root, None, None),
             &fake_toolchain(Some(pandoc)),
         )
         .unwrap();
@@ -683,7 +710,7 @@ exit 42
         }
 
         let error = build_book_with_toolchain(
-            &CommandContext::new(&root, None),
+            &CommandContext::new(&root, None, None),
             &fake_toolchain(Some(pandoc)),
         )
         .unwrap_err();
@@ -732,7 +759,7 @@ printf 'fake pdf' > "$out"
         }
 
         let result = build_book_with_toolchain(
-            &CommandContext::new(&root, None),
+            &CommandContext::new(&root, None, None),
             &fake_toolchain(Some(pandoc)),
         )
         .unwrap();
@@ -784,7 +811,7 @@ printf 'fake pdf' > "$out"
         }
 
         let result = build_book_with_toolchain(
-            &CommandContext::new(&root, None),
+            &CommandContext::new(&root, None, None),
             &fake_toolchain(Some(pandoc)),
         )
         .unwrap();
@@ -833,7 +860,7 @@ printf 'fake pdf' > "$out"
         }
 
         let result = build_book_with_toolchain(
-            &CommandContext::new(&root, None),
+            &CommandContext::new(&root, None, None),
             &fake_toolchain(Some(pandoc)),
         )
         .unwrap();
@@ -853,9 +880,11 @@ printf 'fake pdf' > "$out"
         );
         fs::write(root.join("manga/pages/002.png"), tiny_png()).unwrap();
 
-        let result =
-            build_book_with_toolchain(&CommandContext::new(&root, None), &fake_toolchain(None))
-                .unwrap();
+        let result = build_book_with_toolchain(
+            &CommandContext::new(&root, None, None),
+            &fake_toolchain(None),
+        )
+        .unwrap();
 
         assert_eq!(result.artifacts.len(), 1);
         assert_eq!(
@@ -887,9 +916,11 @@ printf 'fake pdf' > "$out"
         )
         .unwrap();
 
-        let result =
-            build_book_with_toolchain(&CommandContext::new(&root, None), &fake_toolchain(None))
-                .unwrap();
+        let result = build_book_with_toolchain(
+            &CommandContext::new(&root, None, None),
+            &fake_toolchain(None),
+        )
+        .unwrap();
 
         let package = read_epub_entry(&result.artifacts[0], "OEBPS/package.opf");
         assert!(package.contains("properties=\"cover-image\""));
@@ -908,9 +939,11 @@ printf 'fake pdf' > "$out"
         );
         fs::write(root.join("manga/pages/001.png"), wide_png()).unwrap();
 
-        let result =
-            build_book_with_toolchain(&CommandContext::new(&root, None), &fake_toolchain(None))
-                .unwrap();
+        let result = build_book_with_toolchain(
+            &CommandContext::new(&root, None, None),
+            &fake_toolchain(None),
+        )
+        .unwrap();
 
         let first_page = read_epub_entry(&result.artifacts[0], "OEBPS/pages/page-0001.xhtml");
         let second_page = read_epub_entry(&result.artifacts[0], "OEBPS/pages/page-0002.xhtml");
@@ -928,9 +961,11 @@ printf 'fake pdf' > "$out"
         );
         fs::write(root.join("manga/pages/001.png"), wide_png()).unwrap();
 
-        let result =
-            build_book_with_toolchain(&CommandContext::new(&root, None), &fake_toolchain(None))
-                .unwrap();
+        let result = build_book_with_toolchain(
+            &CommandContext::new(&root, None, None),
+            &fake_toolchain(None),
+        )
+        .unwrap();
 
         let first_page = read_epub_entry(&result.artifacts[0], "OEBPS/pages/page-0001.xhtml");
         assert!(first_page.contains("001.png"));
@@ -946,9 +981,11 @@ printf 'fake pdf' > "$out"
         );
         fs::write(root.join("manga/pages/002.png"), wide_png()).unwrap();
 
-        let result =
-            build_book_with_toolchain(&CommandContext::new(&root, None), &fake_toolchain(None))
-                .unwrap();
+        let result = build_book_with_toolchain(
+            &CommandContext::new(&root, None, None),
+            &fake_toolchain(None),
+        )
+        .unwrap();
 
         let package = read_epub_entry(&result.artifacts[0], "OEBPS/package.opf");
         let first_page = read_epub_entry(&result.artifacts[0], "OEBPS/pages/page-0001.xhtml");
@@ -966,9 +1003,11 @@ printf 'fake pdf' > "$out"
             "split",
         );
 
-        let result =
-            build_book_with_toolchain(&CommandContext::new(&root, None), &fake_toolchain(None))
-                .unwrap();
+        let result = build_book_with_toolchain(
+            &CommandContext::new(&root, None, None),
+            &fake_toolchain(None),
+        )
+        .unwrap();
 
         assert_eq!(result.artifacts.len(), 1);
         assert_eq!(

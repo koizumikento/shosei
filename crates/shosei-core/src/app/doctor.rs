@@ -30,24 +30,42 @@ pub fn doctor() -> DoctorResult {
             report
                 .tools
                 .iter()
-                .map(|tool| match (&tool.resolved_path, &tool.version) {
-                    (Some(path), Some(version)) => format!(
-                        "- {}: {} ({}, {})",
-                        tool.display_name,
-                        tool.status,
-                        path.display(),
-                        version
-                    ),
-                    (Some(path), None) => {
-                        format!(
+                .map(
+                    |tool| match (&tool.resolved_path, &tool.version, &tool.detected_as) {
+                        (Some(path), Some(version), Some(detected_as)) => format!(
+                            "- {}: {} ({}, {}, detected as {})",
+                            tool.display_name,
+                            tool.status,
+                            path.display(),
+                            version,
+                            detected_as
+                        ),
+                        (Some(path), Some(version), None) => format!(
+                            "- {}: {} ({}, {})",
+                            tool.display_name,
+                            tool.status,
+                            path.display(),
+                            version
+                        ),
+                        (Some(path), None, Some(detected_as)) => format!(
+                            "- {}: {} ({}, detected as {})",
+                            tool.display_name,
+                            tool.status,
+                            path.display(),
+                            detected_as
+                        ),
+                        (Some(path), None, None) => format!(
                             "- {}: {} ({})",
                             tool.display_name,
                             tool.status,
                             path.display()
-                        )
+                        ),
+                        (None, _, _) => format!(
+                            "- {}: {} ({})",
+                            tool.display_name, tool.status, tool.install_hint
+                        ),
                     }
-                    (None, _) => format!("- {}: {}", tool.display_name, tool.status),
-                })
+                )
                 .collect::<Vec<_>>()
                 .join("\n")
         ),
