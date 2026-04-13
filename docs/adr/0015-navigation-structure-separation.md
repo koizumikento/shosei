@@ -30,6 +30,8 @@ v0.1 では構造情報を次の 3 層に分けて扱う。
 追加ルール:
 
 - `sections` は semantic structure のための schema とし、章題や節題の文字列は持たせない
+- prose の source structure における章順は `manuscript.chapters` の配列順を正とする
+- prose の filename prefix は source structure の正典ではない
 - prose では Markdown 見出しを navigation structure の source of truth にする
 - `manuscript.chapters` に含まれる各本文ファイルの最初の level-1 heading を chapter title として扱う
 - level-2 以降の heading は section / subsection 候補として扱う

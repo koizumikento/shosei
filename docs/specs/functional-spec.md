@@ -304,7 +304,36 @@ v0.1 の最小要件:
 - build 情報
 - commit 情報
 
-### 7.8 `shosei page check`
+### 7.8 `shosei chapter`
+
+prose project の source structure を更新する。
+
+- `shosei chapter add <path>`
+- `shosei chapter move <path>`
+- `shosei chapter remove <path>`
+
+主な責務:
+
+- `project.type != manga` の book に対して `manuscript.chapters` を更新する
+- `series` では既存の repo discovery に従って対象 book を解決する
+- 章ファイルの追加時に必要なら Markdown stub を生成する
+- 削除対象ファイルに対応する `sections` entry があれば整合のために除去する
+
+非責務:
+
+- `manga/pages/` の追加、削除、並び替え
+- manga の chapter / episode metadata 管理
+- filename prefix を正として章順を決めること
+- 既存章ファイルの rename や renumber を既定動作にすること
+
+v0.1 の最小要件:
+
+- `project.type != manga` にのみ対応する
+- 章順は `manuscript.chapters` の配列順を正とする
+- `move` は `book.yml` を更新するだけで、既定では file rename を行わない
+- `remove` は既定では config から外すだけとし、物理削除は明示 opt-in に限る
+
+### 7.9 `shosei page check`
 
 漫画 project のページ順と見開き候補を検査する。
 
@@ -323,10 +352,9 @@ v0.1 の最小要件:
 - `dist/reports/<book-id>-page-check.json` を出力する
 - page order と spread candidate を text summary でも示せる
 
-### 7.9 将来候補
+### 7.10 将来候補
 
 - `shosei release`: handoff + tag 前提の成果物固定化
-- `shosei chapter add|move|remove`
 - `shosei page add`
 - `shosei series sync`: `series.yml` から巻一覧、既刊案内、派生 metadata を同期
 - `shosei migrate --to series --book-id <id>`

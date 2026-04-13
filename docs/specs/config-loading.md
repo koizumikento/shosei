@@ -131,6 +131,9 @@ v0.1 では基本的に **置換** とする。
 理由:
 
 - append merge は出所が追いにくく、意図しない重複を生みやすい
+- `manuscript.chapters` は配列順そのものが prose の source structure になる
+- loader や CLI は filename prefix で chapter 順を再解釈しない
+- `shosei chapter add|move|remove` はこの配列を保守的に更新する
 
 ### 7.4 例外: 共有探索パス
 
@@ -240,6 +243,7 @@ repo/
 - 設定優先順位は `CLI > book.yml > series.yml > profile defaults`
 - array は基本置換
 - `shared/*` は merge 対象ではなく探索パスとして扱う
+- `manuscript.chapters` の順序は保持し、filename prefix から並び替えない
 
 ## 13. `shosei explain` での由来表示
 

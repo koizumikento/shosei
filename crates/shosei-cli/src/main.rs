@@ -7,7 +7,7 @@ use anyhow::Result;
 use clap::Parser;
 use shosei_core::{app, cli_api::CommandContext};
 
-use crate::args::{Cli, Commands, PageCommands};
+use crate::args::{ChapterCommands, Cli, Commands, PageCommands};
 
 fn main() {
     let code = match run() {
@@ -75,6 +75,62 @@ fn run() -> Result<i32> {
             }
             Ok(exit_code::OK)
         }
+        Commands::Chapter { command } => match command {
+            ChapterCommands::Add {
+                chapter_path,
+                title,
+                before,
+                after,
+                book,
+                path,
+            } => {
+                let result = app::chapter_add(
+                    &CommandContext::new(path, book, None),
+                    app::ChapterAddOptions {
+                        chapter_path,
+                        title,
+                        before,
+                        after,
+                    },
+                )?;
+                output::print_line(&result.summary);
+                Ok(exit_code::OK)
+            }
+            ChapterCommands::Move {
+                chapter_path,
+                before,
+                after,
+                book,
+                path,
+            } => {
+                let result = app::chapter_move(
+                    &CommandContext::new(path, book, None),
+                    app::ChapterMoveOptions {
+                        chapter_path,
+                        before,
+                        after,
+                    },
+                )?;
+                output::print_line(&result.summary);
+                Ok(exit_code::OK)
+            }
+            ChapterCommands::Remove {
+                chapter_path,
+                delete_file,
+                book,
+                path,
+            } => {
+                let result = app::chapter_remove(
+                    &CommandContext::new(path, book, None),
+                    app::ChapterRemoveOptions {
+                        chapter_path,
+                        delete_file,
+                    },
+                )?;
+                output::print_line(&result.summary);
+                Ok(exit_code::OK)
+            }
+        },
         Commands::Page { command } => match command {
             PageCommands::Check { book, path } => {
                 let result = app::page_check(&CommandContext::new(path, book, None))?;
