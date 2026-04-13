@@ -79,6 +79,11 @@ shosei validate</code></pre>
                 <td>利用可能</td>
               </tr>
               <tr>
+                <td><code>shosei chapter &lt;subcommand&gt;</code></td>
+                <td>prose の <code>manuscript.chapters</code> を更新する</td>
+                <td>利用可能</td>
+              </tr>
+              <tr>
                 <td><code>shosei page check</code></td>
                 <td>manga のページ順と見開き候補を検査する</td>
                 <td>利用可能</td>
@@ -114,6 +119,17 @@ shosei preview --target print</code></pre>
           <p><code>page check</code> は manga project 向けで、ページ順や見開き候補を確認します。</p>
           <pre><code>shosei page check
 shosei page check --book vol-01</code></pre>
+        </section>
+
+        <section>
+          <h2>Chapter commands</h2>
+          <p><code>chapter</code> は prose project 向けで、<code>book.yml</code> の <code>manuscript.chapters</code> を更新します。</p>
+          <p>章順は filename prefix ではなく、この配列順で決まります。</p>
+          <pre><code>shosei chapter add manuscript/03.md --title "Chapter 3"
+shosei chapter move manuscript/03.md --before manuscript/02.md
+shosei chapter remove manuscript/03.md
+shosei chapter add books/vol-01/manuscript/02.md --book vol-01 --title "Chapter 2"</code></pre>
+          <p><code>page check</code> とは別系統で、<code>manga/pages/</code> や manga metadata には触れません。</p>
         </section>
 
         <section>
@@ -178,6 +194,7 @@ pdf:
             <li>`.gitignore`, `.gitattributes`</li>
             <li>`.agents/skills/shosei-project/SKILL.md`</li>
           </ul>
+          <p>prose 系テンプレートでは、最初の章ファイルとして <code>manuscript/01-chapter-1.md</code> も生成します。この <code>01-</code> prefix は初期命名の慣例で、章順の source of truth ではありません。</p>
         </section>
 
         <section>

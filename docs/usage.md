@@ -25,6 +25,7 @@ shosei validate
 | `shosei build` | 有効な target の成果物を生成する | 利用可能 |
 | `shosei validate` | config / preflight を検証する | 利用可能 |
 | `shosei preview` | one-shot / watch preview を生成する | 利用可能 |
+| `shosei chapter <subcommand>` | prose の `manuscript.chapters` を更新する | 利用可能 |
 | `shosei page check` | manga のページ順と見開き候補を検査する | 利用可能 |
 | `shosei doctor` | 依存解決結果と導入ヒントを表示する | 利用可能 |
 | `shosei handoff <destination>` | handoff package を生成する | 利用可能 |
@@ -55,6 +56,21 @@ shosei preview --target print
 shosei page check
 shosei page check --book vol-01
 ```
+
+## Chapter commands
+
+`chapter` は prose project 向けで、`book.yml` の `manuscript.chapters` を更新する。
+
+章順は filename prefix ではなく、この配列順で決まる。
+
+```bash
+shosei chapter add manuscript/03.md --title "Chapter 3"
+shosei chapter move manuscript/03.md --before manuscript/02.md
+shosei chapter remove manuscript/03.md
+shosei chapter add books/vol-01/manuscript/02.md --book vol-01 --title "Chapter 2"
+```
+
+`page check` とは別系統で、`manga/pages/` や manga metadata には触れない。
 
 ## Validate checks
 
@@ -120,6 +136,8 @@ pdf:
 - `dist/`
 - `.gitignore`, `.gitattributes`
 - `.agents/skills/shosei-project/SKILL.md`
+
+prose 系テンプレートでは、最初の章ファイルとして `manuscript/01-chapter-1.md` も生成する。この `01-` prefix は初期命名の慣例で、章順の source of truth ではない。
 
 ## Preview and doctor
 
