@@ -512,6 +512,15 @@ git:
 6. 検証
 7. handoff 成果物作成
 
+v0.1 の既定:
+
+- 明示 page manifest schema が未定義の間、`manga/pages/` 直下の PNG / JPEG を辞書順で解決してページ順とみなす
+- `manga/pages/` が無い、または対象画像が 1 枚も無い場合は preflight error
+- 明示 spread metadata が未定義の間、Kindle 向けの `spread_policy_for_kindle` は横長ページを見開き候補として扱う
+- `split` は横長ページを 2 分割し、`book.reading_direction` に従って Kindle ページ順へ並べる
+- `single-page` は横長ページを 1 ページのまま残す
+- `skip` は横長ページを Kindle 出力から除外し、結果が 0 ページになる場合は error
+
 ## 15. 検証仕様
 
 ### 15.1 共通
@@ -558,6 +567,11 @@ git:
 - サイズ不一致
 - カラーページ整合
 - guided view / panel metadata の整合
+- Kindle 向け見開き劣化ポリシーの適用結果
+- `manga.front_color_pages` が resolved page count を超える場合は error
+- `manga.front_color_pages` で指定した巻頭ページが color と判定されない場合は warning
+- `manga.body_mode: monochrome` で本文ページが color と判定された場合は error
+- `manga.body_mode: color` で本文ページが color と判定されない場合は warning
 
 ### 15.6 preflight report
 

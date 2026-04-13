@@ -8,6 +8,37 @@ pub enum ProjectType {
     Manga,
 }
 
+impl ProjectType {
+    pub fn parse(value: &str) -> Option<Self> {
+        match value {
+            "business" => Some(Self::Business),
+            "novel" => Some(Self::Novel),
+            "light-novel" => Some(Self::LightNovel),
+            "manga" => Some(Self::Manga),
+            _ => None,
+        }
+    }
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Business => "business",
+            Self::Novel => "novel",
+            Self::LightNovel => "light-novel",
+            Self::Manga => "manga",
+        }
+    }
+
+    pub fn is_prose(self) -> bool {
+        !matches!(self, Self::Manga)
+    }
+}
+
+impl std::fmt::Display for ProjectType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RepoMode {
     SingleBook,

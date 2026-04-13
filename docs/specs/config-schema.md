@@ -463,6 +463,8 @@ git:
 - `project.type != manga` なのに `manga` セクションが存在する場合は warning
 - `outputs.print.enabled: true` なのに `print` セクションがない場合は warning
 - `outputs.kindle.enabled: true` なのに `book.reading_direction` が未指定なら error
+- `manga.front_color_pages` が resolved page count を超える場合は error
+- `manga.body_mode: monochrome` で `front_color_pages` を超えた本文ページに color 画像がある場合は error
 
 ## 20. 将来拡張の余地
 

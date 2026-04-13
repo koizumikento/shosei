@@ -11,7 +11,7 @@ use crate::args::{Cli, Commands};
 
 fn main() {
     let code = match run() {
-        Ok(()) => exit_code::OK,
+        Ok(code) => code,
         Err(error) => {
             eprintln!("error: {error}");
             exit_code::FAILURE
@@ -20,7 +20,7 @@ fn main() {
     std::process::exit(code);
 }
 
-fn run() -> Result<()> {
+fn run() -> Result<i32> {
     let cli = Cli::parse();
 
     match cli.command {
@@ -39,22 +39,31 @@ fn run() -> Result<()> {
                 config_template,
             })?;
             output::print_line(&result.summary);
+            Ok(exit_code::OK)
         }
         Commands::Build { book, path } => {
             let result = app::build_book(&CommandContext::new(path, book))?;
             output::print_line(&result.summary);
+            Ok(exit_code::OK)
         }
         Commands::Validate { book, path } => {
             let result = app::validate_book(&CommandContext::new(path, book))?;
             output::print_line(&result.summary);
+            Ok(if result.has_errors {
+                exit_code::FAILURE
+            } else {
+                exit_code::OK
+            })
         }
         Commands::Preview { book, path } => {
             let result = app::preview_book(&CommandContext::new(path, book))?;
             output::print_line(&result.summary);
+            Ok(exit_code::OK)
         }
         Commands::Doctor => {
             let result = app::doctor();
             output::print_line(&result.summary);
+            Ok(exit_code::OK)
         }
         Commands::Handoff {
             destination,
@@ -63,8 +72,7 @@ fn run() -> Result<()> {
         } => {
             let result = app::handoff(&CommandContext::new(path, book), &destination)?;
             output::print_line(&result.summary);
+            Ok(exit_code::OK)
         }
     }
-
-    Ok(())
 }
