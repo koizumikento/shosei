@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>shosei | Overview</title>
+    <meta
+      name="description"
+      content="Overview of shosei, a Rust CLI for Japanese publishing workflows across EPUB, PDF, Kindle, print handoff, prose books, and manga."
+    />
+    <link rel="stylesheet" href="assets/style.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <div>
+        <a class="site-name" href="index.html">shosei</a>
+        <p class="tagline">Japanese publishing workflows for EPUB, PDF, Kindle, and print handoff.</p>
+      </div>
+      <nav class="site-nav" aria-label="Primary">
+        <a class="is-current" href="index.html" aria-current="page">Overview</a>
+        <a href="install.html">Install</a>
+        <a href="usage.html">Usage</a>
+        <a href="quickstart.html">Quickstart</a>
+        <a href="contributing.html">Contributing</a>
+        <a href="https://github.com/koizumikento/cb-tools">GitHub</a>
+      </nav>
+    </header>
+
+    <main class="content">
+      <article class="page">
+        <h1>Overview</h1>
+        <p class="lead">
+          shosei は、日本語の出版ワークフローを扱う Rust 製 CLI です。EPUB / PDF /
+          Kindle / 印刷入稿を視野に入れつつ、文章書籍と漫画の両方を同じリポジトリモデルで
+          管理することを目指しています。
+        </p>
+
+        <section>
+          <h2>What it aims to do</h2>
+          <ul>
+            <li>日本語書籍向けの制作フローを 1 つの CLI に集約する</li>
+            <li>`book.yml` / `series.yml` を中心に、設定ファイル駆動で扱う</li>
+            <li>`single-book` と `series` の 2 つのリポジトリ管理モデルを正式に扱う</li>
+            <li>prose と manga で入力モデルを分けつつ、共通の運用で扱えるようにする</li>
+            <li>macOS / Windows / Linux で同じコマンド体系を維持する</li>
+          </ul>
+        </section>
+
+        <section>
+          <h2>Current state</h2>
+          <p>
+            現在の v0.1 は完成版の制作ツールではなく、CLI surface とコア設計の立ち上げ段階です。
+          </p>
+          <div class="split">
+            <div class="panel">
+              <h3>今あるもの</h3>
+              <ul>
+                <li>`shosei init` による初期 scaffold 生成</li>
+                <li>`book.yml` / `series.yml` を前提にしたリポジトリ探索</li>
+                <li>`shosei explain` による解決済み設定と値の由来の表示</li>
+                <li>prose 系 project に対する build / validate の事前計画</li>
+                <li>config error / preflight error を潰さず返すテスト</li>
+              </ul>
+            </div>
+            <div class="panel">
+              <h3>まだ未実装のもの</h3>
+              <ul>
+                <li>実際の EPUB / PDF 生成</li>
+                <li>`preview` の本体</li>
+                <li>`doctor` の依存検査</li>
+                <li>`handoff` の成果物パッケージング</li>
+                <li>manga build pipeline の本体</li>
+              </ul>
+            </div>
+          </div>
+        </section>
+
+        <section>
+          <h2>Targets</h2>
+          <p>現在の主な target profile は次の 3 つです。</p>
+          <ul>
+            <li>`kindle-ja`</li>
+            <li>`print-jp-pdfx1a`</li>
+            <li>`print-jp-pdfx4`</li>
+          </ul>
+        </section>
+
+        <section>
+          <h2>Repository model</h2>
+          <div class="split">
+            <div>
+              <h3>single-book</h3>
+              <p>1 冊、または 1 巻を 1 リポジトリとして管理します。</p>
+              <pre><code>repo/
+  book.yml
+  manuscript/
+  manga/
+  assets/
+  styles/
+  dist/</code></pre>
+            </div>
+            <div>
+              <h3>series</h3>
+              <p>シリーズ全体を 1 リポジトリにまとめ、各巻を `books/&lt;book-id&gt;/` 配下に持ちます。</p>
+              <pre><code>repo/
+  series.yml
+  shared/
+  books/
+    vol-01/
+      book.yml
+      manuscript/
+      manga/
+      assets/
+  dist/</code></pre>
+            </div>
+          </div>
+        </section>
+
+        <section>
+          <h2>Documents</h2>
+          <ul class="page-links">
+            <li><a href="https://github.com/koizumikento/cb-tools/blob/main/docs/usage.md">Usage guide</a></li>
+            <li><a href="https://github.com/koizumikento/cb-tools/blob/main/docs/README.md">Docs index</a></li>
+            <li><a href="https://github.com/koizumikento/cb-tools/blob/main/docs/specs/functional-spec.md">Functional spec</a></li>
+            <li><a href="https://github.com/koizumikento/cb-tools/blob/main/docs/specs/repository-model.md">Repository model spec</a></li>
+            <li><a href="https://github.com/koizumikento/cb-tools/blob/main/docs/adr/README.md">ADR</a></li>
+          </ul>
+        </section>
+
+        <section>
+          <h2>Pages</h2>
+          <ul class="page-links">
+            <li><a href="install.html">Install</a> - source install と smoke check</li>
+            <li><a href="usage.html">Usage</a> - コマンドと repo discovery の使い方</li>
+            <li><a href="quickstart.html">Quickstart</a> - single-book / series の最短手順</li>
+            <li><a href="contributing.html">Contributing</a> - spec-first の前提と validation</li>
+          </ul>
+        </section>
+      </article>
+    </main>
+    <footer class="site-footer">
+      <p>MIT licensed.</p>
+      <a href="https://github.com/koizumikento/cb-tools">github.com/koizumikento/cb-tools</a>
+    </footer>
+  </body>
+</html>

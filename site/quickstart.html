@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>shosei | Quickstart</title>
+    <meta
+      name="description"
+      content="Quickstart for single-book and series repositories in shosei."
+    />
+    <link rel="stylesheet" href="assets/style.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <div>
+        <a class="site-name" href="index.html">shosei</a>
+        <p class="tagline">Japanese publishing workflows for EPUB, PDF, Kindle, and print handoff.</p>
+      </div>
+      <nav class="site-nav" aria-label="Primary">
+        <a href="index.html">Overview</a>
+        <a href="install.html">Install</a>
+        <a href="usage.html">Usage</a>
+        <a class="is-current" href="quickstart.html" aria-current="page">Quickstart</a>
+        <a href="contributing.html">Contributing</a>
+        <a href="https://github.com/koizumikento/cb-tools">GitHub</a>
+      </nav>
+    </header>
+
+    <main class="content">
+      <article class="page">
+        <h1>Quickstart</h1>
+        <p class="lead">最短の流れは、初期化してから設定を確認することです。</p>
+
+        <section>
+          <h2>single-book</h2>
+          <p>文章系テンプレートでは `single-book` が基本です。</p>
+          <pre><code>shosei init ./my-book --config-template novel
+cd my-book
+shosei explain
+shosei build
+shosei validate</code></pre>
+        </section>
+
+        <section>
+          <h2>series</h2>
+          <p>漫画テンプレートは既定で `series` 構成を生成します。</p>
+          <pre><code>shosei init ./my-series --config-template manga
+cd my-series
+shosei explain --book vol-01
+shosei build --book vol-01
+shosei validate --book vol-01</code></pre>
+          <p>
+            `series` repo では repo root から `--book &lt;book-id&gt;` を付けるか、
+            `books/&lt;book-id&gt;/...` の内側で実行します。
+          </p>
+        </section>
+
+        <section>
+          <h2>Config templates</h2>
+          <p>`init` で利用できるテンプレートは `business`, `novel`, `light-novel`, `manga` です。</p>
+        </section>
+
+        <section>
+          <h2>After init</h2>
+          <p>prose 系テンプレートでは、最初の章ファイルとして `manuscript/01-chapter-1.md` も生成します。</p>
+          <p>最初に `shosei explain` を実行して、repo mode と解決済み設定を確認しておくと後が追いやすくなります。</p>
+        </section>
+      </article>
+    </main>
+    <footer class="site-footer">
+      <p>MIT licensed.</p>
+      <a href="https://github.com/koizumikento/cb-tools">github.com/koizumikento/cb-tools</a>
+    </footer>
+  </body>
+</html>

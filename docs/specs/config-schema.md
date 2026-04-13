@@ -40,6 +40,7 @@
 project:
 book:
 layout:
+cover:
 manuscript:
 sections:
 outputs:
@@ -59,6 +60,7 @@ pipeline:
 | `project` | yes | all | プロジェクト種別と VCS 方針 |
 | `book` | yes | all | 書誌情報と作品 profile |
 | `layout` | yes | all | 綴じ方向、章開始ページなど |
+| `cover` | no | all | 外部カバー画像 |
 | `manuscript` | conditional | prose | prose 系原稿一覧 |
 | `sections` | no | prose | section type や上書き指定 |
 | `outputs` | yes | all | 有効な出力 target |
@@ -142,7 +144,27 @@ layout:
 | `allow_blank_pages` | boolean | no | `true` | `true`, `false` |
 | `page_progression` | string | no | `auto` | `auto`, `ltr`, `rtl` |
 
-## 7. `manuscript`
+## 7. `cover`
+
+外部カバーアセットを定義する。本文フローの `manuscript` / `sections` とは別に扱う。
+
+```yaml
+cover:
+  ebook_image: assets/cover/front.jpg
+```
+
+| Field | Type | Required | Default | Allowed |
+|---|---|---|---|---|
+| `ebook_image` | string | no | none | repo-relative image path |
+
+制約:
+
+- `ebook_image` は repo root 基準の相対パス
+- v0.1 では `.jpg`, `.jpeg`, `.png` を許可
+- `cover.ebook_image` は Kindle/EPUB 向けの外部カバー画像を指す
+- `manuscript` や `sections.type: cover` の本文ページ指定とは別概念
+
+## 8. `manuscript`
 
 `project.type != manga` の場合に必須。
 
@@ -169,7 +191,7 @@ manuscript:
 - すべてのファイルは workspace 内の相対パス
 - 拡張子は v0.1 では `.md` のみ
 
-## 8. `sections`
+## 9. `sections`
 
 `sections` は prose 系で任意。`manuscript` の各ファイルに意味属性を付与する。
 
@@ -192,8 +214,22 @@ sections:
 制約:
 
 - `file` は `manuscript` に現れるファイルと一致すること
+- `type: cover` は本文フロー内のカバーページを表し、`cover.ebook_image` の代替にはならない
+- `sections` はファイルの意味属性のみを持ち、章題や節題の文字列は保持しない
 
-## 9. `outputs`
+### 9.1 見出しと navigation
+
+v0.1 では `book.yml` は見出し文字列の primary source にはしない。
+
+既定:
+
+- `project.type != manga` の場合、navigation は Markdown 見出しから導出する
+- `manuscript.chapters` の各本文ファイルでは、最初の level-1 heading を chapter title として扱う
+- `project.type: manga` の場合、navigation heading は必須ではなく、page order が primary source となる
+- TOC / EPUB nav / PDF bookmark / running header は導出済み navigation structure を参照する
+- v0.1 では `sections` に `title` や `short_title` の override field を持たせない
+
+## 10. `outputs`
 
 ```yaml
 outputs:
@@ -218,7 +254,7 @@ outputs:
 - `project.type: manga` のとき、`kindle.target` は `kindle-comic` を推奨
 - `project.type: manga` のとき、`kindle-ja` は将来互換扱いで、v0.1 では非推奨
 
-## 10. `pdf`
+## 11. `pdf`
 
 `outputs.print.enabled: true` の場合に推奨。`project.type != manga` で PDF backend を指定する。
 
@@ -237,7 +273,13 @@ pdf:
 | `page_number` | boolean | no | `true` | `true`, `false` |
 | `running_header` | string | no | `auto` | `auto`, `none`, `title`, `chapter` |
 
-## 11. `print`
+補足:
+
+- `toc: true` は prose の導出済み navigation structure から目次を生成する
+- `running_header: chapter` は prose 本文の chapter title を参照する
+- `running_header: auto` は profile ごとの既定を使い、必要に応じて chapter title を参照する
+
+## 12. `print`
 
 ```yaml
 print:
@@ -264,7 +306,7 @@ print:
 - `trim_size: custom` の場合は将来 `custom_trim_size` の追加が必要
 - `cover_pdf: true` は v0.1 では metadata だけ先に定義し、実装は将来に回してもよい
 
-## 12. `images`
+## 13. `images`
 
 ```yaml
 images:
@@ -283,7 +325,7 @@ images:
 | `default_page_side` | string | no | `either` | `left`, `right`, `either` |
 | `min_print_dpi` | integer | no | `300` | positive integer |
 
-## 13. `validation`
+## 14. `validation`
 
 ```yaml
 validation:
@@ -304,7 +346,7 @@ validation:
 | `missing_alt` | string | no | `error` | `warn`, `error` |
 | `broken_link` | string | no | `error` | `warn`, `error` |
 
-## 14. `git`
+## 15. `git`
 
 ```yaml
 git:
@@ -323,7 +365,7 @@ git:
 | `require_clean_worktree_for_handoff` | boolean | no | `true` | `true`, `false` |
 | `lockable` | array<string> | no | `[]` | glob list |
 
-## 15. `manga`
+## 16. `manga`
 
 `project.type: manga` の場合に必須。
 
@@ -348,7 +390,12 @@ manga:
 | `front_color_pages` | integer | no | `0` | `0+` |
 | `body_mode` | string | no | `monochrome` | `monochrome`, `color`, `mixed` |
 
-## 16. `pipeline`
+補足:
+
+- v0.1 では chapter title や section title の metadata は必須ではない
+- Kindle 向け nav が必要な場合でも、既定では page sequence を使って生成する
+
+## 17. `pipeline`
 
 `project.type: manga` の場合に任意。
 
@@ -367,7 +414,7 @@ pipeline:
 |---|---|---|---|
 | `stages` | array<string> | no | implementation-defined ordered list |
 
-## 17. prose の最小例
+## 18. prose の最小例
 
 ```yaml
 project:
@@ -386,6 +433,9 @@ layout:
   binding: right
   chapter_start_page: odd
   allow_blank_pages: true
+
+cover:
+  ebook_image: assets/cover/front.jpg
 
 manuscript:
   chapters:
@@ -406,7 +456,7 @@ git:
   lfs: true
 ```
 
-## 18. manga の最小例
+## 19. manga の最小例
 
 ```yaml
 project:
@@ -455,10 +505,11 @@ git:
   lfs: true
 ```
 
-## 19. schema バリデーションルール
+## 20. schema バリデーションルール
 
 - unknown key は v0.1 では warning
 - enum 不一致は error
+- `cover.ebook_image` が存在する場合、拡張子不正は error
 - `project.type: manga` なのに `manuscript.chapters` だけが存在する場合は warning
 - `project.type != manga` なのに `manga` セクションが存在する場合は warning
 - `outputs.print.enabled: true` なのに `print` セクションがない場合は warning
@@ -466,11 +517,11 @@ git:
 - `manga.front_color_pages` が resolved page count を超える場合は error
 - `manga.body_mode: monochrome` で `front_color_pages` を超えた本文ページに color 画像がある場合は error
 
-## 20. 将来拡張の余地
+## 21. 将来拡張の余地
 
 - JSON Schema 生成
 - `custom_trim_size`
 - section ごとの target override 詳細化
 - printer preset
-- cover schema の詳細定義
+- print cover source schema の詳細定義
 - page manifest schema の詳細定義

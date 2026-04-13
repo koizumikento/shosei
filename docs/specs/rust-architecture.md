@@ -258,6 +258,16 @@ OS 上の実ファイルパス。
 7. validator 実行
 8. summary と structured report を出力
 
+### `shosei explain`
+
+1. CLI で args 取得
+2. repo root 探索
+3. repo mode 判定
+4. target book 解決
+5. config load + merge
+6. 値と由来の説明用 view model を生成
+7. text summary を出力
+
 ### `shosei init`
 
 1. CLI で prompt 実行

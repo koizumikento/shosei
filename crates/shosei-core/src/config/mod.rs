@@ -36,11 +36,43 @@ pub struct ResolvedBookConfig {
     pub shared: SharedPaths,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ConfigValueOrigin {
+    BookConfig,
+    SeriesDefaults,
+    BuiltInDefault,
+}
+
+impl std::fmt::Display for ConfigValueOrigin {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            Self::BookConfig => "book.yml",
+            Self::SeriesDefaults => "series defaults",
+            Self::BuiltInDefault => "built-in default",
+        })
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct ExplainedValue {
+    pub field: String,
+    pub value: String,
+    pub origin: ConfigValueOrigin,
+}
+
+#[derive(Debug, Clone)]
+pub struct ExplainedConfig {
+    pub resolved: ResolvedBookConfig,
+    pub values: Vec<ExplainedValue>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EffectiveBookConfig {
     pub project: ProjectSettings,
     pub book: BookSettings,
     pub layout: LayoutSettings,
+    pub cover: CoverSettings,
+    pub pdf: Option<PdfSettings>,
     pub outputs: OutputSettings,
     pub manga: Option<MangaSettings>,
     pub manuscript: Option<ManuscriptSettings>,
@@ -125,6 +157,74 @@ pub struct LayoutSettings {
     pub binding: Binding,
     pub chapter_start_page: String,
     pub allow_blank_pages: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct CoverSettings {
+    pub ebook_image: Option<RepoPath>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PdfSettings {
+    pub engine: PdfEngine,
+    pub toc: bool,
+    pub page_number: bool,
+    pub running_header: PdfRunningHeader,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PdfEngine {
+    Weasyprint,
+    Typst,
+    Lualatex,
+}
+
+impl PdfEngine {
+    fn parse(value: &str) -> Option<Self> {
+        match value {
+            "weasyprint" => Some(Self::Weasyprint),
+            "typst" => Some(Self::Typst),
+            "lualatex" => Some(Self::Lualatex),
+            _ => None,
+        }
+    }
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Weasyprint => "weasyprint",
+            Self::Typst => "typst",
+            Self::Lualatex => "lualatex",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PdfRunningHeader {
+    Auto,
+    None,
+    Title,
+    Chapter,
+}
+
+impl PdfRunningHeader {
+    fn parse(value: &str) -> Option<Self> {
+        match value {
+            "auto" => Some(Self::Auto),
+            "none" => Some(Self::None),
+            "title" => Some(Self::Title),
+            "chapter" => Some(Self::Chapter),
+            _ => None,
+        }
+    }
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Auto => "auto",
+            Self::None => "none",
+            Self::Title => "title",
+            Self::Chapter => "chapter",
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -378,6 +478,255 @@ pub fn resolve_book_config(context: &RepoContext) -> Result<ResolvedBookConfig, 
     })
 }
 
+pub fn explain_book_config(context: &RepoContext) -> Result<ExplainedConfig, ConfigError> {
+    let resolved = resolve_book_config(context)?;
+    let book = context
+        .book
+        .as_ref()
+        .expect("book context must be selected before config explanation");
+    let book_config = load_book_config(&book.config_path)?;
+
+    let series_defaults = if context.mode == RepoMode::Series {
+        let series_config = load_series_config(&context.repo_root.join("series.yml"))?;
+        Some(series_defaults_root(&series_config.raw))
+    } else {
+        None
+    };
+
+    let origin =
+        |path: &[&str]| config_value_origin(&book_config.raw, series_defaults.as_ref(), path);
+
+    let mut values = vec![
+        explained(
+            "project.type",
+            resolved.effective.project.project_type.as_str(),
+            origin(&["project", "type"]),
+        ),
+        explained(
+            "project.vcs",
+            &resolved.effective.project.vcs,
+            origin(&["project", "vcs"]),
+        ),
+        explained(
+            "project.version",
+            resolved.effective.project.version.to_string(),
+            origin(&["project", "version"]),
+        ),
+        explained(
+            "book.title",
+            &resolved.effective.book.title,
+            origin(&["book", "title"]),
+        ),
+        explained(
+            "book.authors",
+            format_list(&resolved.effective.book.authors),
+            origin(&["book", "authors"]),
+        ),
+        explained(
+            "book.language",
+            &resolved.effective.book.language,
+            origin(&["book", "language"]),
+        ),
+        explained(
+            "book.profile",
+            &resolved.effective.book.profile,
+            origin(&["book", "profile"]),
+        ),
+        explained(
+            "book.writing_mode",
+            match resolved.effective.book.writing_mode {
+                WritingMode::HorizontalLtr => "horizontal-ltr",
+                WritingMode::VerticalRl => "vertical-rl",
+            },
+            origin(&["book", "writing_mode"]),
+        ),
+        explained(
+            "book.reading_direction",
+            resolved.effective.book.reading_direction.as_str(),
+            origin(&["book", "reading_direction"]),
+        ),
+        explained(
+            "layout.binding",
+            match resolved.effective.layout.binding {
+                Binding::Left => "left",
+                Binding::Right => "right",
+            },
+            origin(&["layout", "binding"]),
+        ),
+        explained(
+            "layout.chapter_start_page",
+            &resolved.effective.layout.chapter_start_page,
+            origin(&["layout", "chapter_start_page"]),
+        ),
+        explained(
+            "layout.allow_blank_pages",
+            resolved.effective.layout.allow_blank_pages.to_string(),
+            origin(&["layout", "allow_blank_pages"]),
+        ),
+        explained_optional_repo_path(
+            "cover.ebook_image",
+            resolved.effective.cover.ebook_image.as_ref(),
+            origin(&["cover", "ebook_image"]),
+        ),
+        explained_optional(
+            "pdf.engine",
+            resolved
+                .effective
+                .pdf
+                .as_ref()
+                .map(|pdf| pdf.engine.as_str()),
+            origin(&["pdf", "engine"]),
+            "n/a",
+        ),
+        explained_optional(
+            "pdf.toc",
+            resolved
+                .effective
+                .pdf
+                .as_ref()
+                .map(|pdf| if pdf.toc { "true" } else { "false" }),
+            origin(&["pdf", "toc"]),
+            "n/a",
+        ),
+        explained_optional(
+            "pdf.page_number",
+            resolved
+                .effective
+                .pdf
+                .as_ref()
+                .map(|pdf| if pdf.page_number { "true" } else { "false" }),
+            origin(&["pdf", "page_number"]),
+            "n/a",
+        ),
+        explained_optional(
+            "pdf.running_header",
+            resolved
+                .effective
+                .pdf
+                .as_ref()
+                .map(|pdf| pdf.running_header.as_str()),
+            origin(&["pdf", "running_header"]),
+            "n/a",
+        ),
+        explained_output_target(
+            "outputs.kindle.target",
+            resolved.effective.outputs.kindle.as_deref(),
+            output_origin(&book_config.raw, series_defaults.as_ref(), "kindle"),
+        ),
+        explained_output_target(
+            "outputs.print.target",
+            resolved.effective.outputs.print.as_deref(),
+            output_origin(&book_config.raw, series_defaults.as_ref(), "print"),
+        ),
+        explained(
+            "validation.strict",
+            resolved.effective.validation.strict.to_string(),
+            origin(&["validation", "strict"]),
+        ),
+        explained(
+            "validation.epubcheck",
+            resolved.effective.validation.epubcheck.to_string(),
+            origin(&["validation", "epubcheck"]),
+        ),
+        explained(
+            "validation.accessibility",
+            &resolved.effective.validation.accessibility,
+            origin(&["validation", "accessibility"]),
+        ),
+        explained(
+            "validation.missing_image",
+            match resolved.effective.validation.missing_image {
+                ValidationSeverity::Warn => "warn",
+                ValidationSeverity::Error => "error",
+            },
+            origin(&["validation", "missing_image"]),
+        ),
+        explained(
+            "git.lfs",
+            resolved.effective.git.lfs.to_string(),
+            origin(&["git", "lfs"]),
+        ),
+        explained(
+            "git.require_clean_worktree_for_handoff",
+            resolved
+                .effective
+                .git
+                .require_clean_worktree_for_handoff
+                .to_string(),
+            origin(&["git", "require_clean_worktree_for_handoff"]),
+        ),
+    ];
+
+    if let Some(manuscript) = &resolved.effective.manuscript {
+        values.push(explained(
+            "manuscript.frontmatter",
+            format_repo_paths(&manuscript.frontmatter),
+            origin(&["manuscript", "frontmatter"]),
+        ));
+        values.push(explained(
+            "manuscript.chapters",
+            format_repo_paths(&manuscript.chapters),
+            origin(&["manuscript", "chapters"]),
+        ));
+        values.push(explained(
+            "manuscript.backmatter",
+            format_repo_paths(&manuscript.backmatter),
+            origin(&["manuscript", "backmatter"]),
+        ));
+    }
+
+    if let Some(manga) = &resolved.effective.manga {
+        values.push(explained(
+            "manga.reading_direction",
+            manga.reading_direction.as_str(),
+            origin(&["manga", "reading_direction"]),
+        ));
+        values.push(explained(
+            "manga.default_page_side",
+            match manga.default_page_side {
+                MangaPageSide::Left => "left",
+                MangaPageSide::Right => "right",
+            },
+            origin(&["manga", "default_page_side"]),
+        ));
+        values.push(explained(
+            "manga.page_width",
+            &manga.page_width,
+            origin(&["manga", "page_width"]),
+        ));
+        values.push(explained(
+            "manga.page_height",
+            &manga.page_height,
+            origin(&["manga", "page_height"]),
+        ));
+        values.push(explained(
+            "manga.spread_policy_for_kindle",
+            match manga.spread_policy_for_kindle {
+                SpreadPolicyForKindle::Split => "split",
+                SpreadPolicyForKindle::SinglePage => "single-page",
+                SpreadPolicyForKindle::Skip => "skip",
+            },
+            origin(&["manga", "spread_policy_for_kindle"]),
+        ));
+        values.push(explained(
+            "manga.front_color_pages",
+            manga.front_color_pages.to_string(),
+            origin(&["manga", "front_color_pages"]),
+        ));
+        values.push(explained(
+            "manga.body_mode",
+            match manga.body_mode {
+                MangaBodyMode::Monochrome => "monochrome",
+                MangaBodyMode::Color => "color",
+                MangaBodyMode::Mixed => "mixed",
+            },
+            origin(&["manga", "body_mode"]),
+        ));
+    }
+
+    Ok(ExplainedConfig { resolved, values })
+}
+
 #[derive(Debug, Clone)]
 struct SeriesBookEntry {
     path: RepoPath,
@@ -475,6 +824,8 @@ fn parse_effective_book_config(
             )?
             .unwrap_or(true),
         },
+        cover: parse_cover(raw, config_path)?,
+        pdf: parse_pdf(raw, config_path, project_type)?,
         outputs,
         manga,
         manuscript: parse_manuscript(raw, config_path, project_type)?,
@@ -515,6 +866,78 @@ fn parse_project_type(raw: &Value, config_path: &Path) -> Result<ProjectType, Co
             "must be one of business, novel, light-novel, manga",
         )
     })
+}
+
+fn parse_cover(raw: &Value, config_path: &Path) -> Result<CoverSettings, ConfigError> {
+    Ok(CoverSettings {
+        ebook_image: parse_cover_ebook_image(raw, config_path)?,
+    })
+}
+
+fn parse_cover_ebook_image(
+    raw: &Value,
+    config_path: &Path,
+) -> Result<Option<RepoPath>, ConfigError> {
+    let Some(path) = optional_repo_path_at(raw, &["cover", "ebook_image"], config_path)? else {
+        return Ok(None);
+    };
+    if !has_allowed_cover_extension(&path) {
+        return Err(invalid_value(
+            config_path,
+            "cover.ebook_image",
+            path.as_str().to_string(),
+            "must reference a .jpg, .jpeg, or .png file in v0.1",
+        ));
+    }
+    Ok(Some(path))
+}
+
+fn parse_pdf(
+    raw: &Value,
+    config_path: &Path,
+    project_type: ProjectType,
+) -> Result<Option<PdfSettings>, ConfigError> {
+    if !project_type.is_prose() {
+        return Ok(None);
+    }
+
+    Ok(Some(PdfSettings {
+        engine: parse_pdf_engine(raw, config_path)?,
+        toc: optional_bool_at(raw, &["pdf", "toc"], config_path)?.unwrap_or(true),
+        page_number: optional_bool_at(raw, &["pdf", "page_number"], config_path)?.unwrap_or(true),
+        running_header: parse_pdf_running_header(raw, config_path)?,
+    }))
+}
+
+fn parse_pdf_engine(raw: &Value, config_path: &Path) -> Result<PdfEngine, ConfigError> {
+    match optional_string_at(raw, &["pdf", "engine"], config_path)? {
+        Some(value) => PdfEngine::parse(&value).ok_or_else(|| {
+            invalid_value(
+                config_path,
+                "pdf.engine",
+                value,
+                "must be weasyprint, typst, or lualatex",
+            )
+        }),
+        None => Ok(PdfEngine::Weasyprint),
+    }
+}
+
+fn parse_pdf_running_header(
+    raw: &Value,
+    config_path: &Path,
+) -> Result<PdfRunningHeader, ConfigError> {
+    match optional_string_at(raw, &["pdf", "running_header"], config_path)? {
+        Some(value) => PdfRunningHeader::parse(&value).ok_or_else(|| {
+            invalid_value(
+                config_path,
+                "pdf.running_header",
+                value,
+                "must be auto, none, title, or chapter",
+            )
+        }),
+        None => Ok(PdfRunningHeader::Auto),
+    }
 }
 
 fn parse_profile(
@@ -902,6 +1325,9 @@ fn series_defaults_root(raw: &Value) -> Value {
     let mut merged = Mapping::new();
     if let Some(defaults) = lookup(raw, &["defaults"]).and_then(Value::as_mapping) {
         for (key, value) in defaults {
+            if key.as_str() == Some("cover") {
+                continue;
+            }
             merged.insert(key.clone(), value.clone());
         }
     }
@@ -964,6 +1390,109 @@ fn parse_repo_path(config_path: &Path, value: &str) -> Result<RepoPath, ConfigEr
         value: value.to_string(),
         source,
     })
+}
+
+fn optional_repo_path_at(
+    raw: &Value,
+    path: &[&str],
+    config_path: &Path,
+) -> Result<Option<RepoPath>, ConfigError> {
+    optional_string_at(raw, path, config_path)?
+        .map(|value| parse_repo_path(config_path, &value))
+        .transpose()
+}
+
+fn config_value_origin(
+    book_raw: &Value,
+    series_defaults: Option<&Value>,
+    path: &[&str],
+) -> ConfigValueOrigin {
+    if lookup(book_raw, path).is_some() {
+        ConfigValueOrigin::BookConfig
+    } else if series_defaults
+        .and_then(|value| lookup(value, path))
+        .is_some()
+    {
+        ConfigValueOrigin::SeriesDefaults
+    } else {
+        ConfigValueOrigin::BuiltInDefault
+    }
+}
+
+fn output_origin(
+    book_raw: &Value,
+    series_defaults: Option<&Value>,
+    output_name: &str,
+) -> ConfigValueOrigin {
+    let enabled_path = ["outputs", output_name, "enabled"];
+    let target_path = ["outputs", output_name, "target"];
+    if lookup(book_raw, &enabled_path).is_some() || lookup(book_raw, &target_path).is_some() {
+        ConfigValueOrigin::BookConfig
+    } else if series_defaults
+        .and_then(|value| lookup(value, &enabled_path).or_else(|| lookup(value, &target_path)))
+        .is_some()
+    {
+        ConfigValueOrigin::SeriesDefaults
+    } else {
+        ConfigValueOrigin::BuiltInDefault
+    }
+}
+
+fn explained(
+    field: impl Into<String>,
+    value: impl Into<String>,
+    origin: ConfigValueOrigin,
+) -> ExplainedValue {
+    ExplainedValue {
+        field: field.into(),
+        value: value.into(),
+        origin,
+    }
+}
+
+fn explained_output_target(
+    field: impl Into<String>,
+    value: Option<&str>,
+    origin: ConfigValueOrigin,
+) -> ExplainedValue {
+    explained(field, value.unwrap_or("disabled"), origin)
+}
+
+fn explained_optional_repo_path(
+    field: impl Into<String>,
+    value: Option<&RepoPath>,
+    origin: ConfigValueOrigin,
+) -> ExplainedValue {
+    explained(field, value.map(RepoPath::as_str).unwrap_or("none"), origin)
+}
+
+fn explained_optional(
+    field: impl Into<String>,
+    value: Option<&str>,
+    origin: ConfigValueOrigin,
+    missing: &'static str,
+) -> ExplainedValue {
+    explained(field, value.unwrap_or(missing), origin)
+}
+
+fn format_list(values: &[String]) -> String {
+    values.join(", ")
+}
+
+fn format_repo_paths(values: &[RepoPath]) -> String {
+    values
+        .iter()
+        .map(RepoPath::as_str)
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
+fn has_allowed_cover_extension(path: &RepoPath) -> bool {
+    Path::new(path.as_str())
+        .extension()
+        .and_then(|ext| ext.to_str())
+        .map(|ext| matches!(ext.to_ascii_lowercase().as_str(), "jpg" | "jpeg" | "png"))
+        .unwrap_or(false)
 }
 
 fn merge_values(base: &Value, overlay: &Value) -> Value {
@@ -1212,6 +1741,189 @@ manuscript:
     }
 
     #[test]
+    fn resolves_cover_ebook_image_from_book_config() {
+        let root = temp_dir("cover-image");
+        fs::write(
+            root.join("book.yml"),
+            r#"
+project:
+  type: novel
+  vcs: git
+book:
+  title: "Sample"
+  authors:
+    - "Author"
+  reading_direction: rtl
+layout:
+  binding: right
+cover:
+  ebook_image: assets/cover/front.jpg
+manuscript:
+  chapters:
+    - manuscript/01.md
+outputs:
+  kindle:
+    enabled: true
+    target: kindle-ja
+validation:
+  strict: true
+git:
+  lfs: true
+"#,
+        )
+        .unwrap();
+
+        let context = repo::discover(&root, None).unwrap();
+        let resolved = resolve_book_config(&context).unwrap();
+
+        assert_eq!(
+            resolved
+                .effective
+                .cover
+                .ebook_image
+                .as_ref()
+                .map(RepoPath::as_str),
+            Some("assets/cover/front.jpg")
+        );
+    }
+
+    #[test]
+    fn ignores_cover_in_series_defaults() {
+        let root = temp_dir("cover-series-defaults");
+        fs::create_dir_all(root.join("books/vol-01")).unwrap();
+        fs::write(
+            root.join("series.yml"),
+            r#"
+series:
+  id: sample
+  title: Sample
+  type: novel
+defaults:
+  book:
+    language: ja
+    writing_mode: vertical-rl
+    reading_direction: rtl
+  cover:
+    ebook_image: shared/assets/cover/default.jpg
+  outputs:
+    kindle:
+      enabled: true
+      target: kindle-ja
+books:
+  - id: vol-01
+    path: books/vol-01
+"#,
+        )
+        .unwrap();
+        fs::write(
+            root.join("books/vol-01/book.yml"),
+            r#"
+project:
+  type: novel
+  vcs: git
+book:
+  title: "Vol 1"
+  authors:
+    - "Author"
+manuscript:
+  chapters:
+    - books/vol-01/manuscript/01.md
+"#,
+        )
+        .unwrap();
+
+        let context = repo::discover(&root.join("books/vol-01"), None).unwrap();
+        let resolved = resolve_book_config(&context).unwrap();
+
+        assert!(resolved.effective.cover.ebook_image.is_none());
+    }
+
+    #[test]
+    fn resolves_pdf_defaults_for_prose_books() {
+        let root = temp_dir("pdf-defaults");
+        fs::write(
+            root.join("book.yml"),
+            r#"
+project:
+  type: novel
+  vcs: git
+book:
+  title: "Sample"
+  authors:
+    - "Author"
+layout:
+  binding: right
+manuscript:
+  chapters:
+    - manuscript/01.md
+outputs:
+  print:
+    enabled: true
+    target: print-jp-pdfx1a
+validation:
+  strict: true
+git:
+  lfs: true
+"#,
+        )
+        .unwrap();
+
+        let context = repo::discover(&root, None).unwrap();
+        let resolved = resolve_book_config(&context).unwrap();
+        let pdf = resolved.effective.pdf.as_ref().unwrap();
+
+        assert_eq!(pdf.engine, PdfEngine::Weasyprint);
+        assert!(pdf.toc);
+        assert!(pdf.page_number);
+        assert_eq!(pdf.running_header, PdfRunningHeader::Auto);
+    }
+
+    #[test]
+    fn resolves_pdf_settings_from_book_config() {
+        let root = temp_dir("pdf-explicit");
+        fs::write(
+            root.join("book.yml"),
+            r#"
+project:
+  type: novel
+  vcs: git
+book:
+  title: "Sample"
+  authors:
+    - "Author"
+layout:
+  binding: right
+manuscript:
+  chapters:
+    - manuscript/01.md
+outputs:
+  print:
+    enabled: true
+    target: print-jp-pdfx1a
+pdf:
+  engine: typst
+  toc: false
+  page_number: false
+  running_header: chapter
+validation:
+  strict: true
+git:
+  lfs: true
+"#,
+        )
+        .unwrap();
+
+        let context = repo::discover(&root, None).unwrap();
+        let resolved = resolve_book_config(&context).unwrap();
+        let pdf = resolved.effective.pdf.as_ref().unwrap();
+
+        assert_eq!(pdf.engine, PdfEngine::Typst);
+        assert!(!pdf.toc);
+        assert!(!pdf.page_number);
+        assert_eq!(pdf.running_header, PdfRunningHeader::Chapter);
+    }
+
+    #[test]
     fn rejects_series_book_without_catalog_entry() {
         let root = temp_dir("missing-series-book");
         fs::create_dir_all(root.join("books/vol-01")).unwrap();
@@ -1346,6 +2058,47 @@ git:
         assert!(matches!(
             error,
             ConfigError::InvalidFieldValue { field, .. } if field == "manuscript.chapters"
+        ));
+    }
+
+    #[test]
+    fn rejects_cover_image_with_unsupported_extension() {
+        let root = temp_dir("invalid-cover-extension");
+        fs::write(
+            root.join("book.yml"),
+            r#"
+project:
+  type: novel
+  vcs: git
+book:
+  title: "Sample"
+  authors:
+    - "Author"
+  reading_direction: rtl
+layout:
+  binding: right
+cover:
+  ebook_image: assets/cover/front.webp
+manuscript:
+  chapters:
+    - manuscript/01.md
+outputs:
+  kindle:
+    enabled: true
+    target: kindle-ja
+validation:
+  strict: true
+git:
+  lfs: true
+"#,
+        )
+        .unwrap();
+
+        let context = repo::discover(&root, None).unwrap();
+        let error = resolve_book_config(&context).unwrap_err();
+        assert!(matches!(
+            error,
+            ConfigError::InvalidFieldValue { field, .. } if field == "cover.ebook_image"
         ));
     }
 

@@ -21,6 +21,12 @@ pub enum Commands {
         #[arg(long, value_name = "TEMPLATE")]
         config_template: Option<String>,
     },
+    Explain {
+        #[arg(long)]
+        book: Option<String>,
+        #[arg(long, value_name = "PATH", default_value = ".")]
+        path: PathBuf,
+    },
     Build {
         #[arg(long)]
         book: Option<String>,

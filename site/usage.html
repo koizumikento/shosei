@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>shosei | Usage</title>
+    <meta
+      name="description"
+      content="Command usage and repo discovery rules for shosei."
+    />
+    <link rel="stylesheet" href="assets/style.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <div>
+        <a class="site-name" href="index.html">shosei</a>
+        <p class="tagline">Japanese publishing workflows for EPUB, PDF, Kindle, and print handoff.</p>
+      </div>
+      <nav class="site-nav" aria-label="Primary">
+        <a href="index.html">Overview</a>
+        <a href="install.html">Install</a>
+        <a class="is-current" href="usage.html" aria-current="page">Usage</a>
+        <a href="quickstart.html">Quickstart</a>
+        <a href="contributing.html">Contributing</a>
+        <a href="https://github.com/koizumikento/cb-tools">GitHub</a>
+      </nav>
+    </header>
+
+    <main class="content">
+      <article class="page">
+        <h1>Usage</h1>
+        <p class="lead">現在の CLI surface、repo discovery の基本ルール、現時点で使える build 設定です。</p>
+        <p><a href="https://github.com/koizumikento/cb-tools/blob/main/docs/usage.md">Markdown version</a></p>
+
+        <section>
+          <h2>Typical flow</h2>
+          <p>基本の流れは、初期化して、解決済み設定を確認し、build と validate を回すことです。</p>
+          <pre><code>shosei init ./my-book --config-template novel
+cd my-book
+shosei explain
+shosei build
+shosei validate</code></pre>
+        </section>
+
+        <section>
+          <h2>Commands</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>Command</th>
+                <th>Purpose</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>shosei init</code></td>
+                <td>project scaffold を作る</td>
+                <td>available</td>
+              </tr>
+              <tr>
+                <td><code>shosei explain</code></td>
+                <td>解決済み設定と値の由来を表示する</td>
+                <td>available</td>
+              </tr>
+              <tr>
+                <td><code>shosei build</code></td>
+                <td>有効な target の成果物を生成する</td>
+                <td>available</td>
+              </tr>
+              <tr>
+                <td><code>shosei validate</code></td>
+                <td>config / preflight を検証する</td>
+                <td>available</td>
+              </tr>
+              <tr>
+                <td><code>shosei preview</code></td>
+                <td>preview 導線</td>
+                <td>placeholder</td>
+              </tr>
+              <tr>
+                <td><code>shosei doctor</code></td>
+                <td>依存チェック導線</td>
+                <td>placeholder</td>
+              </tr>
+              <tr>
+                <td><code>shosei handoff &lt;destination&gt;</code></td>
+                <td>handoff 導線</td>
+                <td>placeholder</td>
+              </tr>
+            </tbody>
+          </table>
+        </section>
+
+        <section>
+          <h2>Repo discovery</h2>
+          <p>`single-book` では root の `book.yml` を基準に動きます。</p>
+          <p>
+            `series` repo では、repo root から `--book &lt;book-id&gt;` を付けて実行するか、
+            `books/&lt;book-id&gt;/...` の内側に移動して実行します。
+          </p>
+          <pre><code>shosei explain --book vol-01
+shosei build --book vol-01
+shosei validate --book vol-01</code></pre>
+        </section>
+
+        <section>
+          <h2>Inspect resolved config</h2>
+          <p>
+            `explain` は repo mode、対象 book、最終有効設定、値の由来を確認するための入口です。
+          </p>
+          <pre><code>shosei explain
+shosei explain --book vol-01</code></pre>
+          <p>現在の `explain` では、たとえば次のような項目を確認できます。</p>
+          <ul>
+            <li><code>cover.ebook_image</code></li>
+            <li><code>outputs.kindle.target</code></li>
+            <li><code>outputs.print.target</code></li>
+            <li><code>pdf.engine</code></li>
+            <li><code>pdf.toc</code></li>
+            <li><code>pdf.page_number</code></li>
+            <li><code>pdf.running_header</code></li>
+          </ul>
+        </section>
+
+        <section>
+          <h2>Print TOC</h2>
+          <p>prose 系で print target を有効にした場合、<code>pdf.toc</code> で Pandoc に目次生成を指示できます。</p>
+          <pre><code>outputs:
+  print:
+    enabled: true
+    target: print-jp-pdfx1a
+
+pdf:
+  engine: weasyprint
+  toc: true
+  page_number: true
+  running_header: auto</code></pre>
+          <p>既定では <code>pdf.toc: true</code> です。</p>
+          <p><code>pdf.toc: false</code> にすると、print build では Pandoc の <code>--toc</code> を付けずに実行します。</p>
+        </section>
+
+        <section>
+          <h2>Generated scaffold</h2>
+          <p>`init` はテンプレートに応じて、次のような土台を生成します。</p>
+          <ul>
+            <li>`book.yml` または `series.yml`</li>
+            <li>`manuscript/` または `manga/`</li>
+            <li>`assets/cover/`, `assets/images/`, `assets/fonts/`</li>
+            <li>`styles/`</li>
+            <li>`dist/`</li>
+            <li>`.gitignore`, `.gitattributes`</li>
+          </ul>
+        </section>
+      </article>
+    </main>
+    <footer class="site-footer">
+      <p>MIT licensed.</p>
+      <a href="https://github.com/koizumikento/cb-tools">github.com/koizumikento/cb-tools</a>
+    </footer>
+  </body>
+</html>

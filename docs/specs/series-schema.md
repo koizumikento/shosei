@@ -95,6 +95,7 @@ defaults:
 制約:
 
 - 各オブジェクトの中身は `book.yml` schema と同じ意味を持つ
+- `cover` は巻固有情報として扱い、`defaults` には含めない
 - 巻固有 `book.yml` が存在する場合は、そちらが優先される
 
 ## 7. `validation`

@@ -114,19 +114,21 @@ pub fn run_pandoc_epub(
     output: &Path,
     title: &str,
     language: &str,
+    cover_image: Option<&Path>,
 ) -> std::io::Result<ToolRunOutput> {
-    let command_output = Command::new(executable)
+    let mut command = Command::new(executable);
+    command
         .arg("--to")
         .arg("epub3")
         .arg("--standalone")
         .arg("--metadata")
         .arg(format!("title={title}"))
         .arg("--metadata")
-        .arg(format!("lang={language}"))
-        .arg("--output")
-        .arg(output)
-        .args(inputs)
-        .output()?;
+        .arg(format!("lang={language}"));
+    if let Some(cover_image) = cover_image {
+        command.arg("--epub-cover-image").arg(cover_image);
+    }
+    let command_output = command.arg("--output").arg(output).args(inputs).output()?;
 
     Ok(ToolRunOutput {
         status: command_output.status,
@@ -141,19 +143,21 @@ pub fn run_pandoc_pdf(
     output: &Path,
     title: &str,
     language: &str,
+    table_of_contents: bool,
 ) -> std::io::Result<ToolRunOutput> {
-    let command_output = Command::new(executable)
+    let mut command = Command::new(executable);
+    command
         .arg("--to")
         .arg("pdf")
         .arg("--standalone")
         .arg("--metadata")
         .arg(format!("title={title}"))
         .arg("--metadata")
-        .arg(format!("lang={language}"))
-        .arg("--output")
-        .arg(output)
-        .args(inputs)
-        .output()?;
+        .arg(format!("lang={language}"));
+    if table_of_contents {
+        command.arg("--toc");
+    }
+    let command_output = command.arg("--output").arg(output).args(inputs).output()?;
 
     Ok(ToolRunOutput {
         status: command_output.status,

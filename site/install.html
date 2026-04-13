@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>shosei | Install</title>
+    <meta
+      name="description"
+      content="Install shosei from source and run a smoke check."
+    />
+    <link rel="stylesheet" href="assets/style.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <div>
+        <a class="site-name" href="index.html">shosei</a>
+        <p class="tagline">Japanese publishing workflows for EPUB, PDF, Kindle, and print handoff.</p>
+      </div>
+      <nav class="site-nav" aria-label="Primary">
+        <a href="index.html">Overview</a>
+        <a class="is-current" href="install.html" aria-current="page">Install</a>
+        <a href="usage.html">Usage</a>
+        <a href="quickstart.html">Quickstart</a>
+        <a href="contributing.html">Contributing</a>
+        <a href="https://github.com/koizumikento/cb-tools">GitHub</a>
+      </nav>
+    </header>
+
+    <main class="content">
+      <article class="page">
+        <h1>Install</h1>
+        <p class="lead">現時点では source install 前提です。配布済みバイナリや package manager 経由の install はまだ前提にしていません。</p>
+
+        <section>
+          <h2>Requirements</h2>
+          <ul>
+            <li>Git</li>
+            <li>Rust toolchain と `cargo`</li>
+            <li>対象 platform: macOS / Windows / Linux</li>
+          </ul>
+        </section>
+
+        <section>
+          <h2>Install from source</h2>
+          <p>リポジトリを clone して `shosei` バイナリを install します。</p>
+          <pre><code>git clone https://github.com/koizumikento/cb-tools.git
+cd cb-tools
+cargo install --path crates/shosei-cli</code></pre>
+        </section>
+
+        <section>
+          <h2>Smoke check</h2>
+          <p>インストール前に CLI surface を確認するだけなら、次で十分です。</p>
+          <pre><code>cargo run -p shosei-cli --bin shosei -- --help</code></pre>
+        </section>
+
+        <section>
+          <h2>What gets installed</h2>
+          <p>`cargo install --path crates/shosei-cli` は workspace 内の CLI crate から `shosei` バイナリを build して install します。</p>
+          <p>core library や docs は別配布ではなく、このリポジトリに同居しています。</p>
+        </section>
+
+        <section>
+          <h2>Next</h2>
+          <ul class="page-links">
+            <li><a href="usage.html">Usage</a> - コマンド一覧と使い分け</li>
+            <li><a href="quickstart.html">Quickstart</a> - 最短の流れ</li>
+          </ul>
+        </section>
+      </article>
+    </main>
+    <footer class="site-footer">
+      <p>MIT licensed.</p>
+      <a href="https://github.com/koizumikento/cb-tools">github.com/koizumikento/cb-tools</a>
+    </footer>
+  </body>
+</html>

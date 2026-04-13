@@ -31,6 +31,13 @@ impl MangaPageAsset {
     }
 }
 
+#[derive(Debug, Clone)]
+struct EpubCoverAsset {
+    file_name: String,
+    media_type: &'static str,
+    bytes: Vec<u8>,
+}
+
 #[derive(Debug, Clone, Copy)]
 pub struct FixedLayoutOptions {
     pub reading_direction: ReadingDirection,
@@ -102,9 +109,11 @@ pub fn write_fixed_layout_epub(
     language: &str,
     page_paths: &[PathBuf],
     output: &Path,
+    cover_image: Option<&Path>,
     options: FixedLayoutOptions,
 ) -> Result<(), MangaRenderError> {
     let pages = resolve_kindle_page_assets(page_paths, options)?;
+    let cover = cover_image.map(load_epub_cover_asset).transpose()?;
     let file = fs::File::create(output).map_err(|source| MangaRenderError::WriteArtifact {
         path: output.to_path_buf(),
         source,
@@ -144,9 +153,17 @@ pub fn write_fixed_layout_epub(
     write_zip_entry(
         &mut zip,
         "OEBPS/package.opf",
-        package_document(book_id, title, language, &pages, options).as_bytes(),
+        package_document(book_id, title, language, &pages, cover.as_ref(), options).as_bytes(),
         output,
     )?;
+    if let Some(cover) = &cover {
+        write_zip_entry(
+            &mut zip,
+            &format!("OEBPS/cover/{}", cover.file_name),
+            &cover.bytes,
+            output,
+        )?;
+    }
 
     for (index, page) in pages.iter().enumerate() {
         write_zip_entry(
@@ -278,6 +295,22 @@ fn load_page_assets(page_paths: &[PathBuf]) -> Result<Vec<MangaPageAsset>, Manga
         .collect()
 }
 
+fn load_epub_cover_asset(path: &Path) -> Result<EpubCoverAsset, MangaRenderError> {
+    let bytes = fs::read(path).map_err(|source| MangaRenderError::ReadPage {
+        path: path.to_path_buf(),
+        source,
+    })?;
+    Ok(EpubCoverAsset {
+        file_name: path
+            .file_name()
+            .and_then(OsStr::to_str)
+            .unwrap_or("cover.bin")
+            .to_string(),
+        media_type: media_type_for_path(path).unwrap_or("application/octet-stream"),
+        bytes,
+    })
+}
+
 fn split_page_asset(
     page: &MangaPageAsset,
     reading_direction: ReadingDirection,
@@ -401,6 +434,7 @@ fn package_document(
     title: &str,
     language: &str,
     pages: &[MangaPageAsset],
+    cover: Option<&EpubCoverAsset>,
     options: FixedLayoutOptions,
 ) -> String {
     let page_manifest = pages
@@ -429,6 +463,15 @@ fn package_document(
         })
         .collect::<Vec<_>>()
         .join("\n");
+    let cover_manifest = cover
+        .map(|cover| {
+            format!(
+                "    <item id=\"cover-image\" href=\"cover/{file_name}\" media-type=\"{media_type}\" properties=\"cover-image\"/>",
+                file_name = xml_escape(&cover.file_name),
+                media_type = cover.media_type
+            )
+        })
+        .unwrap_or_default();
     let spine = pages
         .iter()
         .enumerate()
@@ -442,10 +485,11 @@ fn package_document(
         .join("\n");
 
     format!(
-        "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<package version=\"3.0\" unique-identifier=\"bookid\" xmlns=\"http://www.idpf.org/2007/opf\">\n  <metadata xmlns:dc=\"http://purl.org/dc/elements/1.1/\">\n    <dc:identifier id=\"bookid\">shosei:{book_id}</dc:identifier>\n    <dc:title>{title}</dc:title>\n    <dc:language>{language}</dc:language>\n    <meta property=\"rendition:layout\">pre-paginated</meta>\n    <meta property=\"rendition:orientation\">auto</meta>\n    <meta property=\"rendition:spread\">auto</meta>\n  </metadata>\n  <manifest>\n    <item id=\"nav\" href=\"nav.xhtml\" media-type=\"application/xhtml+xml\" properties=\"nav\"/>\n    <item id=\"fxl-css\" href=\"styles/fxl.css\" media-type=\"text/css\"/>\n{page_manifest}\n{image_manifest}\n  </manifest>\n  <spine page-progression-direction=\"{page_progression_direction}\">\n{spine}\n  </spine>\n</package>\n",
+        "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<package version=\"3.0\" unique-identifier=\"bookid\" xmlns=\"http://www.idpf.org/2007/opf\">\n  <metadata xmlns:dc=\"http://purl.org/dc/elements/1.1/\">\n    <dc:identifier id=\"bookid\">shosei:{book_id}</dc:identifier>\n    <dc:title>{title}</dc:title>\n    <dc:language>{language}</dc:language>\n    <meta property=\"rendition:layout\">pre-paginated</meta>\n    <meta property=\"rendition:orientation\">auto</meta>\n    <meta property=\"rendition:spread\">auto</meta>\n  </metadata>\n  <manifest>\n    <item id=\"nav\" href=\"nav.xhtml\" media-type=\"application/xhtml+xml\" properties=\"nav\"/>\n    <item id=\"fxl-css\" href=\"styles/fxl.css\" media-type=\"text/css\"/>\n{cover_manifest}\n{page_manifest}\n{image_manifest}\n  </manifest>\n  <spine page-progression-direction=\"{page_progression_direction}\">\n{spine}\n  </spine>\n</package>\n",
         book_id = xml_escape(book_id),
         title = xml_escape(title),
         language = xml_escape(language),
+        cover_manifest = cover_manifest,
         page_progression_direction = options.reading_direction.as_str(),
     )
 }

@@ -126,7 +126,7 @@ CLI バイナリ名は `shosei` とする。
 project/
   book.yml
   manuscript/
-    00-cover.md
+    00-title.md
     01-chapter-1.md
   manga/
     script/
@@ -151,6 +151,7 @@ project/
 
 - `manuscript/` は文章書籍向け
 - `manga/` は漫画向け
+- `assets/cover/` の画像は外部カバーアセットとし、本文 frontmatter とは分離する
 - 実際に使わないディレクトリは空でもよい
 
 ## 7. コアコマンド
@@ -193,7 +194,24 @@ project/
 - 個別指定は例外的に `--only` など最小限に留める
 - prose と manga でパイプラインを切り替える
 
-### 7.3 `shosei validate`
+### 7.3 `shosei explain`
+
+解決済み設定と値の由来を表示する。
+
+主な責務:
+
+- repo mode と対象 book の表示
+- 最終有効設定の表示
+- 各値が `book.yml`、`series.yml` の `defaults`、または built-in default のどれで決まったかの表示
+- `series` の `shared.*` 探索パスの表示
+
+v0.1 の最小要件:
+
+- text 出力でよい
+- `single-book` / `series` の両方に対応する
+- prose / manga の差分設定を表示する
+
+### 7.4 `shosei validate`
 
 原稿・設定・成果物の検証を行う。
 
@@ -211,7 +229,7 @@ project/
 - 印刷想定検証
 - 機械可読レポート出力
 
-### 7.4 `shosei preview`
+### 7.5 `shosei preview`
 
 レイアウト確認用のプレビューを生成または起動する。
 
@@ -234,7 +252,7 @@ project/
 - 画像の回り込み、全ページ、見開き
 - 改ページ
 
-### 7.5 `shosei doctor`
+### 7.6 `shosei doctor`
 
 外部依存と環境の確認を行う。
 
@@ -253,7 +271,7 @@ project/
 - PATH 上の解決結果とバージョンを表示する
 - 不足依存の導入案内を OS 別に出せるようにする
 
-### 7.6 `shosei handoff`
+### 7.7 `shosei handoff`
 
 提出先に応じた成果物パッケージを生成する。
 
@@ -268,9 +286,8 @@ project/
 - build 情報
 - commit 情報
 
-### 7.7 将来候補
+### 7.8 将来候補
 
-- `shosei explain`: 最終有効設定と値の由来の表示
 - `shosei release`: handoff + tag 前提の成果物固定化
 - `shosei chapter add|move|remove`
 - `shosei page add`
@@ -304,9 +321,12 @@ layout:
   chapter_start_page: odd
   allow_blank_pages: true
 
+cover:
+  ebook_image: assets/cover/front.jpg
+
 manuscript:
   frontmatter:
-    - manuscript/00-cover.md
+    - manuscript/00-title.md
   chapters:
     - manuscript/01-chapter-1.md
   backmatter:
@@ -461,6 +481,81 @@ git:
 
 これにより、Kindle と印刷での出し分けを行いやすくする。
 
+補足:
+
+- `cover.ebook_image` は外部カバー画像を表す
+- `sections.type: cover` は本文フローに入るカバーページを表す
+
+### 12.1 構造情報の層
+
+v0.1 では、本文やページの構造情報を次の 3 層に分けて扱う。
+
+- source structure
+  - どのファイル、またはどのページ画像が、どの順で流れるか
+- semantic structure
+  - その要素が `titlepage`, `chapter`, `appendix`, `afterword` などのどれに当たるか
+- navigation structure
+  - 目次、EPUB nav、PDF bookmark、running header に使う見出し階層
+
+同じ原稿要素が複数層に関わってもよいが、責務は混在させない。
+
+### 12.2 prose の見出し取り扱い
+
+prose 系では `manuscript.frontmatter`, `manuscript.chapters`, `manuscript.backmatter` が source structure を決める。
+
+navigation structure は Markdown 見出しから導出する。
+
+ルール:
+
+- `manuscript.chapters` に含まれる各本文ファイルは、最初の level-1 heading を章題として扱う
+- level-2 以降の heading は節・小節候補として扱う
+- `sections.type` はファイルの意味分類に使い、見出し文字列の source of truth にはしない
+- `book.yml` に章題や節題を重複定義しない
+
+profile ごとの既定:
+
+- `business`
+  - chapter と section の両方を navigation に使うことを優先する
+- `novel`
+  - chapter 中心の navigation を既定とし、section は任意扱いにしやすくする
+- `light-novel`
+  - chapter 中心を既定としつつ、`prologue`, `interlude`, `epilogue`, `afterword` などの付帯セクションを navigation に含めやすくする
+
+### 12.3 manga の構造取り扱い
+
+manga 系ではページ順が source structure の primary source となる。
+
+ルール:
+
+- v0.1 では chapter title や section title を必須にしない
+- page image 列だけで build/validate が成立することを優先する
+- 章扉、各話タイトル、あとがき、おまけページなどは存在してよいが、v0.1 では page image 自体から見出しを抽出しない
+- 章や話の metadata は将来拡張として別途定義できるようにする
+
+### 12.4 出力への利用
+
+navigation structure の利用先は次を含む。
+
+- print 向け目次
+- EPUB nav
+- PDF bookmark
+- running header
+
+v0.1 の既定:
+
+- prose の TOC / EPUB nav / PDF bookmark は Markdown 見出し由来の navigation structure を使う
+- `pdf.running_header: chapter` は prose 本文の直近 chapter title を参照する
+- `pdf.running_header: auto` は profile ごとの既定を使い、必要に応じて chapter title を参照する
+- manga の EPUB nav は page sequence を既定とし、見出し metadata が未定義でも build 可能とする
+
+### 12.5 v0.1 の制約
+
+v0.1 では次を未対応とする。
+
+- config 上での `title`, `short_title`, `include_in_toc` の個別 override
+- TOC label と running header label の別管理
+- 派生した navigation metadata を手元の manuscript へ書き戻す機能
+
 ## 13. 出力 profile
 
 ### 13.1 prose profile
@@ -545,7 +640,7 @@ v0.1 の既定:
 ### 15.3 Kindle
 
 - reading direction
-- cover 整合
+- `cover.ebook_image` と出力 metadata の整合
 - reflow を壊す要素の警告
 - 必要に応じて Kindle Previewer 連携
 - device preview 由来の警告取り込み
@@ -655,6 +750,7 @@ v0.1 の既定:
 - build summary
 - target profile
 - commit hash
+- `dist/handoff/<book-id>-kindle/` に成果物コピーと `manifest.json`
 
 ### 19.2 `handoff print`
 
@@ -668,6 +764,7 @@ v0.1 の既定:
   - crop marks
   - fonts embedded
 - commit hash
+- `dist/handoff/<book-id>-print/` に成果物コピーと `manifest.json`
 
 ### 19.3 `handoff proof`
 
@@ -676,6 +773,7 @@ v0.1 の既定:
 - validation / preflight summary
 - タイトル、巻、target、build 時刻、commit hash を含む manifest
 - 外部校正・編集者が参照すべき注意点一覧
+- v0.1 では `dist/handoff/<book-id>-proof/` に成果物コピーと `manifest.json` を出す
 
 ## 20. MVP の範囲
 
@@ -712,7 +810,7 @@ v0.1 の既定:
 - fixed-layout EPUB の詳細制御
 - Kindle Previewer の深い統合
 - 漫画の guided view/panel metadata
-- cover body 分離の高度化
+- print cover source schema の詳細化
 - 印刷会社別 preset
 
 ## 21. 外部制約メモ

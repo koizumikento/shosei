@@ -1,0 +1,187 @@
+:root {
+  color-scheme: light;
+  --bg: #f7f7f4;
+  --surface: #ffffff;
+  --text: #222222;
+  --muted: #5a5a5a;
+  --line: #d8d8d1;
+  --accent: #0f6b57;
+  --accent-soft: #e7f2ee;
+  --code-bg: #18201c;
+  --code-text: #f5f7f5;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: Inter, "Noto Sans JP", "Hiragino Sans", sans-serif;
+  line-height: 1.7;
+}
+
+a {
+  color: var(--accent);
+}
+
+.site-header,
+.content {
+  width: min(920px, calc(100% - 2rem));
+  margin: 0 auto;
+}
+
+.site-header {
+  padding: 2.5rem 0 2rem;
+}
+
+.site-name {
+  display: inline-block;
+  margin: 0;
+  color: var(--text);
+  font-size: 1rem;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.tagline {
+  margin: 0.5rem 0 0;
+  color: var(--muted);
+}
+
+.site-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.9rem 1.2rem;
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--line);
+}
+
+.site-nav a {
+  text-decoration: none;
+}
+
+.site-nav .is-current {
+  font-weight: 700;
+  color: var(--text);
+}
+
+.content {
+  padding-bottom: 4rem;
+}
+
+.page {
+  padding: 1.5rem;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.panel {
+  padding: 1rem;
+  background: var(--accent-soft);
+  border-radius: 8px;
+}
+
+h1,
+h2,
+h3 {
+  margin: 0;
+  line-height: 1.2;
+}
+
+h1 {
+  font-size: clamp(2rem, 5vw, 3rem);
+}
+
+h2 {
+  margin-bottom: 0.85rem;
+  font-size: clamp(1.35rem, 3vw, 1.85rem);
+}
+
+h3 {
+  margin-bottom: 0.6rem;
+  font-size: 1.1rem;
+}
+
+.lead {
+  max-width: 62ch;
+  margin: 1rem 0 0;
+  color: var(--muted);
+}
+
+section + section {
+  margin-top: 2rem;
+  padding-top: 2rem;
+  border-top: 1px solid var(--line);
+}
+
+ul {
+  padding-left: 1.2rem;
+}
+
+pre {
+  margin: 0.75rem 0 0;
+  padding: 1rem 1.1rem;
+  overflow-x: auto;
+  background: var(--code-bg);
+  color: var(--code-text);
+  border-radius: 8px;
+}
+
+code {
+  font-family: "SFMono-Regular", SFMono-Regular, Consolas, "Liberation Mono", Menlo, monospace;
+  font-size: 0.94rem;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 0.75rem;
+}
+
+th,
+td {
+  padding: 0.8rem;
+  text-align: left;
+  vertical-align: top;
+  border: 1px solid var(--line);
+}
+
+th {
+  background: var(--accent-soft);
+}
+
+.split {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.25rem;
+}
+
+.page-links {
+  padding-left: 1.2rem;
+}
+
+.site-footer {
+  width: min(920px, calc(100% - 2rem));
+  margin: 0 auto;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0 0 2.5rem;
+  color: var(--muted);
+}
+
+@media (max-width: 720px) {
+  .page {
+    padding: 1.1rem;
+  }
+
+  .split {
+    grid-template-columns: 1fr;
+  }
+}

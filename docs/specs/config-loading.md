@@ -240,3 +240,17 @@ repo/
 - 設定優先順位は `CLI > book.yml > series.yml > profile defaults`
 - array は基本置換
 - `shared/*` は merge 対象ではなく探索パスとして扱う
+
+## 13. `shosei explain` での由来表示
+
+`shosei explain` は、解決済みの設定値に対して少なくとも次の由来カテゴリを表示する。
+
+- `book.yml`
+- `series defaults`
+- `built-in default`
+
+補足:
+
+- `shared.assets`, `shared.styles`, `shared.fonts`, `shared.metadata` は merge 値ではなく、`series.yml` の探索パスとして別表示する
+- v0.1 の `explain` は text 出力を基本とし、すべての schema 項目を網羅しなくてもよい
+- prose / manga で relevant な項目だけを表示してよい

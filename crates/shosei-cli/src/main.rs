@@ -41,6 +41,11 @@ fn run() -> Result<i32> {
             output::print_line(&result.summary);
             Ok(exit_code::OK)
         }
+        Commands::Explain { book, path } => {
+            let result = app::explain_config(&CommandContext::new(path, book))?;
+            output::print_line(&result.summary);
+            Ok(exit_code::OK)
+        }
         Commands::Build { book, path } => {
             let result = app::build_book(&CommandContext::new(path, book))?;
             output::print_line(&result.summary);

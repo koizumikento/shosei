@@ -4,6 +4,7 @@ use crate::{
     cli_api::CommandContext,
     config,
     domain::ProjectType,
+    fs::join_repo_path,
     manga, pipeline,
     repo::{self, RepoError},
     toolchain::{self, ToolStatus},
@@ -122,6 +123,7 @@ fn execute_build_outputs(
                     &output.artifact_path,
                     &resolved.effective.book.title,
                     &resolved.effective.book.language,
+                    resolved_cover_image_path(resolved).as_deref(),
                 )
                 .map_err(|error| {
                     execution_failed_with_message(
@@ -153,6 +155,12 @@ fn execute_build_outputs(
                     &output.artifact_path,
                     &resolved.effective.book.title,
                     &resolved.effective.book.language,
+                    resolved
+                        .effective
+                        .pdf
+                        .as_ref()
+                        .map(|pdf| pdf.toc)
+                        .unwrap_or(true),
                 )
                 .map_err(|error| {
                     execution_failed_with_message(
@@ -184,6 +192,15 @@ fn available_tool_path<'a>(
         ToolStatus::Available => tool.resolved_path.as_deref(),
         _ => None,
     })
+}
+
+fn resolved_cover_image_path(resolved: &config::ResolvedBookConfig) -> Option<PathBuf> {
+    resolved
+        .effective
+        .cover
+        .ebook_image
+        .as_ref()
+        .map(|path| join_repo_path(&resolved.repo.repo_root, path))
 }
 
 fn prepare_artifact_dir(
@@ -288,6 +305,7 @@ fn execute_manga_build_outputs(
                 &resolved.effective.book.language,
                 &plan.manuscript_files,
                 &output.artifact_path,
+                resolved_cover_image_path(resolved).as_deref(),
                 manga::FixedLayoutOptions {
                     reading_direction: manga_settings.reading_direction,
                     default_page_side: manga_settings.default_page_side,
@@ -397,12 +415,29 @@ git:
         .unwrap();
     }
 
+    fn write_book_with_cover(root: &std::path::Path) {
+        write_book(root);
+        fs::create_dir_all(root.join("assets/cover")).unwrap();
+        fs::write(root.join("assets/cover/front.png"), tiny_png()).unwrap();
+        let book_yml = fs::read_to_string(root.join("book.yml")).unwrap();
+        fs::write(
+            root.join("book.yml"),
+            format!("{book_yml}cover:\n  ebook_image: assets/cover/front.png\n"),
+        )
+        .unwrap();
+    }
+
     fn write_print_book(root: &std::path::Path) {
+        write_print_book_with_pdf(root, "");
+    }
+
+    fn write_print_book_with_pdf(root: &std::path::Path, pdf_block: &str) {
         fs::create_dir_all(root.join("manuscript")).unwrap();
         fs::write(root.join("manuscript/01.md"), "# Chapter 1\n").unwrap();
         fs::write(
             root.join("book.yml"),
-            r#"
+            format!(
+                r#"
 project:
   type: novel
   vcs: git
@@ -419,13 +454,28 @@ outputs:
   print:
     enabled: true
     target: print-jp-pdfx1a
-validation:
+{pdf_block}validation:
   strict: true
 git:
   lfs: true
-"#,
+"#
+            ),
         )
         .unwrap();
+    }
+
+    fn write_print_book_without_toc(root: &std::path::Path) {
+        write_print_book_with_pdf(
+            root,
+            "pdf:\n  engine: weasyprint\n  toc: false\n  page_number: true\n  running_header: auto\n",
+        );
+    }
+
+    fn write_print_book_with_toc(root: &std::path::Path) {
+        write_print_book_with_pdf(
+            root,
+            "pdf:\n  engine: weasyprint\n  toc: true\n  page_number: true\n  running_header: auto\n",
+        );
     }
 
     fn write_manga_book(root: &std::path::Path, output_block: &str, spread_policy: &str) {
@@ -553,6 +603,61 @@ printf 'fake epub' > "$out"
     }
 
     #[test]
+    fn build_passes_cover_image_to_pandoc_epub() {
+        if !cfg!(unix) {
+            return;
+        }
+
+        let root = temp_dir("fake-pandoc-cover");
+        write_book_with_cover(&root);
+        let pandoc = root.join("pandoc");
+        let cover_arg = root.join("cover-arg.txt");
+        fs::write(
+            &pandoc,
+            format!(
+                r#"#!/bin/sh
+out=""
+cover=""
+prev=""
+for arg in "$@"; do
+  if [ "$prev" = "--output" ]; then
+    out="$arg"
+  fi
+  if [ "$prev" = "--epub-cover-image" ]; then
+    cover="$arg"
+  fi
+  prev="$arg"
+done
+mkdir -p "$(dirname "$out")"
+printf '%s' "$cover" > "{}"
+printf 'fake epub' > "$out"
+"#,
+                cover_arg.display()
+            ),
+        )
+        .unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mut permissions = fs::metadata(&pandoc).unwrap().permissions();
+            permissions.set_mode(0o755);
+            fs::set_permissions(&pandoc, permissions).unwrap();
+        }
+
+        let result = build_book_with_toolchain(
+            &CommandContext::new(&root, None),
+            &fake_toolchain(Some(pandoc)),
+        )
+        .unwrap();
+
+        assert!(result.artifacts[0].is_file());
+        assert_eq!(
+            fs::read_to_string(cover_arg).unwrap(),
+            root.join("assets/cover/front.png").display().to_string()
+        );
+    }
+
+    #[test]
     fn build_writes_log_when_pandoc_fails() {
         if !cfg!(unix) {
             return;
@@ -641,6 +746,104 @@ printf 'fake pdf' > "$out"
     }
 
     #[test]
+    fn build_passes_toc_flag_to_pandoc_pdf_when_enabled() {
+        if !cfg!(unix) {
+            return;
+        }
+
+        let root = temp_dir("fake-pandoc-print-toc-enabled");
+        write_print_book_with_toc(&root);
+        let pandoc = root.join("pandoc");
+        let args_path = root.join("pandoc-args.txt");
+        fs::write(
+            &pandoc,
+            format!(
+                r#"#!/bin/sh
+printf '%s\n' "$@" > "{}"
+out=""
+prev=""
+for arg in "$@"; do
+  if [ "$prev" = "--output" ]; then
+    out="$arg"
+  fi
+  prev="$arg"
+done
+mkdir -p "$(dirname "$out")"
+printf 'fake pdf' > "$out"
+"#,
+                args_path.display()
+            ),
+        )
+        .unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mut permissions = fs::metadata(&pandoc).unwrap().permissions();
+            permissions.set_mode(0o755);
+            fs::set_permissions(&pandoc, permissions).unwrap();
+        }
+
+        let result = build_book_with_toolchain(
+            &CommandContext::new(&root, None),
+            &fake_toolchain(Some(pandoc)),
+        )
+        .unwrap();
+
+        assert!(result.artifacts[0].is_file());
+        let args = fs::read_to_string(args_path).unwrap();
+        assert!(args.lines().any(|arg| arg == "--toc"));
+    }
+
+    #[test]
+    fn build_omits_toc_flag_to_pandoc_pdf_when_disabled() {
+        if !cfg!(unix) {
+            return;
+        }
+
+        let root = temp_dir("fake-pandoc-print-toc-disabled");
+        write_print_book_without_toc(&root);
+        let pandoc = root.join("pandoc");
+        let args_path = root.join("pandoc-args.txt");
+        fs::write(
+            &pandoc,
+            format!(
+                r#"#!/bin/sh
+printf '%s\n' "$@" > "{}"
+out=""
+prev=""
+for arg in "$@"; do
+  if [ "$prev" = "--output" ]; then
+    out="$arg"
+  fi
+  prev="$arg"
+done
+mkdir -p "$(dirname "$out")"
+printf 'fake pdf' > "$out"
+"#,
+                args_path.display()
+            ),
+        )
+        .unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mut permissions = fs::metadata(&pandoc).unwrap().permissions();
+            permissions.set_mode(0o755);
+            fs::set_permissions(&pandoc, permissions).unwrap();
+        }
+
+        let result = build_book_with_toolchain(
+            &CommandContext::new(&root, None),
+            &fake_toolchain(Some(pandoc)),
+        )
+        .unwrap();
+
+        assert!(result.artifacts[0].is_file());
+        let args = fs::read_to_string(args_path).unwrap();
+        assert!(!args.lines().any(|arg| arg == "--toc"));
+    }
+
+    #[test]
     fn build_writes_manga_epub_artifact() {
         let root = temp_dir("manga-kindle");
         write_manga_book(
@@ -665,6 +868,34 @@ printf 'fake pdf' > "$out"
         assert!(package.contains("page-progression-direction=\"rtl\""));
         assert!(package.contains("page-spread-right"));
         assert!(package.contains("page-spread-left"));
+    }
+
+    #[test]
+    fn build_includes_cover_image_in_manga_epub() {
+        let root = temp_dir("manga-kindle-cover");
+        write_manga_book(
+            &root,
+            "outputs:\n  kindle:\n    enabled: true\n    target: kindle-comic\n",
+            "split",
+        );
+        fs::create_dir_all(root.join("assets/cover")).unwrap();
+        fs::write(root.join("assets/cover/front.png"), tiny_png()).unwrap();
+        let book_yml = fs::read_to_string(root.join("book.yml")).unwrap();
+        fs::write(
+            root.join("book.yml"),
+            format!("{book_yml}cover:\n  ebook_image: assets/cover/front.png\n"),
+        )
+        .unwrap();
+
+        let result =
+            build_book_with_toolchain(&CommandContext::new(&root, None), &fake_toolchain(None))
+                .unwrap();
+
+        let package = read_epub_entry(&result.artifacts[0], "OEBPS/package.opf");
+        assert!(package.contains("properties=\"cover-image\""));
+        let file = fs::File::open(&result.artifacts[0]).unwrap();
+        let mut archive = zip::ZipArchive::new(file).unwrap();
+        assert!(archive.by_name("OEBPS/cover/front.png").is_ok());
     }
 
     #[test]

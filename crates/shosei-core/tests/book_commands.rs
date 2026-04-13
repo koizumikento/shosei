@@ -160,3 +160,106 @@ git:
     assert!(report.contains("manuscript file not found"));
     assert!(report.contains("manuscript/01.md"));
 }
+
+#[test]
+fn explain_shows_single_book_origins() {
+    let root = temp_dir("explain-single");
+    fs::write(
+        root.join("book.yml"),
+        r#"
+project:
+  type: novel
+book:
+  title: "Sample"
+  authors:
+    - "Author"
+  reading_direction: rtl
+cover:
+  ebook_image: assets/cover/front.jpg
+manuscript:
+  chapters:
+    - manuscript/01.md
+outputs:
+  kindle:
+    enabled: true
+    target: kindle-ja
+"#,
+    )
+    .unwrap();
+
+    let result = app::explain_config(&CommandContext::new(&root, None)).unwrap();
+    assert!(result.summary.contains("explain for default"));
+    assert!(result.summary.contains("book.title = Sample [book.yml]"));
+    assert!(
+        result
+            .summary
+            .contains("cover.ebook_image = assets/cover/front.jpg [book.yml]")
+    );
+    assert!(result.summary.contains("pdf.toc = true [built-in default]"));
+    assert!(
+        result
+            .summary
+            .contains("book.language = ja [built-in default]")
+    );
+}
+
+#[test]
+fn explain_shows_series_default_origins_and_shared_paths() {
+    let root = temp_dir("explain-series");
+    fs::create_dir_all(root.join("books/vol-01")).unwrap();
+    fs::write(
+        root.join("series.yml"),
+        r#"
+series:
+  id: sample
+  title: Sample
+  type: novel
+defaults:
+  book:
+    language: ja
+    writing_mode: vertical-rl
+    reading_direction: rtl
+  outputs:
+    kindle:
+      enabled: true
+      target: kindle-ja
+shared:
+  assets:
+    - shared/assets
+books:
+  - id: vol-01
+    path: books/vol-01
+"#,
+    )
+    .unwrap();
+    fs::write(
+        root.join("books/vol-01/book.yml"),
+        r#"
+project:
+  type: novel
+book:
+  title: "Vol 1"
+  authors:
+    - "Author"
+manuscript:
+  chapters:
+    - books/vol-01/manuscript/01.md
+"#,
+    )
+    .unwrap();
+
+    let result =
+        app::explain_config(&CommandContext::new(&root, Some("vol-01".to_string()))).unwrap();
+    assert!(
+        result
+            .summary
+            .contains("book.language = ja [series defaults]")
+    );
+    assert!(
+        result
+            .summary
+            .contains("outputs.kindle.target = kindle-ja [series defaults]")
+    );
+    assert!(result.summary.contains("shared search paths:"));
+    assert!(result.summary.contains("assets = shared/assets"));
+}

@@ -7,6 +7,7 @@ use crate::{
     config,
     diagnostics::{Severity, ValidationIssue},
     domain::ProjectType,
+    fs::join_repo_path,
     manga, pipeline,
     repo::{self, RepoError},
     toolchain::{self, ToolStatus},
@@ -84,6 +85,7 @@ fn validate_book_with_toolchain(
                 issues.extend(manga_validation_issues(&resolved, plan));
             }
         }
+        issues.extend(cover_validation_issues(&resolved));
         let outputs = resolved.outputs();
         let report = ValidateReport {
             book_id: book.id.clone(),
@@ -248,6 +250,28 @@ fn schema_warning_issues(resolved: &config::ResolvedBookConfig) -> Vec<Validatio
     }
 
     issues
+}
+
+fn cover_validation_issues(resolved: &config::ResolvedBookConfig) -> Vec<ValidationIssue> {
+    let Some(cover_path) = resolved.effective.cover.ebook_image.as_ref() else {
+        return Vec::new();
+    };
+    let fs_path = join_repo_path(&resolved.repo.repo_root, cover_path);
+    if fs_path.is_file() {
+        return Vec::new();
+    }
+
+    vec![issue_from_severity(
+        resolved.effective.validation.missing_image,
+        if resolved.effective.outputs.kindle.is_some() {
+            "kindle"
+        } else {
+            "common"
+        },
+        format!("cover image file not found: {}", cover_path.as_str()),
+        "cover.ebook_image を修正するか、対象ファイルを追加してください。",
+        Some(fs_path),
+    )]
 }
 
 fn manga_validation_issues(
@@ -583,6 +607,48 @@ git:
         .unwrap();
     }
 
+    fn write_book_with_cover(root: &std::path::Path, missing_image: &str, create_cover: bool) {
+        fs::create_dir_all(root.join("manuscript")).unwrap();
+        fs::write(root.join("manuscript/01.md"), "# Chapter 1\n").unwrap();
+        fs::write(
+            root.join("book.yml"),
+            format!(
+                r#"
+project:
+  type: novel
+  vcs: git
+book:
+  title: "Sample"
+  authors:
+    - "Author"
+  reading_direction: rtl
+layout:
+  binding: right
+manuscript:
+  chapters:
+    - manuscript/01.md
+outputs:
+  kindle:
+    enabled: true
+    target: kindle-ja
+validation:
+  strict: true
+  epubcheck: true
+  missing_image: {missing_image}
+git:
+  lfs: true
+cover:
+  ebook_image: assets/cover/front.png
+"#
+            ),
+        )
+        .unwrap();
+        if create_cover {
+            fs::create_dir_all(root.join("assets/cover")).unwrap();
+            fs::write(root.join("assets/cover/front.png"), tiny_png()).unwrap();
+        }
+    }
+
     fn write_manga_book(root: &std::path::Path) {
         write_manga_book_with_options(root, "error", "split", 0, "monochrome");
     }
@@ -679,6 +745,40 @@ manga:
         let report = fs::read_to_string(result.report_path).unwrap();
         assert!(report.contains("required validation tool is missing"));
         assert!(report.contains("\"severity\": \"error\""));
+    }
+
+    #[test]
+    fn validate_reports_missing_cover_image() {
+        let root = temp_dir("missing-cover-image");
+        write_book_with_cover(&root, "error", false);
+
+        let result = validate_book_with_toolchain(
+            &CommandContext::new(&root, None),
+            &fake_toolchain(ToolStatus::Available),
+        )
+        .unwrap();
+
+        assert!(result.has_errors);
+        let report = fs::read_to_string(result.report_path).unwrap();
+        assert!(report.contains("cover image file not found"));
+        assert!(report.contains("assets/cover/front.png"));
+    }
+
+    #[test]
+    fn validate_can_warn_for_missing_cover_image() {
+        let root = temp_dir("missing-cover-image-warn");
+        write_book_with_cover(&root, "warn", false);
+
+        let result = validate_book_with_toolchain(
+            &CommandContext::new(&root, None),
+            &fake_toolchain(ToolStatus::Available),
+        )
+        .unwrap();
+
+        assert!(!result.has_errors);
+        let report = fs::read_to_string(result.report_path).unwrap();
+        assert!(report.contains("cover image file not found"));
+        assert!(report.contains("\"severity\": \"warning\""));
     }
 
     #[test]

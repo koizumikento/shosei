@@ -49,6 +49,11 @@ Add a deeper `AGENTS.md` only when a subdirectory needs rules that differ from t
 - Keep docs concise and practical. Do not paste large parts of specs into AGENTS files.
 - Prefer relative links inside `docs/`.
 - When updating docs, keep command examples aligned with the current CLI name: `shosei`.
+- Do not describe commands or features as `available` unless the current code path actually implements them.
+- When command behavior, config fields, or user-visible output changes, update the affected usage docs in the same change.
+- Keep `docs/usage.md` and `site/usage.html` in sync. If one changes, review and update the other in the same change.
+- Keep command status labels in `README.md`, `docs/usage.md`, and `site/usage.html` aligned with the current implementation.
+- Prefer examples that reflect current supported config fields and output behavior; remove or rewrite stale examples instead of leaving them partially correct.
 - Do not add vague instructions like "do the right thing". Write concrete rules or leave them out.
 
 ## Validation

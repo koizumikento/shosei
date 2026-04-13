@@ -14,6 +14,9 @@ Architecture Decision Record の一覧。
 - [ADR-0010: single-book から series への移行パスを前提にする](0010-single-book-to-series-migration.md)
 - [ADR-0011: CLI 名は shosei を採用する](0011-cli-name-shosei.md)
 - [ADR-0012: 価値の重心を preflight・explain・handoff に置く](0012-preflight-explain-and-handoff-priority.md)
+- [ADR-0013: manga のページ順は `manga/pages/` の辞書順を既定にする](0013-manga-page-discovery-fallback.md)
+- [ADR-0014: 外部カバー画像は `book.yml` で明示し、本文ページと分離する](0014-cover-asset-separation.md)
+- [ADR-0015: navigation 構造は source / semantic / navigation で分離する](0015-navigation-structure-separation.md)
 
 記法:
 
