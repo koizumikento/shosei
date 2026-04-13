@@ -20,6 +20,8 @@ pub enum Commands {
         force: bool,
         #[arg(long, value_name = "TEMPLATE")]
         config_template: Option<String>,
+        #[arg(long, value_name = "MODE", value_parser = ["single-book", "series"])]
+        repo_mode: Option<String>,
     },
     Explain {
         #[arg(long)]
@@ -123,6 +125,8 @@ pub enum PageCommands {
 
 #[cfg(test)]
 mod tests {
+    use std::path::PathBuf;
+
     use clap::Parser;
 
     use super::{ChapterCommands, Cli, Commands};
@@ -179,6 +183,33 @@ mod tests {
             } => {
                 assert_eq!(chapter_path, "manuscript/02-old.md");
                 assert!(delete_file);
+            }
+            other => panic!("unexpected command: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_init_repo_mode_override() {
+        let cli = Cli::parse_from([
+            "shosei",
+            "init",
+            "./my-series",
+            "--config-template",
+            "business",
+            "--repo-mode",
+            "series",
+        ]);
+
+        match cli.command {
+            Commands::Init {
+                path,
+                config_template,
+                repo_mode,
+                ..
+            } => {
+                assert_eq!(path, Some(PathBuf::from("./my-series")));
+                assert_eq!(config_template.as_deref(), Some("business"));
+                assert_eq!(repo_mode.as_deref(), Some("series"));
             }
             other => panic!("unexpected command: {other:?}"),
         }

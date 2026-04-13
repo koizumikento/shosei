@@ -43,7 +43,7 @@ pub fn build_book(command: &CommandContext) -> Result<BuildBookResult, BuildBook
     build_book_with_toolchain(command, &toolchain)
 }
 
-fn build_book_with_toolchain(
+pub(crate) fn build_book_with_toolchain(
     command: &CommandContext,
     toolchain: &toolchain::ToolchainReport,
 ) -> Result<BuildBookResult, BuildBookError> {

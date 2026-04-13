@@ -19,6 +19,7 @@ use crate::{
 pub struct PageCheckResult {
     pub summary: String,
     pub report_path: PathBuf,
+    pub issues: Vec<ValidationIssue>,
     pub issue_count: usize,
     pub has_errors: bool,
 }
@@ -152,17 +153,19 @@ pub fn page_check(command: &CommandContext) -> Result<PageCheckResult, PageCheck
     };
     write_report(&report_path, &report)?;
     let has_errors = issues.iter().any(|issue| issue.severity == Severity::Error);
+    let issue_count = issues.len();
 
     Ok(PageCheckResult {
         summary: format!(
             "page check completed for {} with {} page(s), issues: {}, report: {}",
             book.id,
             report.page_count,
-            issues.len(),
+            issue_count,
             report_path.display()
         ),
         report_path,
-        issue_count: issues.len(),
+        issues,
+        issue_count,
         has_errors,
     })
 }

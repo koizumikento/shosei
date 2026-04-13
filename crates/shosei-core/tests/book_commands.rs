@@ -349,3 +349,94 @@ manuscript:
     assert!(result.summary.contains("shared search paths:"));
     assert!(result.summary.contains("assets = shared/assets"));
 }
+
+#[test]
+fn explain_shows_editorial_summary_when_sidecars_are_configured() {
+    let root = temp_dir("explain-editorial");
+    fs::create_dir_all(root.join("manuscript")).unwrap();
+    fs::create_dir_all(root.join("editorial")).unwrap();
+    fs::write(root.join("manuscript/01.md"), "# Chapter 1\n").unwrap();
+    fs::write(
+        root.join("editorial/style.yml"),
+        r#"
+preferred_terms:
+  - preferred: "Git"
+    aliases:
+      - "git"
+"#,
+    )
+    .unwrap();
+    fs::write(
+        root.join("editorial/claims.yml"),
+        r#"
+claims:
+  - id: claim-1
+    summary: "Summary"
+    section: manuscript/01.md
+    sources:
+      - https://example.com/source
+"#,
+    )
+    .unwrap();
+    fs::write(
+        root.join("editorial/figures.yml"),
+        r#"
+figures:
+  - id: fig-1
+    path: assets/images/example.png
+    caption: "Example"
+    source: "Source"
+"#,
+    )
+    .unwrap();
+    fs::write(
+        root.join("editorial/freshness.yml"),
+        r#"
+tracked:
+  - kind: claim
+    id: claim-1
+    last_verified: 2026-04-13
+    review_due_on: 2026-05-13
+"#,
+    )
+    .unwrap();
+    fs::write(
+        root.join("book.yml"),
+        r#"
+project:
+  type: business
+book:
+  title: "Sample"
+  authors:
+    - "Author"
+  reading_direction: ltr
+layout:
+  binding: left
+manuscript:
+  chapters:
+    - manuscript/01.md
+outputs:
+  kindle:
+    enabled: true
+    target: kindle-ja
+editorial:
+  style: editorial/style.yml
+  claims: editorial/claims.yml
+  figures: editorial/figures.yml
+  freshness: editorial/freshness.yml
+"#,
+    )
+    .unwrap();
+
+    let result = app::explain_config(&CommandContext::new(&root, None, None)).unwrap();
+    assert!(
+        result
+            .summary
+            .contains("editorial.style = editorial/style.yml [book.yml]")
+    );
+    assert!(result.summary.contains("editorial summary:"));
+    assert!(result.summary.contains("- style rules = 1"));
+    assert!(result.summary.contains("- claims = 1"));
+    assert!(result.summary.contains("- figures = 1"));
+    assert!(result.summary.contains("- freshness items = 1"));
+}

@@ -369,7 +369,99 @@ git:
 | `require_clean_worktree_for_handoff` | boolean | no | `true` | `true`, `false` |
 | `lockable` | array<string> | no | `[]` | glob list |
 
-## 16. `manga`
+## 16. `editorial`
+
+prose 系 project で任意。editorial metadata の sidecar file を参照する。
+
+```yaml
+editorial:
+  style: editorial/style.yml
+  claims: editorial/claims.yml
+  figures: editorial/figures.yml
+  freshness: editorial/freshness.yml
+```
+
+| Field | Type | Required | Default | Allowed |
+|---|---|---|---|---|
+| `style` | string | no | none | repo-relative YAML path |
+| `claims` | string | no | none | repo-relative YAML path |
+| `figures` | string | no | none | repo-relative YAML path |
+| `freshness` | string | no | none | repo-relative YAML path |
+
+制約:
+
+- 参照先は repo root 基準の相対 path
+- prose 系では `validate`, `explain`, `handoff proof` が参照できる
+- v0.1 では sidecar 自体の merge は行わない
+
+### 16.1 `style.yml`
+
+```yaml
+preferred_terms:
+  - preferred: "Git"
+    aliases:
+      - "git"
+    severity: warn
+banned_terms:
+  - term: "出来る"
+    severity: warn
+    reason: 常用表記に寄せる
+```
+
+- `preferred_terms[].preferred` は正規表記
+- `preferred_terms[].aliases` は検出対象
+- `banned_terms[].term` は禁止語
+- `severity` は `warn | error`
+
+### 16.2 `claims.yml`
+
+```yaml
+claims:
+  - id: claim-market-size
+    summary: 国内市場は拡大している
+    section: manuscript/02-market.md
+    sources:
+      - https://example.com/report
+    reviewer_note: 数値の更新を release 前に確認
+```
+
+- `id` は file 内で一意
+- `section` は prose manuscript 内の file path
+- `sources` は 1 件以上を推奨する
+
+### 16.3 `figures.yml`
+
+```yaml
+figures:
+  - id: fig-architecture
+    path: assets/images/architecture.png
+    caption: 全体構成
+    source: 社内図を再構成
+    rights: owned
+    reviewer_note: ロゴ差し替え待ち
+```
+
+- `id` は file 内で一意
+- `path` は repo-relative asset path
+- `source` と `rights` は校正・入稿時の確認対象
+
+### 16.4 `freshness.yml`
+
+```yaml
+tracked:
+  - kind: claim
+    id: claim-market-size
+    last_verified: 2026-04-13
+    review_due_on: 2026-05-13
+    note: 市場規模の数字は月次で見直す
+```
+
+- `kind` は `claim | figure`
+- `id` は対応する claim / figure id を参照する
+- 日付は `YYYY-MM-DD`
+- `review_due_on` を過ぎた項目は warning 以上で報告する
+
+## 17. `manga`
 
 `project.type: manga` の場合に必須。
 
@@ -399,7 +491,7 @@ manga:
 - v0.1 では chapter title や section title の metadata は必須ではない
 - Kindle 向け nav が必要な場合でも、既定では page sequence を使って生成する
 
-## 17. `pipeline`
+## 18. `pipeline`
 
 `project.type: manga` の場合に任意。
 
@@ -418,7 +510,7 @@ pipeline:
 |---|---|---|---|
 | `stages` | array<string> | no | implementation-defined ordered list |
 
-## 18. prose の最小例
+## 19. prose の最小例
 
 ```yaml
 project:
@@ -458,9 +550,15 @@ validation:
 
 git:
   lfs: true
+
+editorial:
+  style: editorial/style.yml
+  claims: editorial/claims.yml
+  figures: editorial/figures.yml
+  freshness: editorial/freshness.yml
 ```
 
-## 19. manga の最小例
+## 20. manga の最小例
 
 ```yaml
 project:
@@ -509,7 +607,7 @@ git:
   lfs: true
 ```
 
-## 20. schema バリデーションルール
+## 21. schema バリデーションルール
 
 - unknown key は v0.1 では warning
 - enum 不一致は error
@@ -518,10 +616,11 @@ git:
 - `project.type != manga` なのに `manga` セクションが存在する場合は warning
 - `outputs.print.enabled: true` なのに `print` セクションがない場合は warning
 - `outputs.kindle.enabled: true` なのに `book.reading_direction` が未指定なら error
+- `editorial.*` がある場合、参照先 path の形式不正は error
 - `manga.front_color_pages` が resolved page count を超える場合は error
 - `manga.body_mode: monochrome` で `front_color_pages` を超えた本文ページに color 画像がある場合は error
 
-## 21. 将来拡張の余地
+## 22. 将来拡張の余地
 
 - JSON Schema 生成
 - `custom_trim_size`

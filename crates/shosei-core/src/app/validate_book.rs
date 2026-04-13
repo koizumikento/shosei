@@ -1,4 +1,5 @@
 use std::{
+    collections::{BTreeMap, BTreeSet},
     fs,
     path::{Path, PathBuf},
 };
@@ -9,8 +10,9 @@ use serde::Serialize;
 use crate::{
     cli_api::CommandContext,
     config,
-    diagnostics::{Severity, ValidationIssue},
-    domain::ProjectType,
+    diagnostics::{IssueLocation, Severity, ValidationIssue},
+    domain::{ProjectType, RepoPath},
+    editorial,
     fs::join_repo_path,
     manga, pipeline,
     repo::{self, RepoError},
@@ -23,6 +25,7 @@ pub struct ValidateBookResult {
     pub summary: String,
     pub plan: Option<pipeline::ValidatePlan>,
     pub report_path: PathBuf,
+    pub issues: Vec<ValidationIssue>,
     pub issue_count: usize,
     pub has_errors: bool,
 }
@@ -33,6 +36,8 @@ pub enum ValidateBookError {
     Repo(#[from] RepoError),
     #[error(transparent)]
     Config(#[from] config::ConfigError),
+    #[error(transparent)]
+    Editorial(#[from] editorial::EditorialError),
     #[error("failed to write validation report to {path}: {source}")]
     WriteReport {
         path: PathBuf,
@@ -56,7 +61,7 @@ pub fn validate_book(command: &CommandContext) -> Result<ValidateBookResult, Val
     validate_book_with_toolchain(command, &toolchain)
 }
 
-fn validate_book_with_toolchain(
+pub(crate) fn validate_book_with_toolchain(
     command: &CommandContext,
     toolchain: &toolchain::ToolchainReport,
 ) -> Result<ValidateBookResult, ValidateBookError> {
@@ -68,6 +73,11 @@ fn validate_book_with_toolchain(
     if let Some(book) = context.book.clone() {
         let resolved = config::resolve_book_config(&context)?;
         let project_type = resolved.effective.project.project_type;
+        let editorial = if project_type.is_prose() {
+            Some(editorial::load_bundle(&resolved)?)
+        } else {
+            None
+        };
         let report_path = report_path(&resolved);
         let selected_channel = pipeline::selected_output_channel(command);
         let (plan, mut issues) = match match project_type {
@@ -107,7 +117,7 @@ fn validate_book_with_toolchain(
             issues.extend(schema_warning_issues(&resolved));
             issues.extend(match project_type {
                 ProjectType::Manga => manga_validation_issues(&resolved, plan),
-                _ => prose_validation_issues(&resolved, plan),
+                _ => prose_validation_issues(&resolved, plan, editorial.as_ref()),
             });
         }
         issues.extend(cover_validation_issues(&resolved));
@@ -146,6 +156,7 @@ fn validate_book_with_toolchain(
             ),
             plan,
             report_path,
+            issues: issues.clone(),
             issue_count: issues.len(),
             has_errors,
         });
@@ -323,6 +334,7 @@ fn cover_validation_issues(resolved: &config::ResolvedBookConfig) -> Vec<Validat
 fn prose_validation_issues(
     resolved: &config::ResolvedBookConfig,
     plan: &pipeline::ValidatePlan,
+    editorial_bundle: Option<&editorial::EditorialBundle>,
 ) -> Vec<ValidationIssue> {
     let Some(manuscript) = resolved.effective.manuscript.as_ref() else {
         return Vec::new();
@@ -333,7 +345,13 @@ fn prose_validation_issues(
         .iter()
         .map(|path| join_repo_path(&resolved.repo.repo_root, path))
         .collect::<Vec<_>>();
+    let manuscript_repo_paths = resolved
+        .manuscript_files()
+        .into_iter()
+        .map(|path| path.as_str().to_string())
+        .collect::<BTreeSet<_>>();
     let mut issues = Vec::new();
+    let mut referenced_images = BTreeMap::<String, IssueLocation>::new();
 
     for file_path in &plan.manuscript_files {
         let analysis = match analyze_markdown_file(file_path) {
@@ -353,7 +371,7 @@ fn prose_validation_issues(
 
         for image in &analysis.images {
             if image.alt.trim().is_empty() {
-                issues.push(issue_from_severity(
+                issues.push(issue_from_severity_at_location(
                     resolved.effective.validation.missing_alt,
                     if resolved.effective.outputs.kindle.is_some() {
                         "kindle"
@@ -362,18 +380,24 @@ fn prose_validation_issues(
                     },
                     format!("image is missing alt text: {}", image.destination),
                     "画像参照に代替テキストを追加してください。",
-                    Some(file_path.clone()),
+                    Some(IssueLocation::with_line(
+                        file_path.to_path_buf(),
+                        image.line,
+                    )),
                 ));
             }
             if !image.is_external
                 && !resolved_path_exists(file_path, &resolved.repo.repo_root, &image.destination)
             {
-                issues.push(issue_from_severity(
+                issues.push(issue_from_severity_at_location(
                     resolved.effective.validation.missing_image,
                     "common",
                     format!("image reference target not found: {}", image.destination),
                     "画像パスを修正するか、対象ファイルを追加してください。",
-                    Some(file_path.clone()),
+                    Some(IssueLocation::with_line(
+                        file_path.to_path_buf(),
+                        image.line,
+                    )),
                 ));
             }
         }
@@ -382,41 +406,72 @@ fn prose_validation_issues(
             if !link.is_external
                 && !resolved_path_exists(file_path, &resolved.repo.repo_root, &link.destination)
             {
-                issues.push(issue_from_severity(
+                issues.push(issue_from_severity_at_location(
                     resolved.effective.validation.broken_link,
                     "common",
                     format!("link target not found: {}", link.destination),
                     "リンク先パスを修正するか、対象ファイルを追加してください。",
-                    Some(file_path.clone()),
+                    Some(IssueLocation::with_line(file_path.to_path_buf(), link.line)),
                 ));
             }
         }
 
+        if let Some(editorial_bundle) = editorial_bundle {
+            issues.extend(style_validation_issues(
+                editorial_bundle.style.as_ref(),
+                &analysis.contents,
+                file_path,
+            ));
+
+            for image in &analysis.images {
+                if !image.is_external
+                    && let Some(repo_path) = resolve_destination_to_repo_path(
+                        file_path,
+                        &resolved.repo.repo_root,
+                        &image.destination,
+                    )
+                {
+                    referenced_images.entry(repo_path).or_insert_with(|| {
+                        IssueLocation::with_line(file_path.to_path_buf(), image.line)
+                    });
+                }
+            }
+        }
+
         if chapter_paths.iter().any(|chapter| chapter == file_path) {
-            if analysis.heading_levels.first().copied() != Some(1)
-                && let Some(issue) = accessibility_issue(
+            if analysis.headings.first().map(|heading| heading.level) != Some(1)
+                && let Some(issue) = accessibility_issue_at_location(
                     resolved,
                     "common",
                     "chapter file does not begin with a level-1 heading".to_string(),
                     "各 chapter ファイルの先頭に `#` 見出しを置き、navigation の導出元を明確にしてください。",
-                    file_path.clone(),
+                    analysis
+                        .headings
+                        .first()
+                        .map(|heading| {
+                            IssueLocation::with_line(file_path.to_path_buf(), heading.line)
+                        })
+                        .unwrap_or_else(|| file_path.to_path_buf().into()),
                 )
             {
                 issues.push(issue);
             }
-            for (previous, current) in analysis.heading_levels.windows(2).filter_map(|levels| {
-                if levels[1] > levels[0] + 1 {
-                    Some((levels[0], levels[1]))
+            for (previous, current) in analysis.headings.windows(2).filter_map(|levels| {
+                if levels[1].level > levels[0].level + 1 {
+                    Some((&levels[0], &levels[1]))
                 } else {
                     None
                 }
             }) {
-                if let Some(issue) = accessibility_issue(
+                if let Some(issue) = accessibility_issue_at_location(
                     resolved,
                     "common",
-                    format!("heading hierarchy skips levels: h{previous} -> h{current}"),
+                    format!(
+                        "heading hierarchy skips levels: h{} -> h{}",
+                        previous.level, current.level
+                    ),
                     "見出しレベルを段階的に増やしてください。例: h1 の次は h2 を使います。",
-                    file_path.clone(),
+                    IssueLocation::with_line(file_path.to_path_buf(), current.line),
                 ) {
                     issues.push(issue);
                 }
@@ -433,6 +488,19 @@ fn prose_validation_issues(
         ));
     }
 
+    if let Some(editorial_bundle) = editorial_bundle {
+        issues.extend(claim_validation_issues(
+            editorial_bundle.claims.as_ref(),
+            &manuscript_repo_paths,
+        ));
+        issues.extend(figure_validation_issues(
+            resolved,
+            editorial_bundle.figures.as_ref(),
+            &referenced_images,
+        ));
+        issues.extend(freshness_validation_issues(editorial_bundle));
+    }
+
     issues
 }
 
@@ -441,11 +509,19 @@ struct MarkdownLink {
     destination: String,
     alt: String,
     is_external: bool,
+    line: usize,
+}
+
+#[derive(Debug, Clone)]
+struct MarkdownHeading {
+    level: u32,
+    line: usize,
 }
 
 #[derive(Debug, Default)]
 struct MarkdownAnalysis {
-    heading_levels: Vec<u32>,
+    contents: String,
+    headings: Vec<MarkdownHeading>,
     links: Vec<MarkdownLink>,
     images: Vec<MarkdownLink>,
 }
@@ -459,9 +535,16 @@ fn analyze_markdown_file(path: &Path) -> Result<MarkdownAnalysis, std::io::Error
         Regex::new(r"\[(?P<label>[^\]]*)\]\((?P<dest>[^)]+)\)").expect("valid link regex");
 
     Ok(MarkdownAnalysis {
-        heading_levels: heading_regex
+        contents: contents.clone(),
+        headings: heading_regex
             .captures_iter(&contents)
-            .map(|capture| capture[1].len() as u32)
+            .map(|capture| MarkdownHeading {
+                level: capture[1].len() as u32,
+                line: capture
+                    .get(0)
+                    .map(|matched| line_number_from_offset(&contents, matched.start()))
+                    .unwrap_or(1),
+            })
             .collect(),
         images: image_regex
             .captures_iter(&contents)
@@ -471,6 +554,10 @@ fn analyze_markdown_file(path: &Path) -> Result<MarkdownAnalysis, std::io::Error
                     is_external: is_external_destination(&destination),
                     destination,
                     alt: capture["alt"].to_string(),
+                    line: capture
+                        .get(0)
+                        .map(|matched| line_number_from_offset(&contents, matched.start()))
+                        .unwrap_or(1),
                 }
             })
             .collect(),
@@ -488,10 +575,464 @@ fn analyze_markdown_file(path: &Path) -> Result<MarkdownAnalysis, std::io::Error
                     is_external: is_external_destination(&destination),
                     destination,
                     alt: String::new(),
+                    line: capture
+                        .get(0)
+                        .map(|matched| line_number_from_offset(&contents, matched.start()))
+                        .unwrap_or(1),
                 }
             })
             .collect(),
     })
+}
+
+fn style_validation_issues(
+    style: Option<&editorial::LoadedStyleGuide>,
+    contents: &str,
+    file_path: &Path,
+) -> Vec<ValidationIssue> {
+    let Some(style) = style else {
+        return Vec::new();
+    };
+
+    let mut issues = Vec::new();
+    for rule in &style.data.preferred_terms {
+        for alias in &rule.aliases {
+            if !alias.is_empty() && alias != &rule.preferred && contents.contains(alias) {
+                issues.push(
+                    issue_from_rule_severity(
+                        rule.severity,
+                        "common",
+                        format!(
+                            "preferred term `{}` should replace `{}`",
+                            rule.preferred, alias
+                        ),
+                        "style.yml の推奨表記に合わせて本文の表記を統一してください。",
+                    )
+                    .at_location(location_for_substring(file_path, contents, alias)),
+                );
+            }
+        }
+    }
+    for rule in &style.data.banned_terms {
+        if !rule.term.is_empty() && contents.contains(&rule.term) {
+            let remedy = match rule.reason.as_deref() {
+                Some(reason) if !reason.is_empty() => {
+                    format!("禁止語を置き換えてください。理由: {reason}")
+                }
+                _ => "禁止語を style.yml の方針に沿って置き換えてください。".to_string(),
+            };
+            issues.push(
+                issue_from_rule_severity(
+                    rule.severity,
+                    "common",
+                    format!("banned term found: {}", rule.term),
+                    remedy,
+                )
+                .at_location(location_for_substring(file_path, contents, &rule.term)),
+            );
+        }
+    }
+    issues
+}
+
+fn claim_validation_issues(
+    claims: Option<&editorial::LoadedClaimLedger>,
+    manuscript_repo_paths: &BTreeSet<String>,
+) -> Vec<ValidationIssue> {
+    let Some(claims) = claims else {
+        return Vec::new();
+    };
+
+    let contents = fs::read_to_string(&claims.path).ok();
+    let mut seen = BTreeSet::new();
+    let mut issues = Vec::new();
+    for claim in &claims.data.claims {
+        let claim_location =
+            yaml_field_location(&claims.path, contents.as_deref(), "id", &claim.id);
+        if !seen.insert(claim.id.clone()) {
+            issues.push(
+                ValidationIssue::error(
+                    "common",
+                    format!("duplicate claim id in claim ledger: {}", claim.id),
+                    "claims.yml の id を一意にしてください。",
+                )
+                .at_location(claim_location.clone()),
+            );
+        }
+        match RepoPath::parse(claim.section.clone()) {
+            Ok(section) => {
+                if !manuscript_repo_paths.contains(section.as_str()) {
+                    issues.push(
+                        ValidationIssue::error(
+                            "common",
+                            format!("claim references a section that is not in manuscript: {}", claim.section),
+                            "claims.yml の section を修正するか、対応する manuscript file を追加してください。",
+                        )
+                        .at_location(yaml_field_location(
+                            &claims.path,
+                            contents.as_deref(),
+                            "section",
+                            &claim.section,
+                        )),
+                    );
+                }
+            }
+            Err(_) => {
+                issues.push(
+                    ValidationIssue::error(
+                        "common",
+                        format!(
+                            "claim section is not a valid repo-relative path: {}",
+                            claim.section
+                        ),
+                        "claims.yml の section は repo-relative かつ `/` 区切りにしてください。",
+                    )
+                    .at_location(yaml_field_location(
+                        &claims.path,
+                        contents.as_deref(),
+                        "section",
+                        &claim.section,
+                    )),
+                );
+            }
+        }
+        if claim.sources.is_empty() {
+            issues.push(
+                ValidationIssue::error(
+                    "common",
+                    format!("claim is missing sources: {}", claim.id),
+                    "claims.yml の sources に根拠 URL や資料識別子を追加してください。",
+                )
+                .at_location(claim_location),
+            );
+        }
+    }
+    issues
+}
+
+fn figure_validation_issues(
+    resolved: &config::ResolvedBookConfig,
+    figures: Option<&editorial::LoadedFigureLedger>,
+    referenced_images: &BTreeMap<String, IssueLocation>,
+) -> Vec<ValidationIssue> {
+    let Some(figures) = figures else {
+        return Vec::new();
+    };
+
+    let contents = fs::read_to_string(&figures.path).ok();
+    let mut seen_ids = BTreeSet::new();
+    let mut tracked_paths = BTreeSet::new();
+    let mut issues = Vec::new();
+
+    for figure in &figures.data.figures {
+        let figure_id_location =
+            yaml_field_location(&figures.path, contents.as_deref(), "id", &figure.id);
+        if !seen_ids.insert(figure.id.clone()) {
+            issues.push(
+                ValidationIssue::error(
+                    "common",
+                    format!("duplicate figure id in figure ledger: {}", figure.id),
+                    "figures.yml の id を一意にしてください。",
+                )
+                .at_location(figure_id_location.clone()),
+            );
+        }
+        match RepoPath::parse(figure.path.clone()) {
+            Ok(path) => {
+                tracked_paths.insert(path.as_str().to_string());
+                if !join_repo_path(&resolved.repo.repo_root, &path).is_file() {
+                    issues.push(issue_from_severity_at_location(
+                        resolved.effective.validation.missing_image,
+                        "common",
+                        format!("figure asset not found: {}", figure.path),
+                        "figures.yml の path を修正するか、対応する asset を追加してください。",
+                        Some(path_location_for_yaml_field(
+                            &figures.path,
+                            contents.as_deref(),
+                            "path",
+                            &figure.path,
+                        )),
+                    ));
+                }
+                if !referenced_images.contains_key(path.as_str()) {
+                    issues.push(
+                        ValidationIssue::warning(
+                            "common",
+                            format!(
+                                "figure ledger entry is not referenced from manuscript: {}",
+                                path.as_str()
+                            ),
+                            "未使用の図表 entry を削除するか、対応する画像参照を manuscript に追加してください。",
+                        )
+                        .at_location(figure_id_location.clone()),
+                    );
+                }
+            }
+            Err(_) => {
+                issues.push(
+                    ValidationIssue::error(
+                        "common",
+                        format!(
+                            "figure path is not a valid repo-relative path: {}",
+                            figure.path
+                        ),
+                        "figures.yml の path は repo-relative かつ `/` 区切りにしてください。",
+                    )
+                    .at_location(yaml_field_location(
+                        &figures.path,
+                        contents.as_deref(),
+                        "path",
+                        &figure.path,
+                    )),
+                );
+            }
+        }
+        if figure
+            .source
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .is_none()
+        {
+            issues.push(
+                ValidationIssue::warning(
+                    "common",
+                    format!("figure is missing source metadata: {}", figure.id),
+                    "figures.yml の source を埋めて、図表の出典を明示してください。",
+                )
+                .at_location(figure_id_location),
+            );
+        }
+    }
+
+    for (path, source_location) in referenced_images {
+        if !tracked_paths.contains(path) {
+            issues.push(
+                ValidationIssue::warning(
+                    "common",
+                    format!("manuscript image is not tracked in figure ledger: {}", path),
+                    "figures.yml に図表 entry を追加するか、tracking 不要な画像利用方針を見直してください。",
+                )
+                .at_location(source_location.clone()),
+            );
+        }
+    }
+
+    issues
+}
+
+fn freshness_validation_issues(
+    editorial_bundle: &editorial::EditorialBundle,
+) -> Vec<ValidationIssue> {
+    let Some(freshness) = editorial_bundle.freshness.as_ref() else {
+        return Vec::new();
+    };
+
+    let contents = fs::read_to_string(&freshness.path).ok();
+    let claim_ids = editorial_bundle
+        .claims
+        .as_ref()
+        .map(|claims| {
+            claims
+                .data
+                .claims
+                .iter()
+                .map(|claim| claim.id.as_str())
+                .collect::<BTreeSet<_>>()
+        })
+        .unwrap_or_default();
+    let figure_ids = editorial_bundle
+        .figures
+        .as_ref()
+        .map(|figures| {
+            figures
+                .data
+                .figures
+                .iter()
+                .map(|figure| figure.id.as_str())
+                .collect::<BTreeSet<_>>()
+        })
+        .unwrap_or_default();
+    let today = editorial::today_local();
+    let mut issues = Vec::new();
+
+    for item in &freshness.data.tracked {
+        let item_id_location =
+            yaml_field_location(&freshness.path, contents.as_deref(), "id", &item.id);
+        let id_exists = match item.kind {
+            editorial::FreshnessKind::Claim => claim_ids.contains(item.id.as_str()),
+            editorial::FreshnessKind::Figure => figure_ids.contains(item.id.as_str()),
+        };
+        if !id_exists {
+            issues.push(
+                ValidationIssue::error(
+                    "common",
+                    format!(
+                        "freshness entry references unknown {} id: {}",
+                        item.kind.as_str(),
+                        item.id
+                    ),
+                    "freshness.yml の id を修正するか、対応する claim / figure を追加してください。",
+                )
+                .at_location(item_id_location.clone()),
+            );
+        }
+
+        let last_verified = match editorial::parse_iso_date(&item.last_verified) {
+            Some(value) => value,
+            None => {
+                issues.push(
+                    ValidationIssue::error(
+                        "common",
+                        format!(
+                            "freshness last_verified must use YYYY-MM-DD: {}",
+                            item.last_verified
+                        ),
+                        "freshness.yml の last_verified を YYYY-MM-DD 形式にしてください。",
+                    )
+                    .at_location(yaml_field_location(
+                        &freshness.path,
+                        contents.as_deref(),
+                        "last_verified",
+                        &item.last_verified,
+                    )),
+                );
+                continue;
+            }
+        };
+        let review_due_on = match editorial::parse_iso_date(&item.review_due_on) {
+            Some(value) => value,
+            None => {
+                issues.push(
+                    ValidationIssue::error(
+                        "common",
+                        format!(
+                            "freshness review_due_on must use YYYY-MM-DD: {}",
+                            item.review_due_on
+                        ),
+                        "freshness.yml の review_due_on を YYYY-MM-DD 形式にしてください。",
+                    )
+                    .at_location(yaml_field_location(
+                        &freshness.path,
+                        contents.as_deref(),
+                        "review_due_on",
+                        &item.review_due_on,
+                    )),
+                );
+                continue;
+            }
+        };
+        if review_due_on < last_verified {
+            issues.push(
+                ValidationIssue::error(
+                    "common",
+                    format!(
+                        "freshness review_due_on is earlier than last_verified for {} {}",
+                        item.kind.as_str(),
+                        item.id
+                    ),
+                    "freshness.yml の日付順を見直してください。",
+                )
+                .at_location(yaml_field_location(
+                    &freshness.path,
+                    contents.as_deref(),
+                    "review_due_on",
+                    &item.review_due_on,
+                )),
+            );
+        } else if review_due_on < today {
+            issues.push(
+                ValidationIssue::warning(
+                    "common",
+                    format!(
+                        "freshness review is overdue for {} {}",
+                        item.kind.as_str(),
+                        item.id
+                    ),
+                    "release 前に根拠や図表の鮮度を再確認してください。",
+                )
+                .at_location(yaml_field_location(
+                    &freshness.path,
+                    contents.as_deref(),
+                    "review_due_on",
+                    &item.review_due_on,
+                )),
+            );
+        }
+    }
+
+    issues
+}
+
+fn issue_from_rule_severity(
+    severity: editorial::RuleSeverity,
+    target: impl Into<String>,
+    cause: impl Into<String>,
+    remedy: impl Into<String>,
+) -> ValidationIssue {
+    match severity {
+        editorial::RuleSeverity::Warn => ValidationIssue::warning(target, cause, remedy),
+        editorial::RuleSeverity::Error => ValidationIssue::error(target, cause, remedy),
+    }
+}
+
+fn location_for_substring(path: &Path, contents: &str, needle: &str) -> IssueLocation {
+    line_number_of_substring(contents, needle)
+        .map(|line| IssueLocation::with_line(path.to_path_buf(), line))
+        .unwrap_or_else(|| path.to_path_buf().into())
+}
+
+fn yaml_field_location(
+    path: &Path,
+    contents: Option<&str>,
+    field: &str,
+    value: &str,
+) -> IssueLocation {
+    let patterns = [
+        format!("{field}: {value}"),
+        format!("{field}: \"{value}\""),
+        format!("{field}: '{value}'"),
+    ];
+    location_for_patterns(path, contents, &patterns)
+}
+
+fn path_location_for_yaml_field(
+    path: &Path,
+    contents: Option<&str>,
+    field: &str,
+    value: &str,
+) -> IssueLocation {
+    yaml_field_location(path, contents, field, value)
+}
+
+fn location_for_patterns(
+    path: &Path,
+    contents: Option<&str>,
+    patterns: &[String],
+) -> IssueLocation {
+    if let Some(contents) = contents {
+        for pattern in patterns {
+            if let Some(line) = line_number_of_substring(contents, pattern) {
+                return IssueLocation::with_line(path.to_path_buf(), line);
+            }
+        }
+    }
+    path.to_path_buf().into()
+}
+
+fn line_number_of_substring(contents: &str, needle: &str) -> Option<usize> {
+    contents
+        .lines()
+        .position(|line| line.contains(needle))
+        .map(|index| index + 1)
+}
+
+fn line_number_from_offset(contents: &str, offset: usize) -> usize {
+    contents[..offset]
+        .bytes()
+        .filter(|byte| *byte == b'\n')
+        .count()
+        + 1
 }
 
 fn normalize_markdown_destination(raw: &str) -> String {
@@ -511,12 +1052,14 @@ fn is_external_destination(destination: &str) -> bool {
         || destination.starts_with('#')
 }
 
-fn resolved_path_exists(source_path: &Path, repo_root: &Path, destination: &str) -> bool {
-    let Some(base_destination) = destination.split('#').next() else {
-        return true;
-    };
-    if base_destination.is_empty() {
-        return true;
+fn resolve_destination_to_repo_path(
+    source_path: &Path,
+    repo_root: &Path,
+    destination: &str,
+) -> Option<String> {
+    let base_destination = destination.split('#').next()?;
+    if base_destination.is_empty() || is_external_destination(base_destination) {
+        return None;
     }
 
     let candidate = if base_destination.starts_with('/') {
@@ -527,23 +1070,42 @@ fn resolved_path_exists(source_path: &Path, repo_root: &Path, destination: &str)
             .unwrap_or(repo_root)
             .join(base_destination)
     };
-    candidate.exists()
+    let relative = candidate.strip_prefix(repo_root).ok()?;
+    Some(relative.display().to_string().replace('\\', "/"))
 }
 
-fn accessibility_issue(
+fn resolved_path_exists(source_path: &Path, repo_root: &Path, destination: &str) -> bool {
+    let Some(base_destination) = destination.split('#').next() else {
+        return true;
+    };
+    if base_destination.is_empty() {
+        return true;
+    }
+
+    if let Some(repo_relative) =
+        resolve_destination_to_repo_path(source_path, repo_root, destination)
+        && let Ok(path) = RepoPath::parse(repo_relative)
+    {
+        return join_repo_path(repo_root, &path).exists();
+    }
+
+    false
+}
+
+fn accessibility_issue_at_location(
     resolved: &config::ResolvedBookConfig,
     target: impl Into<String>,
     cause: impl Into<String>,
     remedy: impl Into<String>,
-    path: PathBuf,
+    location: IssueLocation,
 ) -> Option<ValidationIssue> {
     match resolved.effective.validation.accessibility {
         config::ValidationLevel::Off => None,
         config::ValidationLevel::Warn => {
-            Some(ValidationIssue::warning(target, cause, remedy).at(path))
+            Some(ValidationIssue::warning(target, cause, remedy).at_location(location))
         }
         config::ValidationLevel::Error => {
-            Some(ValidationIssue::error(target, cause, remedy).at(path))
+            Some(ValidationIssue::error(target, cause, remedy).at_location(location))
         }
     }
 }
@@ -782,6 +1344,23 @@ fn issue_from_severity(
     }
 }
 
+fn issue_from_severity_at_location(
+    severity: config::ValidationSeverity,
+    target: impl Into<String>,
+    cause: impl Into<String>,
+    remedy: impl Into<String>,
+    location: Option<IssueLocation>,
+) -> ValidationIssue {
+    let issue = match severity {
+        config::ValidationSeverity::Warn => ValidationIssue::warning(target, cause, remedy),
+        config::ValidationSeverity::Error => ValidationIssue::error(target, cause, remedy),
+    };
+    match location {
+        Some(location) => issue.at_location(location),
+        None => issue,
+    }
+}
+
 fn report_path(resolved: &config::ResolvedBookConfig) -> PathBuf {
     let book_id = resolved
         .repo
@@ -989,6 +1568,93 @@ cover:
             fs::create_dir_all(root.join("assets/cover")).unwrap();
             fs::write(root.join("assets/cover/front.png"), tiny_png()).unwrap();
         }
+    }
+
+    fn write_book_with_editorial(root: &std::path::Path) {
+        fs::create_dir_all(root.join("manuscript")).unwrap();
+        fs::create_dir_all(root.join("editorial")).unwrap();
+        fs::create_dir_all(root.join("assets/images")).unwrap();
+        fs::write(
+            root.join("manuscript/01.md"),
+            "# Chapter 1\nUse git in the workflow.\n![Architecture](../assets/images/architecture.png)\n",
+        )
+        .unwrap();
+        fs::write(root.join("assets/images/architecture.png"), tiny_png()).unwrap();
+        fs::write(
+            root.join("editorial/style.yml"),
+            r#"
+preferred_terms:
+  - preferred: "Git"
+    aliases:
+      - "git"
+    severity: warn
+"#,
+        )
+        .unwrap();
+        fs::write(
+            root.join("editorial/claims.yml"),
+            r#"
+claims:
+  - id: claim-1
+    summary: "Git を使う"
+    section: manuscript/01.md
+"#,
+        )
+        .unwrap();
+        fs::write(
+            root.join("editorial/figures.yml"),
+            r#"
+figures:
+  - id: fig-architecture
+    path: assets/images/architecture.png
+    caption: "Architecture"
+"#,
+        )
+        .unwrap();
+        fs::write(
+            root.join("editorial/freshness.yml"),
+            r#"
+tracked:
+  - kind: claim
+    id: claim-1
+    last_verified: 1999-01-01
+    review_due_on: 2000-01-01
+"#,
+        )
+        .unwrap();
+        fs::write(
+            root.join("book.yml"),
+            r#"
+project:
+  type: business
+  vcs: git
+book:
+  title: "Sample"
+  authors:
+    - "Author"
+  reading_direction: ltr
+layout:
+  binding: left
+manuscript:
+  chapters:
+    - manuscript/01.md
+outputs:
+  kindle:
+    enabled: true
+    target: kindle-ja
+validation:
+  strict: true
+  epubcheck: true
+git:
+  lfs: true
+editorial:
+  style: editorial/style.yml
+  claims: editorial/claims.yml
+  figures: editorial/figures.yml
+  freshness: editorial/freshness.yml
+"#,
+        )
+        .unwrap();
     }
 
     fn write_manga_book(root: &std::path::Path) {
@@ -1396,6 +2062,41 @@ manga:
         assert!(report.contains("image is missing alt text"));
         assert!(report.contains("link target not found"));
         assert!(report.contains("\"severity\": \"warning\""));
+        assert!(report.contains("\"line\": 3"));
+        assert!(report.contains("\"line\": 5"));
+
+        let missing_alt = result
+            .issues
+            .iter()
+            .find(|issue| issue.cause.contains("image is missing alt text"))
+            .unwrap();
+        assert_eq!(
+            missing_alt.location.as_ref().map(|location| location.line),
+            Some(Some(3))
+        );
+
+        let missing_image = result
+            .issues
+            .iter()
+            .find(|issue| issue.cause.contains("image reference target not found"))
+            .unwrap();
+        assert_eq!(
+            missing_image
+                .location
+                .as_ref()
+                .map(|location| location.line),
+            Some(Some(3))
+        );
+
+        let broken_link = result
+            .issues
+            .iter()
+            .find(|issue| issue.cause.contains("link target not found"))
+            .unwrap();
+        assert_eq!(
+            broken_link.location.as_ref().map(|location| location.line),
+            Some(Some(5))
+        );
     }
 
     #[test]
@@ -1420,6 +2121,111 @@ manga:
         let report = fs::read_to_string(result.report_path).unwrap();
         assert!(report.contains("chapter file does not begin with a level-1 heading"));
         assert!(report.contains("heading hierarchy skips levels"));
+        assert!(report.contains("\"line\": 1"));
+        assert!(report.contains("\"line\": 3"));
+
+        let missing_h1 = result
+            .issues
+            .iter()
+            .find(|issue| {
+                issue
+                    .cause
+                    .contains("chapter file does not begin with a level-1 heading")
+            })
+            .unwrap();
+        assert_eq!(
+            missing_h1.location.as_ref().map(|location| location.line),
+            Some(Some(1))
+        );
+
+        let skipped_heading = result
+            .issues
+            .iter()
+            .find(|issue| issue.cause.contains("heading hierarchy skips levels"))
+            .unwrap();
+        assert_eq!(
+            skipped_heading
+                .location
+                .as_ref()
+                .map(|location| location.line),
+            Some(Some(3))
+        );
+    }
+
+    #[test]
+    fn validate_reports_editorial_issues_for_prose_books() {
+        let root = temp_dir("prose-editorial");
+        write_book_with_editorial(&root);
+
+        let result = validate_book_with_toolchain(
+            &CommandContext::new(&root, None, None),
+            &fake_toolchain(ToolStatus::Available),
+        )
+        .unwrap();
+
+        let report = fs::read_to_string(result.report_path).unwrap();
+        assert!(report.contains("preferred term `Git` should replace `git`"));
+        assert!(report.contains("claim is missing sources: claim-1"));
+        assert!(report.contains("figure is missing source metadata: fig-architecture"));
+        assert!(report.contains("freshness review is overdue for claim claim-1"));
+        assert!(report.contains("\"line\": 2"));
+        assert!(report.contains("\"line\": 3"));
+        assert!(report.contains("\"line\": 6"));
+
+        let style_issue = result
+            .issues
+            .iter()
+            .find(|issue| {
+                issue
+                    .cause
+                    .contains("preferred term `Git` should replace `git`")
+            })
+            .unwrap();
+        assert_eq!(
+            style_issue.location.as_ref().map(|location| location.line),
+            Some(Some(2))
+        );
+
+        let claim_issue = result
+            .issues
+            .iter()
+            .find(|issue| issue.cause.contains("claim is missing sources: claim-1"))
+            .unwrap();
+        assert_eq!(
+            claim_issue.location.as_ref().map(|location| location.line),
+            Some(Some(3))
+        );
+
+        let figure_issue = result
+            .issues
+            .iter()
+            .find(|issue| {
+                issue
+                    .cause
+                    .contains("figure is missing source metadata: fig-architecture")
+            })
+            .unwrap();
+        assert_eq!(
+            figure_issue.location.as_ref().map(|location| location.line),
+            Some(Some(3))
+        );
+
+        let freshness_issue = result
+            .issues
+            .iter()
+            .find(|issue| {
+                issue
+                    .cause
+                    .contains("freshness review is overdue for claim claim-1")
+            })
+            .unwrap();
+        assert_eq!(
+            freshness_issue
+                .location
+                .as_ref()
+                .map(|location| location.line),
+            Some(Some(6))
+        );
     }
 
     #[test]

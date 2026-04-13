@@ -13,6 +13,7 @@ pub struct InitProjectOptions {
     pub non_interactive: bool,
     pub force: bool,
     pub config_template: Option<String>,
+    pub repo_mode: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -25,6 +26,8 @@ pub struct InitProjectResult {
 pub enum InitProjectError {
     #[error("unsupported config template `{template}`")]
     UnsupportedTemplate { template: String },
+    #[error("unsupported repo mode `{mode}`")]
+    UnsupportedRepoMode { mode: String },
     #[error("refusing to initialize {path}: existing shosei config found")]
     AlreadyInitialized { path: String },
     #[error("failed to create {path}: {source}")]
@@ -55,9 +58,22 @@ enum RepoTemplate {
     Series,
 }
 
+impl RepoTemplate {
+    fn from_cli(value: Option<&str>, template: ProjectTemplate) -> Result<Self, InitProjectError> {
+        match value {
+            Some("single-book") => Ok(Self::SingleBook),
+            Some("series") => Ok(Self::Series),
+            Some(other) => Err(InitProjectError::UnsupportedRepoMode {
+                mode: other.to_string(),
+            }),
+            None => Ok(template.default_repo_mode()),
+        }
+    }
+}
+
 pub fn init_project(options: InitProjectOptions) -> Result<InitProjectResult, InitProjectError> {
     let template = ProjectTemplate::from_cli(options.config_template.as_deref())?;
-    let repo_mode = template.default_repo_mode();
+    let repo_mode = RepoTemplate::from_cli(options.repo_mode.as_deref(), template)?;
     let root = options.root;
 
     if !options.force && has_existing_config(&root) {
@@ -171,6 +187,7 @@ fn init_single_book(root: &Path, template: ProjectTemplate) -> Result<(), InitPr
             &root.join("manuscript/01-chapter-1.md"),
             "# Chapter 1\n\nWrite here.\n",
         )?;
+        write_editorial_scaffold(&root.join("editorial"))?;
     }
 
     write_file(&root.join("book.yml"), &book_yml(template))?;
@@ -198,6 +215,7 @@ fn init_series(root: &Path, template: ProjectTemplate) -> Result<(), InitProject
     ensure_dir(&root.join("dist"))?;
 
     if template != ProjectTemplate::Manga {
+        write_editorial_scaffold(&root.join("books/vol-01/editorial"))?;
         write_file(
             &root.join("books/vol-01/manuscript/01-chapter-1.md"),
             "# Chapter 1\n\nWrite here.\n",
@@ -223,7 +241,7 @@ fn book_yml(template: ProjectTemplate) -> String {
         )
     } else {
         String::from(
-            "manuscript:\n  chapters:\n    - manuscript/01-chapter-1.md\noutputs:\n  kindle:\n    enabled: true\n    target: kindle-ja\nvalidation:\n  strict: true\n  epubcheck: true\n  accessibility: warn\ngit:\n  lfs: true\n",
+            "manuscript:\n  chapters:\n    - manuscript/01-chapter-1.md\noutputs:\n  kindle:\n    enabled: true\n    target: kindle-ja\nvalidation:\n  strict: true\n  epubcheck: true\n  accessibility: warn\ngit:\n  lfs: true\neditorial:\n  style: editorial/style.yml\n  claims: editorial/claims.yml\n  figures: editorial/figures.yml\n  freshness: editorial/freshness.yml\n",
         )
     };
 
@@ -272,7 +290,7 @@ fn series_book_yml(template: ProjectTemplate) -> String {
         )
     } else {
         format!(
-            "project:\n  type: {}\n  vcs: git\n  version: 1\nbook:\n  title: \"{}\"\n  authors:\n    - \"Author Name\"\n  language: ja\nlayout:\n  binding: {}\n  chapter_start_page: odd\n  allow_blank_pages: true\nmanuscript:\n  chapters:\n    - books/vol-01/manuscript/01-chapter-1.md\n",
+            "project:\n  type: {}\n  vcs: git\n  version: 1\nbook:\n  title: \"{}\"\n  authors:\n    - \"Author Name\"\n  language: ja\nlayout:\n  binding: {}\n  chapter_start_page: odd\n  allow_blank_pages: true\nmanuscript:\n  chapters:\n    - books/vol-01/manuscript/01-chapter-1.md\neditorial:\n  style: books/vol-01/editorial/style.yml\n  claims: books/vol-01/editorial/claims.yml\n  figures: books/vol-01/editorial/figures.yml\n  freshness: books/vol-01/editorial/freshness.yml\n",
             template.as_str(),
             template.title(),
             template.binding(),
@@ -290,6 +308,18 @@ fn ensure_standard_dirs(root: &Path) -> Result<(), InitProjectError> {
     ensure_dir(&root.join("assets/fonts"))?;
     ensure_dir(&root.join("styles"))?;
     ensure_dir(&root.join("dist"))?;
+    Ok(())
+}
+
+fn write_editorial_scaffold(root: &Path) -> Result<(), InitProjectError> {
+    ensure_dir(root)?;
+    write_file(
+        &root.join("style.yml"),
+        "preferred_terms: []\nbanned_terms: []\n",
+    )?;
+    write_file(&root.join("claims.yml"), "claims: []\n")?;
+    write_file(&root.join("figures.yml"), "figures: []\n")?;
+    write_file(&root.join("freshness.yml"), "tracked: []\n")?;
     Ok(())
 }
 
@@ -370,10 +400,10 @@ fn agent_skill_description(template: ProjectTemplate, repo_mode: RepoTemplate) -
             "Operate this `shosei` manga repo. Use when the task is to update `book.yml`, edit `manga/` inputs, run `shosei explain`, `shosei validate`, `shosei page check`, `shosei build`, `shosei preview`, or prepare handoff for this book."
         }
         (_, RepoTemplate::Series) => {
-            "Operate this `shosei` series publishing repo. Use when the task is to update `series.yml` or `books/<book-id>/book.yml`, edit `books/<book-id>/manuscript/` or shared assets, run `shosei explain --book`, `shosei validate --book`, `shosei build --book`, `shosei preview --book`, or prepare handoff for a volume."
+            "Operate this `shosei` series publishing repo. Use when the task is to update `series.yml` or `books/<book-id>/book.yml`, edit `books/<book-id>/manuscript/`, `books/<book-id>/editorial/`, or shared assets, run `shosei explain --book`, `shosei validate --book`, `shosei build --book`, `shosei preview --book`, or prepare handoff for a volume."
         }
         (_, RepoTemplate::SingleBook) => {
-            "Operate this `shosei` single-book publishing repo. Use when the task is to update `book.yml`, edit `manuscript/` or project assets, run `shosei explain`, `shosei validate`, `shosei build`, `shosei preview`, or prepare handoff for this book."
+            "Operate this `shosei` single-book publishing repo. Use when the task is to update `book.yml`, edit `manuscript/`, `editorial/`, or project assets, run `shosei explain`, `shosei validate`, `shosei build`, `shosei preview`, or prepare handoff for this book."
         }
     }
 }
@@ -399,9 +429,9 @@ fn primary_content_paths(template: ProjectTemplate, repo_mode: RepoTemplate) -> 
         }
         (ProjectTemplate::Manga, RepoTemplate::SingleBook) => "`manga/`, `assets/`, `styles/`",
         (_, RepoTemplate::Series) => {
-            "`books/<book-id>/manuscript/`, `shared/styles/`, `shared/assets/`, `shared/fonts/`"
+            "`books/<book-id>/manuscript/`, `books/<book-id>/editorial/`, `shared/styles/`, `shared/assets/`, `shared/fonts/`"
         }
-        (_, RepoTemplate::SingleBook) => "`manuscript/`, `assets/`, `styles/`",
+        (_, RepoTemplate::SingleBook) => "`manuscript/`, `editorial/`, `assets/`, `styles/`",
     }
 }
 
@@ -481,12 +511,19 @@ mod tests {
             non_interactive: true,
             force: false,
             config_template: Some("novel".to_string()),
+            repo_mode: None,
         })
         .unwrap();
 
         assert!(root.join("book.yml").is_file());
         assert!(root.join("manuscript/01-chapter-1.md").is_file());
+        assert!(root.join("editorial/style.yml").is_file());
+        assert!(root.join("editorial/claims.yml").is_file());
+        assert!(root.join("editorial/figures.yml").is_file());
+        assert!(root.join("editorial/freshness.yml").is_file());
         assert!(root.join("styles/base.css").is_file());
+        let book = fs::read_to_string(root.join("book.yml")).unwrap();
+        assert!(book.contains("editorial:\n  style: editorial/style.yml"));
         let skill =
             fs::read_to_string(root.join(".agents/skills/shosei-project/SKILL.md")).unwrap();
         assert!(skill.contains("name: \"shosei-project\""));
@@ -504,6 +541,7 @@ mod tests {
             non_interactive: true,
             force: false,
             config_template: Some("manga".to_string()),
+            repo_mode: None,
         })
         .unwrap();
 
@@ -530,6 +568,7 @@ mod tests {
             non_interactive: true,
             force: false,
             config_template: None,
+            repo_mode: None,
         })
         .unwrap_err();
 
@@ -547,6 +586,7 @@ mod tests {
             non_interactive: true,
             force: true,
             config_template: Some("business".to_string()),
+            repo_mode: None,
         })
         .unwrap();
 
@@ -562,6 +602,7 @@ mod tests {
             non_interactive: true,
             force: false,
             config_template: Some("poetry".to_string()),
+            repo_mode: None,
         })
         .unwrap_err();
 
@@ -569,5 +610,35 @@ mod tests {
             error,
             InitProjectError::UnsupportedTemplate { .. }
         ));
+    }
+
+    #[test]
+    fn initializes_series_business_scaffold_with_editorial_book_files() {
+        let root = temp_dir("series-business");
+        let result = init_project(InitProjectOptions {
+            root: root.clone(),
+            non_interactive: true,
+            force: false,
+            config_template: Some("business".to_string()),
+            repo_mode: Some("series".to_string()),
+        })
+        .unwrap();
+
+        assert!(root.join("series.yml").is_file());
+        assert!(root.join("books/vol-01/book.yml").is_file());
+        assert!(
+            root.join("books/vol-01/manuscript/01-chapter-1.md")
+                .is_file()
+        );
+        assert!(root.join("books/vol-01/editorial/style.yml").is_file());
+        assert!(root.join("books/vol-01/editorial/claims.yml").is_file());
+        assert!(root.join("books/vol-01/editorial/figures.yml").is_file());
+        assert!(root.join("books/vol-01/editorial/freshness.yml").is_file());
+        let book = fs::read_to_string(root.join("books/vol-01/book.yml")).unwrap();
+        assert!(book.contains("editorial:\n  style: books/vol-01/editorial/style.yml"));
+        let skill =
+            fs::read_to_string(root.join(".agents/skills/shosei-project/SKILL.md")).unwrap();
+        assert!(skill.contains("books/<book-id>/editorial/"));
+        assert!(result.summary.contains("series scaffold"));
     }
 }
