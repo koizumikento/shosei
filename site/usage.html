@@ -35,8 +35,7 @@
         <section>
           <h2>Typical flow</h2>
           <p>基本の流れは、初期化して、解決済み設定を確認し、build と validate を回すことです。</p>
-          <pre><code>shosei init ./my-book --config-template novel
-cd my-book
+          <pre><code>shosei init
 shosei explain
 shosei build
 shosei validate</code></pre>
@@ -84,6 +83,11 @@ shosei validate</code></pre>
                 <td>利用可能</td>
               </tr>
               <tr>
+                <td><code>shosei series sync</code></td>
+                <td>series metadata と prose backmatter を同期する</td>
+                <td>利用可能</td>
+              </tr>
+              <tr>
                 <td><code>shosei page check</code></td>
                 <td>manga のページ順と見開き候補を検査する</td>
                 <td>利用可能</td>
@@ -116,6 +120,9 @@ shosei validate --book vol-01</code></pre>
           <pre><code>shosei build --target print
 shosei validate --target kindle
 shosei preview --target print</code></pre>
+          <p><code>series sync</code> は <code>series.yml</code> を正として shared metadata を更新し、prose book では生成 backmatter を同期します。</p>
+          <pre><code>shosei series sync
+shosei series sync --path ./my-series</code></pre>
           <p><code>page check</code> は manga project 向けで、ページ順や見開き候補を確認します。</p>
           <pre><code>shosei page check
 shosei page check --book vol-01</code></pre>
@@ -138,6 +145,8 @@ shosei chapter add books/vol-01/manuscript/02.md --book vol-01 --title "Chapter 
           <h2>Validate checks</h2>
           <p>現在の <code>validate</code> は、JSON レポートを出しつつ、次のような preflight を行います。</p>
           <ul>
+            <li>build で必要になる <code>pandoc</code> の有無</li>
+            <li>print build に設定された PDF engine の有無</li>
             <li>欠落した manuscript / cover / manga page の検出</li>
             <li>prose 原稿のリンク切れと画像参照切れ</li>
             <li>prose 原稿の alt 欠落</li>
@@ -186,7 +195,8 @@ pdf:
 
         <section>
           <h2>Generated scaffold</h2>
-          <p>`init` はテンプレートに応じて、次のような土台を生成します。</p>
+          <p><code>init</code> は標準では短い対話式で、作品カテゴリ、repo mode、タイトル、著者名、言語、出力先を確認してから scaffold を生成します。<code>--non-interactive --config-template &lt;template&gt;</code> を使うと既定値で生成できます。</p>
+          <p>テンプレートに応じて、次のような土台を生成します。</p>
           <ul>
             <li>`book.yml` または `series.yml`</li>
             <li>`manuscript/` または `manga/`</li>
@@ -205,13 +215,16 @@ pdf:
           <pre><code>shosei preview --watch
 shosei preview --watch --target print</code></pre>
           <p><code>page check</code> は <code>dist/reports/&lt;book-id&gt;-page-check.json</code> を出しつつ、ページ順、ファイル名順序、ページサイズ、見開き候補、カラーポリシーを確認します。</p>
-          <p><code>doctor</code> は PATH 解決結果、バージョン、導入ヒントを表示します。</p>
+          <p><code>doctor</code> は利用可能 / 不足 / pending を分けて表示し、PATH 解決結果、バージョン、導入ヒントを返します。</p>
           <ul>
             <li><code>pandoc</code></li>
             <li><code>epubcheck</code></li>
             <li><code>git</code></li>
             <li><code>git-lfs</code></li>
-            <li><code>weasyprint</code> / <code>typst</code> / <code>lualatex</code> のいずれか</li>
+            <li><code>weasyprint</code></li>
+            <li><code>typst</code></li>
+            <li><code>lualatex</code></li>
+            <li>代表 PDF engine</li>
             <li>Kindle Previewer</li>
           </ul>
         </section>

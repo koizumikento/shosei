@@ -13,6 +13,11 @@ pub struct InitProjectOptions {
     pub non_interactive: bool,
     pub force: bool,
     pub config_template: Option<String>,
+    pub repo_mode: Option<String>,
+    pub title: Option<String>,
+    pub author: Option<String>,
+    pub language: Option<String>,
+    pub output_preset: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -55,9 +60,34 @@ enum RepoTemplate {
     Series,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum OutputPreset {
+    Kindle,
+    Print,
+    Both,
+}
+
+#[derive(Debug, Clone)]
+struct InitScaffoldConfig {
+    template: ProjectTemplate,
+    title: String,
+    author: String,
+    language: String,
+    output_preset: OutputPreset,
+}
+
 pub fn init_project(options: InitProjectOptions) -> Result<InitProjectResult, InitProjectError> {
     let template = ProjectTemplate::from_cli(options.config_template.as_deref())?;
-    let repo_mode = template.default_repo_mode();
+    let repo_mode = RepoTemplate::from_cli(options.repo_mode.as_deref(), template)?;
+    let scaffold = InitScaffoldConfig {
+        template,
+        title: options
+            .title
+            .unwrap_or_else(|| template.title().to_string()),
+        author: options.author.unwrap_or_else(|| "Author Name".to_string()),
+        language: options.language.unwrap_or_else(|| "ja".to_string()),
+        output_preset: OutputPreset::from_cli(options.output_preset.as_deref())?,
+    };
     let root = options.root;
 
     if !options.force && has_existing_config(&root) {
@@ -69,8 +99,8 @@ pub fn init_project(options: InitProjectOptions) -> Result<InitProjectResult, In
     ensure_dir(&root)?;
 
     match repo_mode {
-        RepoTemplate::SingleBook => init_single_book(&root, template)?,
-        RepoTemplate::Series => init_series(&root, template)?,
+        RepoTemplate::SingleBook => init_single_book(&root, &scaffold)?,
+        RepoTemplate::Series => init_series(&root, &scaffold)?,
     }
 
     let mode_label = match repo_mode {
@@ -86,11 +116,39 @@ pub fn init_project(options: InitProjectOptions) -> Result<InitProjectResult, In
             if options.non_interactive {
                 " (non-interactive defaults)"
             } else {
-                " (interactive wizard pending; defaults applied)"
+                " (interactive answers applied)"
             }
         ),
         root,
     })
+}
+
+impl RepoTemplate {
+    fn from_cli(value: Option<&str>, template: ProjectTemplate) -> Result<Self, InitProjectError> {
+        match value.unwrap_or(match template.default_repo_mode() {
+            RepoTemplate::SingleBook => "single-book",
+            RepoTemplate::Series => "series",
+        }) {
+            "single-book" => Ok(Self::SingleBook),
+            "series" => Ok(Self::Series),
+            other => Err(InitProjectError::UnsupportedTemplate {
+                template: other.to_string(),
+            }),
+        }
+    }
+}
+
+impl OutputPreset {
+    fn from_cli(value: Option<&str>) -> Result<Self, InitProjectError> {
+        match value.unwrap_or("kindle") {
+            "kindle" => Ok(Self::Kindle),
+            "print" => Ok(Self::Print),
+            "both" => Ok(Self::Both),
+            other => Err(InitProjectError::UnsupportedTemplate {
+                template: other.to_string(),
+            }),
+        }
+    }
 }
 
 impl ProjectTemplate {
@@ -157,7 +215,8 @@ impl ProjectTemplate {
     }
 }
 
-fn init_single_book(root: &Path, template: ProjectTemplate) -> Result<(), InitProjectError> {
+fn init_single_book(root: &Path, scaffold: &InitScaffoldConfig) -> Result<(), InitProjectError> {
+    let template = scaffold.template;
     ensure_standard_dirs(root)?;
     if template == ProjectTemplate::Manga {
         ensure_dir(&root.join("manga/script"))?;
@@ -173,7 +232,7 @@ fn init_single_book(root: &Path, template: ProjectTemplate) -> Result<(), InitPr
         )?;
     }
 
-    write_file(&root.join("book.yml"), &book_yml(template))?;
+    write_file(&root.join("book.yml"), &book_yml(scaffold))?;
     write_file(&root.join(".gitignore"), gitignore_contents())?;
     write_file(&root.join(".gitattributes"), gitattributes_contents())?;
     write_file(&root.join("styles/base.css"), base_css_contents())?;
@@ -183,7 +242,8 @@ fn init_single_book(root: &Path, template: ProjectTemplate) -> Result<(), InitPr
     Ok(())
 }
 
-fn init_series(root: &Path, template: ProjectTemplate) -> Result<(), InitProjectError> {
+fn init_series(root: &Path, scaffold: &InitScaffoldConfig) -> Result<(), InitProjectError> {
+    let template = scaffold.template;
     ensure_dir(&root.join("shared/assets"))?;
     ensure_dir(&root.join("shared/styles"))?;
     ensure_dir(&root.join("shared/fonts"))?;
@@ -204,10 +264,10 @@ fn init_series(root: &Path, template: ProjectTemplate) -> Result<(), InitProject
         )?;
     }
 
-    write_file(&root.join("series.yml"), &series_yml(template))?;
+    write_file(&root.join("series.yml"), &series_yml(scaffold))?;
     write_file(
         &root.join("books/vol-01/book.yml"),
-        &series_book_yml(template),
+        &series_book_yml(scaffold),
     )?;
     write_file(&root.join(".gitignore"), gitignore_contents())?;
     write_file(&root.join(".gitattributes"), gitattributes_contents())?;
@@ -216,21 +276,26 @@ fn init_series(root: &Path, template: ProjectTemplate) -> Result<(), InitProject
     Ok(())
 }
 
-fn book_yml(template: ProjectTemplate) -> String {
+fn book_yml(scaffold: &InitScaffoldConfig) -> String {
+    let template = scaffold.template;
     let manuscript_block = if template == ProjectTemplate::Manga {
-        String::from(
-            "outputs:\n  kindle:\n    enabled: true\n    target: kindle-comic\n  print:\n    enabled: true\n    target: print-manga\nvalidation:\n  strict: true\n  epubcheck: false\n  accessibility: warn\ngit:\n  lfs: true\nmanga:\n  reading_direction: rtl\n  default_page_side: right\n  spread_policy_for_kindle: split\n  front_color_pages: 0\n  body_mode: monochrome\n",
+        format!(
+            "{}validation:\n  strict: true\n  epubcheck: false\n  accessibility: warn\ngit:\n  lfs: true\nmanga:\n  reading_direction: rtl\n  default_page_side: right\n  spread_policy_for_kindle: split\n  front_color_pages: 0\n  body_mode: monochrome\n",
+            outputs_block(template, scaffold.output_preset)
         )
     } else {
-        String::from(
-            "manuscript:\n  chapters:\n    - manuscript/01-chapter-1.md\noutputs:\n  kindle:\n    enabled: true\n    target: kindle-ja\nvalidation:\n  strict: true\n  epubcheck: true\n  accessibility: warn\ngit:\n  lfs: true\n",
+        format!(
+            "manuscript:\n  chapters:\n    - manuscript/01-chapter-1.md\n{}validation:\n  strict: true\n  epubcheck: true\n  accessibility: warn\ngit:\n  lfs: true\n",
+            outputs_block(template, scaffold.output_preset)
         )
     };
 
     format!(
-        "project:\n  type: {}\n  vcs: git\n  version: 1\nbook:\n  title: \"{}\"\n  authors:\n    - \"Author Name\"\n  language: ja\n  profile: {}\n  writing_mode: {}\n  reading_direction: {}\nlayout:\n  binding: {}\n  chapter_start_page: odd\n  allow_blank_pages: true\n{}",
+        "project:\n  type: {}\n  vcs: git\n  version: 1\nbook:\n  title: \"{}\"\n  authors:\n    - \"{}\"\n  language: {}\n  profile: {}\n  writing_mode: {}\n  reading_direction: {}\nlayout:\n  binding: {}\n  chapter_start_page: odd\n  allow_blank_pages: true\n{}",
         template.as_str(),
-        template.title(),
+        scaffold.title,
+        scaffold.author,
+        scaffold.language,
         template.profile(),
         template.writing_mode(),
         template.reading_direction(),
@@ -239,15 +304,14 @@ fn book_yml(template: ProjectTemplate) -> String {
     )
 }
 
-fn series_yml(template: ProjectTemplate) -> String {
-    let outputs = if template == ProjectTemplate::Manga {
-        "  outputs:\n    kindle:\n      enabled: true\n      target: kindle-comic\n    print:\n      enabled: true\n      target: print-manga\n"
-    } else {
-        "  outputs:\n    kindle:\n      enabled: true\n      target: kindle-ja\n"
-    };
+fn series_yml(scaffold: &InitScaffoldConfig) -> String {
+    let template = scaffold.template;
+    let outputs = indent_block(&outputs_block(template, scaffold.output_preset), 2);
 
     format!(
-        "series:\n  id: sample-series\n  title: \"Sample Series\"\n  language: ja\n  type: {}\nshared:\n  assets:\n    - shared/assets\n  styles:\n    - shared/styles\n  fonts:\n    - shared/fonts\n  metadata:\n    - shared/metadata\ndefaults:\n  book:\n    profile: {}\n    writing_mode: {}\n    reading_direction: {}\n  layout:\n    binding: {}\n    chapter_start_page: odd\n    allow_blank_pages: true\n{}validation:\n  strict: true\n  epubcheck: {}\n  accessibility: warn\ngit:\n  lfs: true\n  require_clean_worktree_for_handoff: true\nbooks:\n  - id: vol-01\n    path: books/vol-01\n    number: 1\n    title: \"Volume 1\"\n",
+        "series:\n  id: sample-series\n  title: \"{}\"\n  language: {}\n  type: {}\nshared:\n  assets:\n    - shared/assets\n  styles:\n    - shared/styles\n  fonts:\n    - shared/fonts\n  metadata:\n    - shared/metadata\ndefaults:\n  book:\n    profile: {}\n    writing_mode: {}\n    reading_direction: {}\n  layout:\n    binding: {}\n    chapter_start_page: odd\n    allow_blank_pages: true\n{}validation:\n  strict: true\n  epubcheck: {}\n  accessibility: warn\ngit:\n  lfs: true\n  require_clean_worktree_for_handoff: true\nbooks:\n  - id: vol-01\n    path: books/vol-01\n    number: 1\n    title: \"Volume 1\"\n",
+        scaffold.title,
+        scaffold.language,
         template.as_str(),
         template.profile(),
         template.writing_mode(),
@@ -262,22 +326,78 @@ fn series_yml(template: ProjectTemplate) -> String {
     )
 }
 
-fn series_book_yml(template: ProjectTemplate) -> String {
+fn series_book_yml(scaffold: &InitScaffoldConfig) -> String {
+    let template = scaffold.template;
     if template == ProjectTemplate::Manga {
         format!(
-            "project:\n  type: {}\n  vcs: git\n  version: 1\nbook:\n  title: \"{}\"\n  authors:\n    - \"Author Name\"\n  language: ja\nlayout:\n  binding: {}\n  chapter_start_page: odd\n  allow_blank_pages: true\nmanga:\n  reading_direction: rtl\n  default_page_side: right\n  spread_policy_for_kindle: split\n  front_color_pages: 0\n  body_mode: monochrome\n",
+            "project:\n  type: {}\n  vcs: git\n  version: 1\nbook:\n  title: \"{}\"\n  authors:\n    - \"{}\"\n  language: {}\nlayout:\n  binding: {}\n  chapter_start_page: odd\n  allow_blank_pages: true\nmanga:\n  reading_direction: rtl\n  default_page_side: right\n  spread_policy_for_kindle: split\n  front_color_pages: 0\n  body_mode: monochrome\n",
             template.as_str(),
-            template.title(),
+            scaffold.title,
+            scaffold.author,
+            scaffold.language,
             template.binding(),
         )
     } else {
         format!(
-            "project:\n  type: {}\n  vcs: git\n  version: 1\nbook:\n  title: \"{}\"\n  authors:\n    - \"Author Name\"\n  language: ja\nlayout:\n  binding: {}\n  chapter_start_page: odd\n  allow_blank_pages: true\nmanuscript:\n  chapters:\n    - books/vol-01/manuscript/01-chapter-1.md\n",
+            "project:\n  type: {}\n  vcs: git\n  version: 1\nbook:\n  title: \"{}\"\n  authors:\n    - \"{}\"\n  language: {}\nlayout:\n  binding: {}\n  chapter_start_page: odd\n  allow_blank_pages: true\nmanuscript:\n  chapters:\n    - books/vol-01/manuscript/01-chapter-1.md\n",
             template.as_str(),
-            template.title(),
+            scaffold.title,
+            scaffold.author,
+            scaffold.language,
             template.binding(),
         )
     }
+}
+
+fn outputs_block(template: ProjectTemplate, preset: OutputPreset) -> String {
+    let mut lines = vec!["outputs:".to_string()];
+    if matches!(preset, OutputPreset::Kindle | OutputPreset::Both) {
+        let kindle_target = if template == ProjectTemplate::Manga {
+            "kindle-comic"
+        } else {
+            "kindle-ja"
+        };
+        lines.push("  kindle:".to_string());
+        lines.push("    enabled: true".to_string());
+        lines.push(format!("    target: {kindle_target}"));
+    }
+    if matches!(preset, OutputPreset::Print | OutputPreset::Both) {
+        let print_target = if template == ProjectTemplate::Manga {
+            "print-manga"
+        } else {
+            "print-jp-pdfx1a"
+        };
+        lines.push("  print:".to_string());
+        lines.push("    enabled: true".to_string());
+        lines.push(format!("    target: {print_target}"));
+    }
+    if template != ProjectTemplate::Manga
+        && matches!(preset, OutputPreset::Print | OutputPreset::Both)
+    {
+        lines.push("pdf:".to_string());
+        lines.push("  engine: weasyprint".to_string());
+        lines.push("  toc: true".to_string());
+        lines.push("  page_number: true".to_string());
+        lines.push("  running_header: auto".to_string());
+        lines.push("print:".to_string());
+        lines.push("  trim_size: bunko".to_string());
+        lines.push("  bleed: 3mm".to_string());
+        lines.push("  crop_marks: true".to_string());
+        lines.push("  body_pdf: true".to_string());
+        lines.push("  cover_pdf: false".to_string());
+        lines.push("  pdf_standard: pdfx1a".to_string());
+    }
+    format!("{}\n", lines.join("\n"))
+}
+
+fn indent_block(block: &str, spaces: usize) -> String {
+    let prefix = " ".repeat(spaces);
+    block
+        .lines()
+        .map(|line| format!("{prefix}{line}"))
+        .collect::<Vec<_>>()
+        .join("\n")
+        + "\n"
 }
 
 fn has_existing_config(root: &Path) -> bool {
@@ -481,6 +601,11 @@ mod tests {
             non_interactive: true,
             force: false,
             config_template: Some("novel".to_string()),
+            repo_mode: None,
+            title: None,
+            author: None,
+            language: None,
+            output_preset: None,
         })
         .unwrap();
 
@@ -504,6 +629,11 @@ mod tests {
             non_interactive: true,
             force: false,
             config_template: Some("manga".to_string()),
+            repo_mode: None,
+            title: None,
+            author: None,
+            language: None,
+            output_preset: None,
         })
         .unwrap();
 
@@ -530,6 +660,11 @@ mod tests {
             non_interactive: true,
             force: false,
             config_template: None,
+            repo_mode: None,
+            title: None,
+            author: None,
+            language: None,
+            output_preset: None,
         })
         .unwrap_err();
 
@@ -547,6 +682,11 @@ mod tests {
             non_interactive: true,
             force: true,
             config_template: Some("business".to_string()),
+            repo_mode: None,
+            title: None,
+            author: None,
+            language: None,
+            output_preset: None,
         })
         .unwrap();
 
@@ -562,6 +702,11 @@ mod tests {
             non_interactive: true,
             force: false,
             config_template: Some("poetry".to_string()),
+            repo_mode: None,
+            title: None,
+            author: None,
+            language: None,
+            output_preset: None,
         })
         .unwrap_err();
 
@@ -569,5 +714,30 @@ mod tests {
             error,
             InitProjectError::UnsupportedTemplate { .. }
         ));
+    }
+
+    #[test]
+    fn applies_interactive_answers_to_scaffold() {
+        let root = temp_dir("interactive-values");
+        init_project(InitProjectOptions {
+            root: root.clone(),
+            non_interactive: false,
+            force: false,
+            config_template: Some("novel".to_string()),
+            repo_mode: Some("series".to_string()),
+            title: Some("Custom Series".to_string()),
+            author: Some("Ken".to_string()),
+            language: Some("ja-JP".to_string()),
+            output_preset: Some("both".to_string()),
+        })
+        .unwrap();
+
+        let series = fs::read_to_string(root.join("series.yml")).unwrap();
+        assert!(series.contains("title: \"Custom Series\""));
+        assert!(series.contains("language: ja-JP"));
+        assert!(series.contains("target: kindle-ja"));
+        assert!(series.contains("target: print-jp-pdfx1a"));
+        let book = fs::read_to_string(root.join("books/vol-01/book.yml")).unwrap();
+        assert!(book.contains("- \"Ken\""));
     }
 }
