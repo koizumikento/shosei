@@ -84,6 +84,11 @@ shosei validate</code></pre>
                 <td>利用可能</td>
               </tr>
               <tr>
+                <td><code>shosei story &lt;subcommand&gt;</code></td>
+                <td>story workspace と scene map を扱う</td>
+                <td>利用可能</td>
+              </tr>
+              <tr>
                 <td><code>shosei page check</code></td>
                 <td>manga のページ順と見開き候補を検査する</td>
                 <td>利用可能</td>
@@ -119,6 +124,15 @@ shosei preview --target print</code></pre>
           <p><code>page check</code> は manga project 向けで、ページ順や見開き候補を確認します。</p>
           <pre><code>shosei page check
 shosei page check --book vol-01</code></pre>
+          <p><code>story scaffold</code> は物語補助の workspace を生成します。<code>single-book</code> では <code>story/</code>、<code>series</code> では共有 canon 用の <code>shared/metadata/story/</code> か巻固有の <code>books/&lt;book-id&gt;/story/</code> を作ります。</p>
+          <pre><code>shosei story scaffold
+shosei story scaffold --book vol-01
+shosei story scaffold --shared
+shosei story map
+shosei story map --book vol-01
+shosei story check
+shosei story check --book vol-01
+shosei story drift --book vol-01</code></pre>
         </section>
 
         <section>
@@ -132,6 +146,59 @@ shosei chapter renumber
 shosei chapter add books/vol-01/manuscript/02.md --book vol-01 --title "Chapter 2"</code></pre>
           <p><code>page check</code> とは別系統で、<code>manga/pages/</code> や manga metadata には触れません。</p>
           <p><code>renumber</code> は章順を変えずに filename prefix だけを整えます。<code>book.yml</code> の <code>manuscript.chapters</code> と対応する <code>sections.file</code> は更新しますが、Markdown 本文中の link destination は自動 rewrite しません。</p>
+        </section>
+
+        <section>
+          <h2>Story scaffold</h2>
+          <p><code>story scaffold</code> は manual-first の物語補助 workspace を作ります。</p>
+          <ul>
+            <li><code>single-book</code>: <code>story/</code></li>
+            <li><code>series --shared</code>: <code>shared/metadata/story/</code></li>
+            <li><code>series --book &lt;book-id&gt;</code>: <code>books/&lt;book-id&gt;/story/</code></li>
+          </ul>
+          <p>生成するのは <code>README.md</code>、entity directory ごとの <code>README.md</code>、book scope のときだけ <code>scenes.yml</code> です。</p>
+          <p>既定では既存 file を保持し、template を上書きしたい場合だけ <code>--force</code> を付けます。</p>
+        </section>
+
+        <section>
+          <h2>Story map</h2>
+          <p><code>story map</code> は book-scoped な <code>scenes.yml</code> を読み、scene 一覧と JSON report を出します。</p>
+          <ul>
+            <li><code>single-book</code>: <code>story/scenes.yml</code></li>
+            <li><code>series</code>: <code>books/&lt;book-id&gt;/story/scenes.yml</code></li>
+            <li>report: <code>dist/reports/&lt;book-id&gt;-story-map.json</code></li>
+          </ul>
+          <pre><code>scenes:
+  - file: manuscript/01-chapter-1.md
+    title: Opening</code></pre>
+        </section>
+
+        <section>
+          <h2>Story check</h2>
+          <p><code>story check</code> は <code>scenes.yml</code>、scene Markdown frontmatter、book-scoped story entity Markdown を読み、軽い整合チェック結果を JSON report に出します。</p>
+          <ul>
+            <li>duplicate <code>file</code> entry は warning</li>
+            <li>invalid repo-relative path は error</li>
+            <li>実ファイルが存在しない <code>file</code> は warning</li>
+            <li>entity frontmatter の <code>id</code> は参照解決に使われ、未指定時は filename stem を使う</li>
+            <li>同一 kind 内の duplicate entity <code>id</code> は error</li>
+            <li><code>series</code> では book-scoped story data と <code>shared/metadata/story/</code> の両方から参照を解決する</li>
+            <li>scene frontmatter の未解決 entity 参照は warning</li>
+            <li>invalid scene/entity frontmatter は error</li>
+            <li>report: <code>dist/reports/&lt;book-id&gt;-story-check.json</code></li>
+          </ul>
+        </section>
+
+        <section>
+          <h2>Story drift</h2>
+          <p><code>story drift</code> は <code>series</code> で shared canon と巻固有 story data の衝突を JSON report に出します。</p>
+          <ul>
+            <li>対象: <code>shared/metadata/story/</code> と <code>books/&lt;book-id&gt;/story/</code></li>
+            <li>same-scope duplicate entity <code>id</code> は error</li>
+            <li>内容が分岐した shared/book の同一 <code>id</code> は error</li>
+            <li>内容が同じ shared/book の同一 <code>id</code> は warning</li>
+            <li>report: <code>dist/reports/&lt;book-id&gt;-story-drift.json</code></li>
+          </ul>
         </section>
 
         <section>

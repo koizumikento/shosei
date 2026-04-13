@@ -9,6 +9,7 @@
 - [設定探索と継承ルール](specs/config-loading.md)
 - [Rust 実装アーキテクチャ](specs/rust-architecture.md)
 - [init ウィザード仕様](specs/init-wizard.md)
+- [物語補助仕様](specs/story-support.md)
 - [ADR 一覧](adr/README.md)
 
 このディレクトリでは、実装前の仕様整理と意思決定の履歴を分けて管理する。

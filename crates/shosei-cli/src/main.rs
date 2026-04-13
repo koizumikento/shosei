@@ -7,7 +7,7 @@ use anyhow::Result;
 use clap::Parser;
 use shosei_core::{app, cli_api::CommandContext};
 
-use crate::args::{ChapterCommands, Cli, Commands, PageCommands};
+use crate::args::{ChapterCommands, Cli, Commands, PageCommands, StoryCommands};
 
 fn main() {
     let code = match run() {
@@ -144,6 +144,53 @@ fn run() -> Result<i32> {
                         width,
                         dry_run,
                     },
+                )?;
+                output::print_line(&result.summary);
+                Ok(exit_code::OK)
+            }
+        },
+        Commands::Story { command } => match command {
+            StoryCommands::Check { book, path } => {
+                let result = app::story_check(
+                    &CommandContext::new(path, book, None),
+                    app::StoryCheckOptions {},
+                )?;
+                output::print_line(&result.summary);
+                Ok(if result.has_errors {
+                    exit_code::FAILURE
+                } else {
+                    exit_code::OK
+                })
+            }
+            StoryCommands::Drift { book, path } => {
+                let result = app::story_drift(
+                    &CommandContext::new(path, book, None),
+                    app::StoryDriftOptions {},
+                )?;
+                output::print_line(&result.summary);
+                Ok(if result.has_errors {
+                    exit_code::FAILURE
+                } else {
+                    exit_code::OK
+                })
+            }
+            StoryCommands::Map { book, path } => {
+                let result = app::story_map(
+                    &CommandContext::new(path, book, None),
+                    app::StoryMapOptions {},
+                )?;
+                output::print_line(&result.summary);
+                Ok(exit_code::OK)
+            }
+            StoryCommands::Scaffold {
+                shared,
+                force,
+                book,
+                path,
+            } => {
+                let result = app::story_scaffold(
+                    &CommandContext::new(path, book, None),
+                    app::StoryScaffoldOptions { shared, force },
                 )?;
                 output::print_line(&result.summary);
                 Ok(exit_code::OK)

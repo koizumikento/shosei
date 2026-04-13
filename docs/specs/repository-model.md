@@ -85,6 +85,7 @@ repo/
     skills/
       shosei-project/
         SKILL.md
+  story/
   manuscript/
   manga/
   assets/
@@ -97,6 +98,7 @@ repo/
 備考:
 
 - `project.type` に応じて `manuscript/` か `manga/` を使う
+- 物語補助を使う場合は root に `story/` を置く
 - 使わないディレクトリは空でもよい
 
 ## 6. `series` 構成
@@ -113,14 +115,17 @@ repo/
     styles/
     fonts/
     metadata/
+      story/
   books/
     vol-01/
       book.yml
+      story/
       manuscript/
       manga/
       assets/
     vol-02/
       book.yml
+      story/
       manuscript/
       manga/
       assets/
@@ -132,7 +137,9 @@ repo/
 備考:
 
 - `shared/` には共通資産だけを置く
+- 共通の worldbuilding / canon は `shared/metadata/story/` に置く
 - 巻固有資産は `books/<book-id>/assets/` に置く
+- 巻固有の scene / note / codex は `books/<book-id>/story/` に置く
 - `dist/` は repo root で共通でも、巻ごとに分けてもよい
 
 ## 7. root 設定ファイルの役割

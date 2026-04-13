@@ -5,6 +5,7 @@ pub mod diagnostics;
 pub mod domain;
 pub mod fs;
 mod manga;
+pub mod markdown;
 pub mod pipeline;
 pub mod repo;
 pub mod toolchain;

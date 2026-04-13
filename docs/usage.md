@@ -26,6 +26,7 @@ shosei validate
 | `shosei validate` | config / preflight を検証する | 利用可能 |
 | `shosei preview` | one-shot / watch preview を生成する | 利用可能 |
 | `shosei chapter <subcommand>` | prose の `manuscript.chapters` を更新する | 利用可能 |
+| `shosei story <subcommand>` | story workspace と scene map を扱う | 利用可能 |
 | `shosei page check` | manga のページ順と見開き候補を検査する | 利用可能 |
 | `shosei doctor` | 依存解決結果と導入ヒントを表示する | 利用可能 |
 | `shosei handoff <destination>` | handoff package を生成する | 利用可能 |
@@ -57,6 +58,19 @@ shosei page check
 shosei page check --book vol-01
 ```
 
+`story scaffold` は物語補助の workspace を生成する。`single-book` では `story/`、`series` では共有 canon 用の `shared/metadata/story/` か巻固有の `books/<book-id>/story/` を作る。
+
+```bash
+shosei story scaffold
+shosei story scaffold --book vol-01
+shosei story scaffold --shared
+shosei story map
+shosei story map --book vol-01
+shosei story check
+shosei story check --book vol-01
+shosei story drift --book vol-01
+```
+
 ## Chapter commands
 
 `chapter` は prose project 向けで、`book.yml` の `manuscript.chapters` を更新する。
@@ -74,6 +88,65 @@ shosei chapter add books/vol-01/manuscript/02.md --book vol-01 --title "Chapter 
 `page check` とは別系統で、`manga/pages/` や manga metadata には触れない。
 
 `renumber` は章順を変えずに filename prefix だけを整える。`book.yml` の `manuscript.chapters` と対応する `sections.file` は更新するが、Markdown 本文中の link destination は自動 rewrite しない。
+
+## Story scaffold
+
+`story scaffold` は manual-first の物語補助 workspace を作る。
+
+- `single-book`: `story/`
+- `series --shared`: `shared/metadata/story/`
+- `series --book <book-id>`: `books/<book-id>/story/`
+
+生成するもの:
+
+- `README.md`
+- `characters/README.md`
+- `locations/README.md`
+- `terms/README.md`
+- `factions/README.md`
+- book scope のときだけ `scenes.yml`
+
+既定では既存 file を保持し、template を上書きしたい場合だけ `--force` を付ける。
+
+## Story map
+
+`story map` は book-scoped な `scenes.yml` を読み、scene 一覧と JSON report を出す。
+
+- `single-book`: `story/scenes.yml`
+- `series`: `books/<book-id>/story/scenes.yml`
+- report: `dist/reports/<book-id>-story-map.json`
+
+scene entry の最小 shape:
+
+```yaml
+scenes:
+  - file: manuscript/01-chapter-1.md
+    title: Opening
+```
+
+## Story check
+
+`story check` は `scenes.yml`、scene Markdown frontmatter、book-scoped story entity Markdown を読み、軽い整合チェック結果を JSON report に出す。
+
+- duplicate `file` entry は warning
+- invalid repo-relative path は error
+- 実ファイルが存在しない `file` は warning
+- entity frontmatter の `id` は参照解決に使われ、未指定時は filename stem を使う
+- 同一 kind 内の duplicate entity `id` は error
+- `series` では book-scoped story data と `shared/metadata/story/` の両方から参照を解決する
+- scene frontmatter の未解決 entity 参照は warning
+- invalid scene/entity frontmatter は error
+- report: `dist/reports/<book-id>-story-check.json`
+
+## Story drift
+
+`story drift` は `series` で shared canon と巻固有 story data の衝突を JSON report に出す。
+
+- 対象: `shared/metadata/story/` と `books/<book-id>/story/`
+- same-scope duplicate entity `id` は error
+- 内容が分岐した shared/book の同一 `id` は error
+- 内容が同じ shared/book の同一 `id` は warning
+- report: `dist/reports/<book-id>-story-drift.json`
 
 ## Validate checks
 
