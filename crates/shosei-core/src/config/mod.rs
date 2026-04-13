@@ -307,8 +307,10 @@ pub struct ManuscriptSettings {
 pub struct ValidationSettings {
     pub strict: bool,
     pub epubcheck: bool,
-    pub accessibility: String,
+    pub accessibility: ValidationLevel,
     pub missing_image: ValidationSeverity,
+    pub missing_alt: ValidationSeverity,
+    pub broken_link: ValidationSeverity,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -323,6 +325,32 @@ impl ValidationSeverity {
             "warn" => Some(Self::Warn),
             "error" => Some(Self::Error),
             _ => None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ValidationLevel {
+    Off,
+    Warn,
+    Error,
+}
+
+impl ValidationLevel {
+    fn parse(value: &str) -> Option<Self> {
+        match value {
+            "off" => Some(Self::Off),
+            "warn" => Some(Self::Warn),
+            "error" => Some(Self::Error),
+            _ => None,
+        }
+    }
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Off => "off",
+            Self::Warn => "warn",
+            Self::Error => "error",
         }
     }
 }
@@ -630,7 +658,7 @@ pub fn explain_book_config(context: &RepoContext) -> Result<ExplainedConfig, Con
         ),
         explained(
             "validation.accessibility",
-            &resolved.effective.validation.accessibility,
+            resolved.effective.validation.accessibility.as_str(),
             origin(&["validation", "accessibility"]),
         ),
         explained(
@@ -640,6 +668,22 @@ pub fn explain_book_config(context: &RepoContext) -> Result<ExplainedConfig, Con
                 ValidationSeverity::Error => "error",
             },
             origin(&["validation", "missing_image"]),
+        ),
+        explained(
+            "validation.missing_alt",
+            match resolved.effective.validation.missing_alt {
+                ValidationSeverity::Warn => "warn",
+                ValidationSeverity::Error => "error",
+            },
+            origin(&["validation", "missing_alt"]),
+        ),
+        explained(
+            "validation.broken_link",
+            match resolved.effective.validation.broken_link {
+                ValidationSeverity::Warn => "warn",
+                ValidationSeverity::Error => "error",
+            },
+            origin(&["validation", "broken_link"]),
         ),
         explained(
             "git.lfs",
@@ -833,13 +877,32 @@ fn parse_effective_book_config(
             strict: optional_bool_at(raw, &["validation", "strict"], config_path)?.unwrap_or(true),
             epubcheck: optional_bool_at(raw, &["validation", "epubcheck"], config_path)?
                 .unwrap_or(true),
-            accessibility: optional_string_at(raw, &["validation", "accessibility"], config_path)?
-                .unwrap_or_else(|| "warn".to_string()),
+            accessibility: parse_validation_level(
+                raw,
+                config_path,
+                "validation.accessibility",
+                &["validation", "accessibility"],
+                ValidationLevel::Warn,
+            )?,
             missing_image: parse_validation_severity(
                 raw,
                 config_path,
                 "validation.missing_image",
                 &["validation", "missing_image"],
+                ValidationSeverity::Error,
+            )?,
+            missing_alt: parse_validation_severity(
+                raw,
+                config_path,
+                "validation.missing_alt",
+                &["validation", "missing_alt"],
+                ValidationSeverity::Error,
+            )?,
+            broken_link: parse_validation_severity(
+                raw,
+                config_path,
+                "validation.broken_link",
+                &["validation", "broken_link"],
                 ValidationSeverity::Error,
             )?,
         },
@@ -1049,6 +1112,20 @@ fn parse_validation_severity(
     match optional_string_at(raw, path, config_path)? {
         Some(value) => ValidationSeverity::parse(&value)
             .ok_or_else(|| invalid_value(config_path, field, value, "must be warn or error")),
+        None => Ok(default),
+    }
+}
+
+fn parse_validation_level(
+    raw: &Value,
+    config_path: &Path,
+    field: &str,
+    path: &[&str],
+    default: ValidationLevel,
+) -> Result<ValidationLevel, ConfigError> {
+    match optional_string_at(raw, path, config_path)? {
+        Some(value) => ValidationLevel::parse(&value)
+            .ok_or_else(|| invalid_value(config_path, field, value, "must be off, warn, or error")),
         None => Ok(default),
     }
 }

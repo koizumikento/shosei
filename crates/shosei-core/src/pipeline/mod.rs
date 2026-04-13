@@ -124,6 +124,24 @@ pub fn prose_validate_plan_with_toolchain(
         tool: None,
         tool_status: ToolStatus::Planned,
     }];
+    checks.push(ValidationCheck {
+        name: "link-integrity",
+        target: "common",
+        tool: None,
+        tool_status: ToolStatus::Planned,
+    });
+    checks.push(ValidationCheck {
+        name: "navigation-structure",
+        target: "common",
+        tool: None,
+        tool_status: ToolStatus::Planned,
+    });
+    checks.push(ValidationCheck {
+        name: "accessibility-metadata",
+        target: "common",
+        tool: None,
+        tool_status: ToolStatus::Planned,
+    });
     if (selected_channel.is_none() || selected_channel == Some("kindle"))
         && resolved.effective.outputs.kindle.is_some()
     {
@@ -144,12 +162,33 @@ pub fn prose_validate_plan_with_toolchain(
                     .unwrap_or(ToolStatus::Missing),
             });
         }
+        checks.push(ValidationCheck {
+            name: "kindle-metadata",
+            target: "kindle",
+            tool: None,
+            tool_status: ToolStatus::Planned,
+        });
     }
     if (selected_channel.is_none() || selected_channel == Some("print"))
         && resolved.effective.outputs.print.is_some()
     {
         checks.push(ValidationCheck {
             name: "print-target-check",
+            target: "print",
+            tool: None,
+            tool_status: ToolStatus::Planned,
+        });
+        checks.push(ValidationCheck {
+            name: "pdf-engine",
+            target: "print",
+            tool: Some("pdf-engine"),
+            tool_status: toolchain
+                .tool("pdf-engine")
+                .map(|tool| tool.status)
+                .unwrap_or(ToolStatus::Missing),
+        });
+        checks.push(ValidationCheck {
+            name: "print-profile",
             target: "print",
             tool: None,
             tool_status: ToolStatus::Planned,

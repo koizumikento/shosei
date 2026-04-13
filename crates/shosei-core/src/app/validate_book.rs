@@ -1,5 +1,9 @@
-use std::{fs, path::PathBuf};
+use std::{
+    fs,
+    path::{Path, PathBuf},
+};
 
+use regex::Regex;
 use serde::Serialize;
 
 use crate::{
@@ -89,23 +93,24 @@ fn validate_book_with_toolchain(
                     .collect(),
             ),
         };
+        let outputs = selected_outputs(&resolved, command.output_target.as_deref());
+        if command.output_target.is_some() && outputs.is_empty() {
+            return Err(ValidateBookError::TargetNotEnabled {
+                target: command
+                    .output_target
+                    .clone()
+                    .unwrap_or_else(|| "unknown".to_string()),
+            });
+        }
         if let Some(plan) = &plan {
-            if plan.checks.len() == 1 && command.output_target.is_some() {
-                return Err(ValidateBookError::TargetNotEnabled {
-                    target: command
-                        .output_target
-                        .clone()
-                        .unwrap_or_else(|| "unknown".to_string()),
-                });
-            }
             issues.extend(issues_from_checks(plan));
             issues.extend(schema_warning_issues(&resolved));
-            if project_type == ProjectType::Manga {
-                issues.extend(manga_validation_issues(&resolved, plan));
-            }
+            issues.extend(match project_type {
+                ProjectType::Manga => manga_validation_issues(&resolved, plan),
+                _ => prose_validation_issues(&resolved, plan),
+            });
         }
         issues.extend(cover_validation_issues(&resolved));
-        let outputs = selected_outputs(&resolved, command.output_target.as_deref());
         let report = ValidateReport {
             book_id: book.id.clone(),
             outputs: outputs.clone(),
@@ -268,6 +273,28 @@ fn schema_warning_issues(resolved: &config::ResolvedBookConfig) -> Vec<Validatio
         );
     }
 
+    if project_type.is_prose()
+        && resolved.effective.outputs.print.is_some()
+        && !resolved.has_path(&["pdf"])
+    {
+        issues.push(
+            ValidationIssue::warning(
+                "print",
+                "print output is enabled but no pdf section is defined".to_string(),
+                "pdf セクションを追加して engine や running_header などの PDF 設定を明示してください。",
+            )
+            .at(
+                resolved
+                    .repo
+                    .book
+                    .as_ref()
+                    .expect("book context must exist")
+                    .config_path
+                    .clone(),
+            ),
+        );
+    }
+
     issues
 }
 
@@ -291,6 +318,234 @@ fn cover_validation_issues(resolved: &config::ResolvedBookConfig) -> Vec<Validat
         "cover.ebook_image を修正するか、対象ファイルを追加してください。",
         Some(fs_path),
     )]
+}
+
+fn prose_validation_issues(
+    resolved: &config::ResolvedBookConfig,
+    plan: &pipeline::ValidatePlan,
+) -> Vec<ValidationIssue> {
+    let Some(manuscript) = resolved.effective.manuscript.as_ref() else {
+        return Vec::new();
+    };
+
+    let chapter_paths = manuscript
+        .chapters
+        .iter()
+        .map(|path| join_repo_path(&resolved.repo.repo_root, path))
+        .collect::<Vec<_>>();
+    let mut issues = Vec::new();
+
+    for file_path in &plan.manuscript_files {
+        let analysis = match analyze_markdown_file(file_path) {
+            Ok(analysis) => analysis,
+            Err(source) => {
+                issues.push(ValidationIssue::error(
+                    "common",
+                    format!(
+                        "failed to read manuscript file during validation: {}",
+                        file_path.display()
+                    ),
+                    format!("ファイルを読めませんでした: {source}"),
+                ));
+                continue;
+            }
+        };
+
+        for image in &analysis.images {
+            if image.alt.trim().is_empty() {
+                issues.push(issue_from_severity(
+                    resolved.effective.validation.missing_alt,
+                    if resolved.effective.outputs.kindle.is_some() {
+                        "kindle"
+                    } else {
+                        "common"
+                    },
+                    format!("image is missing alt text: {}", image.destination),
+                    "画像参照に代替テキストを追加してください。",
+                    Some(file_path.clone()),
+                ));
+            }
+            if !image.is_external
+                && !resolved_path_exists(file_path, &resolved.repo.repo_root, &image.destination)
+            {
+                issues.push(issue_from_severity(
+                    resolved.effective.validation.missing_image,
+                    "common",
+                    format!("image reference target not found: {}", image.destination),
+                    "画像パスを修正するか、対象ファイルを追加してください。",
+                    Some(file_path.clone()),
+                ));
+            }
+        }
+
+        for link in &analysis.links {
+            if !link.is_external
+                && !resolved_path_exists(file_path, &resolved.repo.repo_root, &link.destination)
+            {
+                issues.push(issue_from_severity(
+                    resolved.effective.validation.broken_link,
+                    "common",
+                    format!("link target not found: {}", link.destination),
+                    "リンク先パスを修正するか、対象ファイルを追加してください。",
+                    Some(file_path.clone()),
+                ));
+            }
+        }
+
+        if chapter_paths.iter().any(|chapter| chapter == file_path) {
+            if analysis.heading_levels.first().copied() != Some(1)
+                && let Some(issue) = accessibility_issue(
+                    resolved,
+                    "common",
+                    "chapter file does not begin with a level-1 heading".to_string(),
+                    "各 chapter ファイルの先頭に `#` 見出しを置き、navigation の導出元を明確にしてください。",
+                    file_path.clone(),
+                )
+            {
+                issues.push(issue);
+            }
+            for (previous, current) in analysis.heading_levels.windows(2).filter_map(|levels| {
+                if levels[1] > levels[0] + 1 {
+                    Some((levels[0], levels[1]))
+                } else {
+                    None
+                }
+            }) {
+                if let Some(issue) = accessibility_issue(
+                    resolved,
+                    "common",
+                    format!("heading hierarchy skips levels: h{previous} -> h{current}"),
+                    "見出しレベルを段階的に増やしてください。例: h1 の次は h2 を使います。",
+                    file_path.clone(),
+                ) {
+                    issues.push(issue);
+                }
+            }
+        }
+    }
+
+    if resolved.effective.outputs.kindle.is_some() && resolved.effective.cover.ebook_image.is_none()
+    {
+        issues.push(ValidationIssue::warning(
+            "kindle",
+            "kindle output is enabled but cover.ebook_image is not set".to_string(),
+            "Kindle 向けメタデータ整合のため、cover.ebook_image を設定してください。",
+        ));
+    }
+
+    issues
+}
+
+#[derive(Debug, Clone)]
+struct MarkdownLink {
+    destination: String,
+    alt: String,
+    is_external: bool,
+}
+
+#[derive(Debug, Default)]
+struct MarkdownAnalysis {
+    heading_levels: Vec<u32>,
+    links: Vec<MarkdownLink>,
+    images: Vec<MarkdownLink>,
+}
+
+fn analyze_markdown_file(path: &Path) -> Result<MarkdownAnalysis, std::io::Error> {
+    let contents = fs::read_to_string(path)?;
+    let heading_regex = Regex::new(r"(?m)^(#{1,6})[ \t]+(.+?)\s*$").expect("valid heading regex");
+    let image_regex =
+        Regex::new(r"!\[(?P<alt>[^\]]*)\]\((?P<dest>[^)]+)\)").expect("valid image regex");
+    let link_regex =
+        Regex::new(r"\[(?P<label>[^\]]*)\]\((?P<dest>[^)]+)\)").expect("valid link regex");
+
+    Ok(MarkdownAnalysis {
+        heading_levels: heading_regex
+            .captures_iter(&contents)
+            .map(|capture| capture[1].len() as u32)
+            .collect(),
+        images: image_regex
+            .captures_iter(&contents)
+            .map(|capture| {
+                let destination = normalize_markdown_destination(&capture["dest"]);
+                MarkdownLink {
+                    is_external: is_external_destination(&destination),
+                    destination,
+                    alt: capture["alt"].to_string(),
+                }
+            })
+            .collect(),
+        links: link_regex
+            .captures_iter(&contents)
+            .filter(|capture| {
+                capture
+                    .get(0)
+                    .map(|m| m.start() == 0 || contents.as_bytes()[m.start() - 1] != b'!')
+                    .unwrap_or(false)
+            })
+            .map(|capture| {
+                let destination = normalize_markdown_destination(&capture["dest"]);
+                MarkdownLink {
+                    is_external: is_external_destination(&destination),
+                    destination,
+                    alt: String::new(),
+                }
+            })
+            .collect(),
+    })
+}
+
+fn normalize_markdown_destination(raw: &str) -> String {
+    let trimmed = raw.trim();
+    let without_title = trimmed.split_whitespace().next().unwrap_or(trimmed);
+    without_title
+        .trim_matches('<')
+        .trim_matches('>')
+        .to_string()
+}
+
+fn is_external_destination(destination: &str) -> bool {
+    destination.starts_with("http://")
+        || destination.starts_with("https://")
+        || destination.starts_with("mailto:")
+        || destination.starts_with("data:")
+        || destination.starts_with('#')
+}
+
+fn resolved_path_exists(source_path: &Path, repo_root: &Path, destination: &str) -> bool {
+    let Some(base_destination) = destination.split('#').next() else {
+        return true;
+    };
+    if base_destination.is_empty() {
+        return true;
+    }
+
+    let candidate = if base_destination.starts_with('/') {
+        repo_root.join(base_destination.trim_start_matches('/'))
+    } else {
+        source_path
+            .parent()
+            .unwrap_or(repo_root)
+            .join(base_destination)
+    };
+    candidate.exists()
+}
+
+fn accessibility_issue(
+    resolved: &config::ResolvedBookConfig,
+    target: impl Into<String>,
+    cause: impl Into<String>,
+    remedy: impl Into<String>,
+    path: PathBuf,
+) -> Option<ValidationIssue> {
+    match resolved.effective.validation.accessibility {
+        config::ValidationLevel::Off => None,
+        config::ValidationLevel::Warn => {
+            Some(ValidationIssue::warning(target, cause, remedy).at(path))
+        }
+        config::ValidationLevel::Error => {
+            Some(ValidationIssue::error(target, cause, remedy).at(path))
+        }
+    }
 }
 
 fn manga_validation_issues(
@@ -601,15 +856,26 @@ mod tests {
 
     fn fake_toolchain(epubcheck: ToolStatus) -> ToolchainReport {
         ToolchainReport {
-            tools: vec![ToolRecord {
-                key: "epubcheck",
-                display_name: "epubcheck",
-                status: epubcheck,
-                detected_as: Some("epubcheck".to_string()),
-                resolved_path: None,
-                version: None,
-                install_hint: "Install epubcheck and ensure the launcher is available on PATH.",
-            }],
+            tools: vec![
+                ToolRecord {
+                    key: "epubcheck",
+                    display_name: "epubcheck",
+                    status: epubcheck,
+                    detected_as: Some("epubcheck".to_string()),
+                    resolved_path: None,
+                    version: None,
+                    install_hint: "Install epubcheck and ensure the launcher is available on PATH.",
+                },
+                ToolRecord {
+                    key: "pdf-engine",
+                    display_name: "PDF engine",
+                    status: ToolStatus::Available,
+                    detected_as: Some("weasyprint".to_string()),
+                    resolved_path: None,
+                    version: None,
+                    install_hint: "Install one supported PDF engine such as weasyprint, typst, or lualatex.",
+                },
+            ],
         }
     }
 
@@ -642,6 +908,43 @@ validation:
 git:
   lfs: true
 "#,
+        )
+        .unwrap();
+    }
+
+    fn write_book_with_chapter_contents(
+        root: &std::path::Path,
+        chapter_contents: &str,
+        validation_block: &str,
+    ) {
+        fs::create_dir_all(root.join("manuscript")).unwrap();
+        fs::write(root.join("manuscript/01.md"), chapter_contents).unwrap();
+        fs::write(
+            root.join("book.yml"),
+            format!(
+                r#"
+project:
+  type: novel
+  vcs: git
+book:
+  title: "Sample"
+  authors:
+    - "Author"
+  reading_direction: rtl
+layout:
+  binding: right
+manuscript:
+  chapters:
+    - manuscript/01.md
+outputs:
+  kindle:
+    enabled: true
+    target: kindle-ja
+{validation_block}
+git:
+  lfs: true
+"#
+            ),
         )
         .unwrap();
     }
@@ -1067,5 +1370,78 @@ manga:
         assert!(!result.has_errors);
         let report = fs::read_to_string(result.report_path).unwrap();
         assert!(report.contains("project.type is manga but manuscript.chapters is also present"));
+    }
+
+    #[test]
+    fn validate_reports_missing_alt_and_broken_link_in_prose() {
+        let root = temp_dir("prose-missing-alt-broken-link");
+        write_book_with_chapter_contents(
+            &root,
+            "# Chapter 1\n\n![ ](assets/missing.png)\n\n[See appendix](missing.md)\n",
+            r#"validation:
+  strict: true
+  epubcheck: true
+  missing_alt: error
+  broken_link: warn"#,
+        );
+
+        let result = validate_book_with_toolchain(
+            &CommandContext::new(&root, None, None),
+            &fake_toolchain(ToolStatus::Available),
+        )
+        .unwrap();
+
+        assert!(result.has_errors);
+        let report = fs::read_to_string(result.report_path).unwrap();
+        assert!(report.contains("image is missing alt text"));
+        assert!(report.contains("link target not found"));
+        assert!(report.contains("\"severity\": \"warning\""));
+    }
+
+    #[test]
+    fn validate_reports_heading_hierarchy_problems() {
+        let root = temp_dir("prose-heading-hierarchy");
+        write_book_with_chapter_contents(
+            &root,
+            "## Missing Title\n\n#### Too Deep\n",
+            r#"validation:
+  strict: true
+  epubcheck: true
+  accessibility: error"#,
+        );
+
+        let result = validate_book_with_toolchain(
+            &CommandContext::new(&root, None, None),
+            &fake_toolchain(ToolStatus::Available),
+        )
+        .unwrap();
+
+        assert!(result.has_errors);
+        let report = fs::read_to_string(result.report_path).unwrap();
+        assert!(report.contains("chapter file does not begin with a level-1 heading"));
+        assert!(report.contains("heading hierarchy skips levels"));
+    }
+
+    #[test]
+    fn validate_can_disable_accessibility_heading_checks() {
+        let root = temp_dir("prose-accessibility-off");
+        write_book_with_chapter_contents(
+            &root,
+            "## Missing Title\n\n#### Too Deep\n",
+            r#"validation:
+  strict: true
+  epubcheck: true
+  accessibility: off"#,
+        );
+
+        let result = validate_book_with_toolchain(
+            &CommandContext::new(&root, None, None),
+            &fake_toolchain(ToolStatus::Available),
+        )
+        .unwrap();
+
+        let report = fs::read_to_string(result.report_path).unwrap();
+        assert!(!report.contains("chapter file does not begin with a level-1 heading"));
+        assert!(!report.contains("heading hierarchy skips levels"));
     }
 }

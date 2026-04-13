@@ -109,6 +109,20 @@ shosei preview --target print</code></pre>
         </section>
 
         <section>
+          <h2>Validate checks</h2>
+          <p>現在の <code>validate</code> は、JSON レポートを出しつつ、次のような preflight を行います。</p>
+          <ul>
+            <li>欠落した manuscript / cover / manga page の検出</li>
+            <li>prose 原稿のリンク切れと画像参照切れ</li>
+            <li>prose 原稿の alt 欠落</li>
+            <li>chapter ファイルの level-1 heading 不足</li>
+            <li>heading hierarchy の飛び級</li>
+            <li>Kindle / print / manga 向けの target 別警告</li>
+          </ul>
+          <p>severity は <code>validation.accessibility</code>, <code>validation.missing_image</code>, <code>validation.missing_alt</code>, <code>validation.broken_link</code> の設定で調整できます。</p>
+        </section>
+
+        <section>
           <h2>Inspect resolved config</h2>
           <p>
             `explain` は repo mode、対象 book、最終有効設定、値の由来を確認するための入口です。

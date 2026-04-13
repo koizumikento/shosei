@@ -12,6 +12,7 @@ anyhow = "1.0"
 clap = { version = "4.5", features = ["derive"] }
 image = { version = "0.25", default-features = false, features = ["jpeg", "png"] }
 printpdf = { version = "0.9.1", default-features = false, features = ["images", "png", "jpeg"] }
+regex = "1.11"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 serde_yaml = "0.9"

@@ -48,6 +48,19 @@ shosei validate --target kindle
 shosei preview --target print
 ```
 
+## Validate checks
+
+現在の `validate` は、JSON レポートを出しつつ、次のような preflight を行う。
+
+- 欠落した manuscript / cover / manga page の検出
+- prose 原稿のリンク切れと画像参照切れ
+- prose 原稿の alt 欠落
+- chapter ファイルの level-1 heading 不足
+- heading hierarchy の飛び級
+- Kindle / print / manga 向けの target 別警告
+
+severity は `validation.accessibility`, `validation.missing_image`, `validation.missing_alt`, `validation.broken_link` の設定で調整できる。
+
 ## Inspect resolved config
 
 `explain` は repo mode、対象 book、最終有効設定、値の由来を確認するための入口。
