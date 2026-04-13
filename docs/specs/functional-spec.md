@@ -311,6 +311,7 @@ prose project の source structure を更新する。
 - `shosei chapter add <path>`
 - `shosei chapter move <path>`
 - `shosei chapter remove <path>`
+- `shosei chapter renumber`
 
 主な責務:
 
@@ -318,6 +319,7 @@ prose project の source structure を更新する。
 - `series` では既存の repo discovery に従って対象 book を解決する
 - 章ファイルの追加時に必要なら Markdown stub を生成する
 - 削除対象ファイルに対応する `sections` entry があれば整合のために除去する
+- 明示 opt-in のときだけ章ファイルの filename prefix を整える
 
 非責務:
 
@@ -325,6 +327,8 @@ prose project の source structure を更新する。
 - manga の chapter / episode metadata 管理
 - filename prefix を正として章順を決めること
 - 既存章ファイルの rename や renumber を既定動作にすること
+- `renumber` 実行時を除き chapter file path を rename すること
+- Markdown 本文中の link destination を自動 rewrite すること
 
 v0.1 の最小要件:
 
@@ -332,6 +336,7 @@ v0.1 の最小要件:
 - 章順は `manuscript.chapters` の配列順を正とする
 - `move` は `book.yml` を更新するだけで、既定では file rename を行わない
 - `remove` は既定では config から外すだけとし、物理削除は明示 opt-in に限る
+- `renumber` は `manuscript.chapters` の順序を保ったまま chapter file path と対応する `sections.file` を更新する
 
 ### 7.9 `shosei page check`
 

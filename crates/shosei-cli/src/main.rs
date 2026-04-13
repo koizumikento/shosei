@@ -130,6 +130,24 @@ fn run() -> Result<i32> {
                 output::print_line(&result.summary);
                 Ok(exit_code::OK)
             }
+            ChapterCommands::Renumber {
+                start_at,
+                width,
+                dry_run,
+                book,
+                path,
+            } => {
+                let result = app::chapter_renumber(
+                    &CommandContext::new(path, book, None),
+                    app::ChapterRenumberOptions {
+                        start_at,
+                        width,
+                        dry_run,
+                    },
+                )?;
+                output::print_line(&result.summary);
+                Ok(exit_code::OK)
+            }
         },
         Commands::Page { command } => match command {
             PageCommands::Check { book, path } => {

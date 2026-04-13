@@ -174,7 +174,7 @@ repo/
 
 prose 系テンプレートでは、最初の章ファイルとして `manuscript/01-chapter-1.md` も生成します。
 
-この `01-` prefix は初期命名の慣例です。prose の章順は filename prefix ではなく `book.yml` の `manuscript.chapters` で決まります。
+この `01-` prefix は初期命名の慣例です。prose の章順は filename prefix ではなく `book.yml` の `manuscript.chapters` で決まります。prefix を整えたい場合は `shosei chapter renumber` を明示的に使います。
 
 ## ドキュメント
 

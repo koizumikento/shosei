@@ -1,4 +1,5 @@
 use std::{
+    collections::{HashMap, HashSet},
     fs,
     path::{Path, PathBuf},
 };
@@ -33,6 +34,13 @@ pub struct ChapterMoveOptions {
 pub struct ChapterRemoveOptions {
     pub chapter_path: String,
     pub delete_file: bool,
+}
+
+#[derive(Debug, Clone)]
+pub struct ChapterRenumberOptions {
+    pub start_at: usize,
+    pub width: usize,
+    pub dry_run: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -71,8 +79,14 @@ pub enum ChapterError {
     ReferenceMatchesTarget { path: String },
     #[error("cannot remove the last remaining chapter")]
     CannotRemoveLastChapter,
+    #[error("renumber width must be at least 1")]
+    InvalidRenumberWidth,
+    #[error("renumber start-at must be at least 1")]
+    InvalidRenumberStartAt,
     #[error("chapter file `{path}` does not exist; pass --title to create a new stub")]
     MissingChapterFile { path: PathBuf },
+    #[error("chapter source file `{path}` does not exist")]
+    MissingChapterSourceFile { path: PathBuf },
     #[error("failed to create chapter file {path}: {source}")]
     CreateChapterFile {
         path: PathBuf,
@@ -94,6 +108,15 @@ pub enum ChapterError {
     #[error("failed to delete chapter file {path}: {source}")]
     DeleteChapterFile {
         path: PathBuf,
+        #[source]
+        source: std::io::Error,
+    },
+    #[error("chapter renumber would overwrite existing file {path}")]
+    ChapterRenameConflict { path: PathBuf },
+    #[error("failed to rename chapter file {from} -> {to}: {source}")]
+    RenameChapterFile {
+        from: PathBuf,
+        to: PathBuf,
         #[source]
         source: std::io::Error,
     },
@@ -136,12 +159,12 @@ pub fn chapter_add(
     )?;
     chapters.insert(insert_at, target.clone());
 
+    let chapter_file_path = join_repo_path(&context.repo_root, &target);
+    let file_created = ensure_chapter_file(&chapter_file_path, options.title.as_deref())?;
+
     let mut book_config = config::load_book_config(&book.config_path)?;
     overwrite_chapters(&mut book_config.raw, &chapters);
     write_book_config(&book_config)?;
-
-    let chapter_file_path = join_repo_path(&context.repo_root, &target);
-    let file_created = ensure_chapter_file(&chapter_file_path, options.title.as_deref())?;
 
     Ok(ChapterResult {
         summary: format!(
@@ -295,6 +318,87 @@ pub fn chapter_remove(
     })
 }
 
+pub fn chapter_renumber(
+    command: &CommandContext,
+    options: ChapterRenumberOptions,
+) -> Result<ChapterResult, ChapterError> {
+    if options.width == 0 {
+        return Err(ChapterError::InvalidRenumberWidth);
+    }
+    if options.start_at == 0 {
+        return Err(ChapterError::InvalidRenumberStartAt);
+    }
+
+    let context = repo::require_book_context(repo::discover(
+        &command.start_path,
+        command.book_id.as_deref(),
+    )?)?;
+    let resolved = config::resolve_book_config(&context)?;
+    ensure_prose_project(resolved.effective.project.project_type)?;
+    let book = context.book.expect("selected book must exist");
+    let chapters = resolved
+        .effective
+        .manuscript
+        .as_ref()
+        .expect("prose project must have manuscript")
+        .chapters
+        .clone();
+    let plans = build_renumber_plan(
+        &context.repo_root,
+        &chapters,
+        options.start_at,
+        options.width,
+    )?;
+
+    if plans.iter().all(|plan| plan.from_repo == plan.to_repo) {
+        return Ok(ChapterResult {
+            summary: format!(
+                "chapter renumber: {} no changes required in {}",
+                book.id,
+                book.config_path.display()
+            ),
+            config_path: book.config_path,
+        });
+    }
+
+    validate_renumber_targets(&plans)?;
+
+    if options.dry_run {
+        return Ok(ChapterResult {
+            summary: format!(
+                "chapter renumber dry-run: {} would update {}\n{}",
+                book.id,
+                book.config_path.display(),
+                render_renumber_lines(&plans, "would rename")
+            ),
+            config_path: book.config_path,
+        });
+    }
+
+    apply_renames(&plans)?;
+
+    let mut book_config = config::load_book_config(&book.config_path)?;
+    overwrite_chapters(
+        &mut book_config.raw,
+        &plans
+            .iter()
+            .map(|plan| plan.to_repo.clone())
+            .collect::<Vec<_>>(),
+    );
+    rewrite_sections_paths(&mut book_config.raw, &resolved.raw, &rename_map(&plans));
+    write_book_config(&book_config)?;
+
+    Ok(ChapterResult {
+        summary: format!(
+            "chapter renumber: {} updated {}\n{}",
+            book.id,
+            book.config_path.display(),
+            render_renumber_lines(&plans, "renamed")
+        ),
+        config_path: book.config_path,
+    })
+}
+
 fn ensure_prose_project(project_type: ProjectType) -> Result<(), ChapterError> {
     if !project_type.is_prose() {
         return Err(ChapterError::UnsupportedProjectType { project_type });
@@ -405,6 +509,43 @@ fn prune_sections_for_path(book_raw: &mut Value, resolved_raw: &Value, target: &
     );
 }
 
+fn rewrite_sections_paths(
+    book_raw: &mut Value,
+    resolved_raw: &Value,
+    rename_map: &HashMap<String, String>,
+) {
+    let Some(sections) = lookup(resolved_raw, &["sections"]).and_then(Value::as_sequence) else {
+        return;
+    };
+    let mut changed = false;
+    let rewritten: Vec<Value> = sections
+        .iter()
+        .map(|section| {
+            let mut section = section.clone();
+            if let Some(file) = lookup(&section, &["file"]).and_then(Value::as_str)
+                && let Some(new_file) = rename_map.get(file)
+                && let Some(mapping) = section.as_mapping_mut()
+            {
+                mapping.insert(
+                    Value::String("file".to_string()),
+                    Value::String(new_file.clone()),
+                );
+                changed = true;
+            }
+            section
+        })
+        .collect();
+    if !changed {
+        return;
+    }
+
+    let root_mapping = ensure_mapping(book_raw);
+    root_mapping.insert(
+        Value::String("sections".to_string()),
+        Value::Sequence(rewritten),
+    );
+}
+
 fn ensure_mapping(value: &mut Value) -> &mut Mapping {
     if !matches!(value, Value::Mapping(_)) {
         *value = Value::Mapping(Mapping::new());
@@ -443,9 +584,191 @@ fn write_book_config(book_config: &BookConfig) -> Result<(), ChapterError> {
     })
 }
 
+#[derive(Debug, Clone)]
+struct RenumberPlan {
+    from_repo: RepoPath,
+    to_repo: RepoPath,
+    from_fs: PathBuf,
+    to_fs: PathBuf,
+}
+
+fn build_renumber_plan(
+    repo_root: &Path,
+    chapters: &[RepoPath],
+    start_at: usize,
+    width: usize,
+) -> Result<Vec<RenumberPlan>, ChapterError> {
+    chapters
+        .iter()
+        .enumerate()
+        .map(|(index, chapter)| {
+            let number = start_at + index;
+            let to_repo = renumbered_repo_path(chapter, number, width)?;
+            Ok(RenumberPlan {
+                from_fs: join_repo_path(repo_root, chapter),
+                to_fs: join_repo_path(repo_root, &to_repo),
+                from_repo: chapter.clone(),
+                to_repo,
+            })
+        })
+        .collect()
+}
+
+fn renumbered_repo_path(
+    chapter: &RepoPath,
+    number: usize,
+    width: usize,
+) -> Result<RepoPath, ChapterError> {
+    let path = Path::new(chapter.as_str());
+    let stem = path
+        .file_stem()
+        .and_then(|stem| stem.to_str())
+        .expect("repo path must have valid UTF-8 stem");
+    let suffix = renumber_suffix(stem);
+    let numbered = format!("{number:0width$}");
+    let new_file_name = match suffix {
+        Some(suffix) => format!("{numbered}-{suffix}.md"),
+        None => format!("{numbered}.md"),
+    };
+    let new_path = match path.parent() {
+        Some(parent) if !parent.as_os_str().is_empty() => {
+            parent.join(&new_file_name).to_string_lossy().into_owned()
+        }
+        _ => new_file_name,
+    };
+    RepoPath::parse(new_path).map_err(|source| ChapterError::InvalidChapterPath {
+        value: chapter.as_str().to_string(),
+        source,
+    })
+}
+
+fn renumber_suffix(stem: &str) -> Option<&str> {
+    let digit_prefix_len = stem
+        .chars()
+        .take_while(|character| character.is_ascii_digit())
+        .count();
+    if digit_prefix_len == stem.len() {
+        return None;
+    }
+    if digit_prefix_len > 0
+        && stem.as_bytes().get(digit_prefix_len) == Some(&b'-')
+        && digit_prefix_len + 1 < stem.len()
+    {
+        return Some(&stem[digit_prefix_len + 1..]);
+    }
+    Some(stem)
+}
+
+fn validate_renumber_targets(plans: &[RenumberPlan]) -> Result<(), ChapterError> {
+    let changing_plans: Vec<&RenumberPlan> = plans
+        .iter()
+        .filter(|plan| plan.from_repo != plan.to_repo)
+        .collect();
+    let changing_sources: HashSet<PathBuf> = changing_plans
+        .iter()
+        .map(|plan| plan.from_fs.clone())
+        .collect();
+    let mut seen_targets = HashSet::new();
+
+    for plan in &changing_plans {
+        if !plan.from_fs.exists() {
+            return Err(ChapterError::MissingChapterSourceFile {
+                path: plan.from_fs.clone(),
+            });
+        }
+        if !seen_targets.insert(plan.to_fs.clone()) {
+            return Err(ChapterError::ChapterRenameConflict {
+                path: plan.to_fs.clone(),
+            });
+        }
+        if plan.to_fs.exists() && !changing_sources.contains(&plan.to_fs) {
+            return Err(ChapterError::ChapterRenameConflict {
+                path: plan.to_fs.clone(),
+            });
+        }
+    }
+    Ok(())
+}
+
+fn apply_renames(plans: &[RenumberPlan]) -> Result<(), ChapterError> {
+    let changing_plans: Vec<&RenumberPlan> = plans
+        .iter()
+        .filter(|plan| plan.from_repo != plan.to_repo)
+        .collect();
+    if changing_plans.is_empty() {
+        return Ok(());
+    }
+
+    let staged_paths: Vec<(PathBuf, &RenumberPlan)> = changing_plans
+        .iter()
+        .enumerate()
+        .map(|(index, plan)| (temporary_rename_path(&plan.from_fs, index), *plan))
+        .collect();
+
+    for (temporary_path, plan) in &staged_paths {
+        fs::rename(&plan.from_fs, temporary_path).map_err(|source| {
+            ChapterError::RenameChapterFile {
+                from: plan.from_fs.clone(),
+                to: temporary_path.clone(),
+                source,
+            }
+        })?;
+    }
+
+    for (temporary_path, plan) in staged_paths {
+        fs::rename(&temporary_path, &plan.to_fs).map_err(|source| {
+            ChapterError::RenameChapterFile {
+                from: temporary_path,
+                to: plan.to_fs.clone(),
+                source,
+            }
+        })?;
+    }
+
+    Ok(())
+}
+
+fn temporary_rename_path(original: &Path, index: usize) -> PathBuf {
+    let mut candidate = original.to_path_buf();
+    let file_name = original
+        .file_name()
+        .expect("chapter path should have a file name")
+        .to_string_lossy();
+    candidate.set_file_name(format!("{file_name}.shosei-renumber-{index}.tmp"));
+    candidate
+}
+
+fn rename_map(plans: &[RenumberPlan]) -> HashMap<String, String> {
+    plans
+        .iter()
+        .filter(|plan| plan.from_repo != plan.to_repo)
+        .map(|plan| {
+            (
+                plan.from_repo.as_str().to_string(),
+                plan.to_repo.as_str().to_string(),
+            )
+        })
+        .collect()
+}
+
+fn render_renumber_lines(plans: &[RenumberPlan], verb: &str) -> String {
+    plans
+        .iter()
+        .filter(|plan| plan.from_repo != plan.to_repo)
+        .map(|plan| {
+            format!(
+                "- {verb} {} -> {}",
+                plan.from_repo.as_str(),
+                plan.to_repo.as_str()
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{parse_markdown_repo_path, placement_index};
+    use super::{parse_markdown_repo_path, placement_index, renumber_suffix, renumbered_repo_path};
     use crate::domain::RepoPath;
 
     #[test]
@@ -473,5 +796,19 @@ mod tests {
             error,
             super::ChapterError::ChapterPathMustBeMarkdown { .. }
         ));
+    }
+
+    #[test]
+    fn renumber_suffix_strips_numeric_prefix() {
+        assert_eq!(renumber_suffix("01-chapter-1"), Some("chapter-1"));
+        assert_eq!(renumber_suffix("01"), None);
+        assert_eq!(renumber_suffix("intro"), Some("intro"));
+    }
+
+    #[test]
+    fn renumbered_repo_path_preserves_parent_directory() {
+        let chapter = RepoPath::parse("books/vol-01/manuscript/10-chapter.md").unwrap();
+        let renumbered = renumbered_repo_path(&chapter, 3, 2).unwrap();
+        assert_eq!(renumbered.as_str(), "books/vol-01/manuscript/03-chapter.md");
     }
 }

@@ -67,10 +67,13 @@ shosei page check --book vol-01
 shosei chapter add manuscript/03.md --title "Chapter 3"
 shosei chapter move manuscript/03.md --before manuscript/02.md
 shosei chapter remove manuscript/03.md
+shosei chapter renumber
 shosei chapter add books/vol-01/manuscript/02.md --book vol-01 --title "Chapter 2"
 ```
 
 `page check` とは別系統で、`manga/pages/` や manga metadata には触れない。
+
+`renumber` は章順を変えずに filename prefix だけを整える。`book.yml` の `manuscript.chapters` と対応する `sections.file` は更新するが、Markdown 本文中の link destination は自動 rewrite しない。
 
 ## Validate checks
 

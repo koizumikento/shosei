@@ -10,8 +10,9 @@ mod validate_book;
 
 pub use build_book::{BuildBookError, BuildBookResult, build_book};
 pub use chapter::{
-    ChapterAddOptions, ChapterError, ChapterMoveOptions, ChapterRemoveOptions, ChapterResult,
-    chapter_add, chapter_move, chapter_remove,
+    ChapterAddOptions, ChapterError, ChapterMoveOptions, ChapterRemoveOptions,
+    ChapterRenumberOptions, ChapterResult, chapter_add, chapter_move, chapter_remove,
+    chapter_renumber,
 };
 pub use doctor::{DoctorResult, doctor};
 pub use explain_config::{ExplainConfigError, ExplainConfigResult, explain_config};

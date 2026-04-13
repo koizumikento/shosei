@@ -109,6 +109,18 @@ pub enum ChapterCommands {
         #[arg(long, value_name = "PATH", default_value = ".")]
         path: PathBuf,
     },
+    Renumber {
+        #[arg(long, default_value_t = 1, value_name = "NUMBER")]
+        start_at: usize,
+        #[arg(long, default_value_t = 2, value_name = "WIDTH")]
+        width: usize,
+        #[arg(long)]
+        dry_run: bool,
+        #[arg(long)]
+        book: Option<String>,
+        #[arg(long, value_name = "PATH", default_value = ".")]
+        path: PathBuf,
+    },
 }
 
 #[derive(Debug, Subcommand)]
@@ -179,6 +191,37 @@ mod tests {
             } => {
                 assert_eq!(chapter_path, "manuscript/02-old.md");
                 assert!(delete_file);
+            }
+            other => panic!("unexpected command: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_chapter_renumber_command() {
+        let cli = Cli::parse_from([
+            "shosei",
+            "chapter",
+            "renumber",
+            "--start-at",
+            "3",
+            "--width",
+            "4",
+            "--dry-run",
+        ]);
+
+        match cli.command {
+            Commands::Chapter {
+                command:
+                    ChapterCommands::Renumber {
+                        start_at,
+                        width,
+                        dry_run,
+                        ..
+                    },
+            } => {
+                assert_eq!(start_at, 3);
+                assert_eq!(width, 4);
+                assert!(dry_run);
             }
             other => panic!("unexpected command: {other:?}"),
         }
