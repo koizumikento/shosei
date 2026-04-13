@@ -97,7 +97,7 @@ shosei chapter add books/vol-01/manuscript/02.md --book vol-01 --title "Chapter 
 severity は `validation.accessibility`, `validation.missing_image`, `validation.missing_alt`, `validation.broken_link` の設定で調整できる。
 
 issue の `location` は、特定できる場合は file path に加えて line 番号も持つ。
-CLI では summary の後に、先頭数件の issue を `原因 / 発生箇所 / 修正例` の形で続けて表示する。
+CLI では summary の後に、先頭最大 5 件の issue を `原因 / 発生箇所 / 修正例` の形で続けて表示する。
 
 ## Inspect resolved config
 
@@ -198,7 +198,9 @@ shosei preview --watch --target print
 - 見開き候補と `manga.spread_policy_for_kindle` の整合
 - `manga.front_color_pages` と `manga.body_mode` の整合
 
-CLI では summary の後に、先頭数件の issue を `原因 / 発生箇所 / 修正例` の形で続けて表示する。
+summary には page order と spread candidates も出る。
+
+CLI では summary の後に、先頭最大 5 件の issue を `原因 / 発生箇所 / 修正例` の形で続けて表示する。
 
 `doctor` は次の依存について、PATH 解決結果、バージョン、導入ヒントを表示する。
 

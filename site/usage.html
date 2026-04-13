@@ -152,7 +152,7 @@ shosei chapter add books/vol-01/manuscript/02.md --book vol-01 --title "Chapter 
           </ul>
           <p>severity は <code>validation.accessibility</code>, <code>validation.missing_image</code>, <code>validation.missing_alt</code>, <code>validation.broken_link</code> の設定で調整できます。</p>
           <p>issue の <code>location</code> は、特定できる場合は file path に加えて line 番号も持ちます。</p>
-          <p>CLI では summary の後に、先頭数件の issue を <code>原因 / 発生箇所 / 修正例</code> の形で続けて表示します。</p>
+          <p>CLI では summary の後に、先頭最大 5 件の issue を <code>原因 / 発生箇所 / 修正例</code> の形で続けて表示します。</p>
         </section>
 
         <section>
@@ -236,7 +236,8 @@ pdf:
           <pre><code>shosei preview --watch
 shosei preview --watch --target print</code></pre>
           <p><code>page check</code> は <code>dist/reports/&lt;book-id&gt;-page-check.json</code> を出しつつ、ページ順、ファイル名順序、ページサイズ、見開き候補、カラーポリシーを確認します。</p>
-          <p>CLI では summary の後に、先頭数件の issue を <code>原因 / 発生箇所 / 修正例</code> の形で続けて表示します。</p>
+          <p>summary には page order と spread candidates も出ます。</p>
+          <p>CLI では summary の後に、先頭最大 5 件の issue を <code>原因 / 発生箇所 / 修正例</code> の形で続けて表示します。</p>
           <p><code>doctor</code> は PATH 解決結果、バージョン、導入ヒントを表示します。</p>
           <ul>
             <li><code>pandoc</code></li>

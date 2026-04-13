@@ -70,6 +70,9 @@ sidecar の責務は次の通りとする。
 - editorial sidecar のコピー
 - unresolved issue と reviewer note をまとめた human-readable な review note
 - unresolved issue、reviewer note、claim / figure / freshness を列挙した machine-readable な review packet JSON
+- `manifest.json` の `review_notes` / `review_packet` 参照
+- `manifest.json` の `editorial_summary.claim_count` / `figure_count`
+- `reports/review-packet.json` の `issue_summary` / `reviewer_notes` / `editorial_summary`
 
 ## Consequences
 

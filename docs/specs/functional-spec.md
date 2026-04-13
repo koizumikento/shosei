@@ -757,6 +757,8 @@ v0.1 の既定:
 - 端末向け summary
 - JSON レポート
 - 必要に応じて外部 validator の詳細成果物への参照
+- CLI の text 出力では、JSON レポート順の先頭最大 5 件を `原因 / 発生箇所 / 修正例` の形で続けて表示できる
+- issue が 6 件以上ある場合、text 出力では末尾に残件数だけを `... and N more` で示す
 
 各 issue は次を持つ。
 
@@ -857,11 +859,13 @@ v0.1 の既定:
 - 参照用 EPUB
 - validation / preflight summary
 - タイトル、巻、target、build 時刻、commit hash を含む manifest
+- `manifest.json` には `review_notes`、`review_packet`、`editorial_summary.claim_count`、`editorial_summary.figure_count` も含める
 - 外部校正・編集者が参照すべき注意点一覧
 - `reports/review-packet.json` に unresolved issue、reviewer note、claim / figure / freshness の構造化一覧
+- `reports/review-packet.json` には `issue_summary`、`reviewer_notes`、`editorial_summary` を含める
 - editorial sidecar のコピー
 - claim / figure / freshness の reviewer note 要約
-- v0.1 では `dist/handoff/<book-id>-proof/` に成果物コピー、`manifest.json`、`review-notes.md`、`reports/review-packet.json` を出す
+- v0.1 では `dist/handoff/<book-id>-proof/` に成果物コピー、`manifest.json`、`review-notes.md`、`reports/review-packet.json`、`editorial/` 配下の sidecar コピーを出す
 
 ## 20. MVP の範囲
 

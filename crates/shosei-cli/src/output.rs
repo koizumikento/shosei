@@ -62,4 +62,24 @@ mod tests {
         assert!(preview.contains("location: manuscript/01.md:5"));
         assert!(preview.contains("remedy: リンク先パスを修正してください。"));
     }
+
+    #[test]
+    fn formats_issue_preview_with_truncation_notice() {
+        let issues = (1..=7)
+            .map(|index| {
+                ValidationIssue::error("common", format!("issue {index}"), "修正してください。")
+            })
+            .collect::<Vec<_>>();
+
+        let preview = format_issue_preview(&issues).unwrap();
+
+        assert_eq!(
+            preview
+                .lines()
+                .filter(|line| line.starts_with("- [error] issue"))
+                .count(),
+            5
+        );
+        assert!(preview.contains("- ... and 2 more"));
+    }
 }
