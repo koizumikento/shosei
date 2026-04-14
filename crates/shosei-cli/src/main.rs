@@ -7,7 +7,7 @@ use anyhow::Result;
 use clap::Parser;
 use shosei_core::{app, cli_api::CommandContext};
 
-use crate::args::{ChapterCommands, Cli, Commands, PageCommands, SeriesCommands};
+use crate::args::{ChapterCommands, Cli, Commands, PageCommands, SeriesCommands, StoryCommands};
 
 fn main() {
     let code = match run() {
@@ -29,6 +29,7 @@ fn run() -> Result<i32> {
             non_interactive,
             force,
             config_template,
+            repo_mode,
         } => {
             output::print_line(prompts::init_mode_banner());
             let target = path.unwrap_or(std::env::current_dir()?);
@@ -45,9 +46,11 @@ fn run() -> Result<i32> {
                     .as_ref()
                     .map(|answers| answers.config_template.clone())
                     .or(config_template),
-                repo_mode: wizard_answers
-                    .as_ref()
-                    .map(|answers| answers.repo_mode.clone()),
+                repo_mode: repo_mode.or_else(|| {
+                    wizard_answers
+                        .as_ref()
+                        .map(|answers| answers.repo_mode.clone())
+                }),
                 title: wizard_answers.as_ref().map(|answers| answers.title.clone()),
                 author: wizard_answers
                     .as_ref()
@@ -79,6 +82,9 @@ fn run() -> Result<i32> {
         Commands::Validate { book, target, path } => {
             let result = app::validate_book(&CommandContext::new(path, book, target))?;
             output::print_line(&result.summary);
+            if let Some(preview) = output::format_issue_preview(&result.issues) {
+                output::print_line(&preview);
+            }
             Ok(if result.has_errors {
                 exit_code::FAILURE
             } else {
@@ -174,6 +180,77 @@ fn run() -> Result<i32> {
                 Ok(exit_code::OK)
             }
         },
+        Commands::Story { command } => match command {
+            StoryCommands::Check { book, path } => {
+                let result = app::story_check(
+                    &CommandContext::new(path, book, None),
+                    app::StoryCheckOptions {},
+                )?;
+                output::print_line(&result.summary);
+                Ok(if result.has_errors {
+                    exit_code::FAILURE
+                } else {
+                    exit_code::OK
+                })
+            }
+            StoryCommands::Drift { book, path } => {
+                let result = app::story_drift(
+                    &CommandContext::new(path, book, None),
+                    app::StoryDriftOptions {},
+                )?;
+                output::print_line(&result.summary);
+                Ok(if result.has_errors {
+                    exit_code::FAILURE
+                } else {
+                    exit_code::OK
+                })
+            }
+            StoryCommands::Sync {
+                book,
+                source,
+                destination,
+                kind,
+                id,
+                report,
+                force,
+                path,
+            } => {
+                let result = app::story_sync(
+                    &CommandContext::new(path, book, None),
+                    app::StorySyncOptions {
+                        source,
+                        destination,
+                        kind,
+                        id,
+                        report,
+                        force,
+                    },
+                )?;
+                output::print_line(&result.summary);
+                Ok(exit_code::OK)
+            }
+            StoryCommands::Map { book, path } => {
+                let result = app::story_map(
+                    &CommandContext::new(path, book, None),
+                    app::StoryMapOptions {},
+                )?;
+                output::print_line(&result.summary);
+                Ok(exit_code::OK)
+            }
+            StoryCommands::Scaffold {
+                shared,
+                force,
+                book,
+                path,
+            } => {
+                let result = app::story_scaffold(
+                    &CommandContext::new(path, book, None),
+                    app::StoryScaffoldOptions { shared, force },
+                )?;
+                output::print_line(&result.summary);
+                Ok(exit_code::OK)
+            }
+        },
         Commands::Series { command } => match command {
             SeriesCommands::Sync { path } => {
                 let result = app::series_sync(&CommandContext::new(path, None, None))?;
@@ -185,6 +262,9 @@ fn run() -> Result<i32> {
             PageCommands::Check { book, path } => {
                 let result = app::page_check(&CommandContext::new(path, book, None))?;
                 output::print_line(&result.summary);
+                if let Some(preview) = output::format_issue_preview(&result.issues) {
+                    output::print_line(&preview);
+                }
                 Ok(if result.has_errors {
                     exit_code::FAILURE
                 } else {

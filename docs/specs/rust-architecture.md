@@ -105,6 +105,7 @@ shosei-core/src/
 - `doctor`
 - `handoff`
 - `explain_config`
+- `story_scaffold`
 - `sync_series`
 - `check_pages`
 
@@ -360,13 +361,21 @@ v0.1 の判断:
 - macOS
 - Windows
 - Linux
+- v0.1 の CI gate は 3 OS matrix で次を実行する
+  - `cargo fmt --check`
+  - `cargo clippy --workspace --all-targets -- -D warnings`
+  - `cargo test --workspace`
+  - `cargo test -p shosei-core --test repo_discovery`
+  - `cargo run -p shosei-cli --bin shosei -- --help`
 
 最小スモーク対象:
 
-- `shosei init`
-- `shosei build`
 - `shosei validate`
-- `shosei doctor`
+- `shosei page check`
+- `shosei handoff proof`
+- `shosei --help`
+
+`init`, `build`, `doctor` の command-level smoke は fixture と外部依存の扱いが固まった段階で追加する。
 
 ## 13. 将来の分割条件
 

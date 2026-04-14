@@ -42,6 +42,10 @@ Use this skill for day-to-day work inside this repository. It is repo-scoped on 
    - Config changes go through `book.yml` / `series.yml`.
    - Prose content lives in `manuscript/`.
    - Manga content lives in `manga/script/`, `manga/storyboard/`, `manga/pages/`, `manga/spreads/`, and `manga/metadata/`.
+   - Story support is opt-in. Start with `shosei story scaffold` for `single-book`, `shosei story scaffold --book <book-id>` for book-scoped `series` work, or `shosei story scaffold --shared` for shared canon notes.
+   - When story support is present, edit only explicit story files such as `story/scenes.yml`, `books/<book-id>/story/scenes.yml`, Markdown under those story directories, or `shared/metadata/story/` for shared canon notes.
+   - Use `shosei story map` / `shosei story map --book <book-id>` to inspect scene lists and `shosei story check` / `shosei story check --book <book-id>` for lightweight scene/entity checks before expanding the workspace further.
+   - In `series`, `shosei story check` resolves scene references against both `books/<book-id>/story/` and `shared/metadata/story/`, `shosei story drift --book <book-id>` reports shared-vs-book canon collisions, and `shosei story sync --book <book-id> --from shared|--to shared --kind <kind> --id <id>` copies one entry across the scope boundary or `--report <drift-report> --force` replays a drift report in one direction.
    - Keep serialized config paths repo-relative and `/`-separated.
 4. Validate after changes.
    - Run `{{VALIDATE_COMMAND}}` after config or content edits.
@@ -62,5 +66,6 @@ Use this skill for day-to-day work inside this repository. It is repo-scoped on 
 - Preserve the repository model instead of mixing `single-book` and `series` assumptions.
 - Prefer `shosei explain` before inferring resolved values from partial config.
 - Do not rewrite chapter lists, page sets, or shared asset paths unless the task requires it.
+- Do not invent manuscript text, scene structure, or canon data that is not already present in the repo.
 - Do not add `scripts/`, `references/`, or `agents/openai.yaml` to this skill until the instruction-only version proves insufficient.
 - After customizing this template, keep the description aligned with the actual trigger phrases your team uses.

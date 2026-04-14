@@ -7,6 +7,7 @@ mod init_project;
 mod page_check;
 mod preview_book;
 mod series_sync;
+mod story;
 mod validate_book;
 
 pub use build_book::{BuildBookError, BuildBookResult, build_book};
@@ -22,4 +23,10 @@ pub use init_project::{InitProjectError, InitProjectOptions, InitProjectResult, 
 pub use page_check::{PageCheckError, PageCheckResult, page_check};
 pub use preview_book::{PreviewBookError, PreviewBookResult, preview_book, watch_preview};
 pub use series_sync::{SeriesSyncError, SeriesSyncResult, series_sync};
+pub use story::{
+    StoryCheckError, StoryCheckOptions, StoryCheckResult, StoryDriftError, StoryDriftOptions,
+    StoryDriftResult, StoryMapError, StoryMapOptions, StoryMapResult, StoryScaffoldError,
+    StoryScaffoldOptions, StoryScaffoldResult, StorySyncError, StorySyncOptions, StorySyncResult,
+    story_check, story_drift, story_map, story_scaffold, story_sync,
+};
 pub use validate_book::{ValidateBookError, ValidateBookResult, validate_book};

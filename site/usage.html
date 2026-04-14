@@ -39,6 +39,12 @@
 shosei explain
 shosei build
 shosei validate</code></pre>
+          <p>series として始める場合は、次のように <code>--repo-mode series</code> を付けます。</p>
+          <pre><code>shosei init ./my-series --config-template business --repo-mode series
+cd my-series
+shosei explain --book vol-01
+shosei build --book vol-01
+shosei validate --book vol-01</code></pre>
         </section>
 
         <section>
@@ -80,6 +86,11 @@ shosei validate</code></pre>
               <tr>
                 <td><code>shosei chapter &lt;subcommand&gt;</code></td>
                 <td>prose の <code>manuscript.chapters</code> を更新する</td>
+                <td>利用可能</td>
+              </tr>
+              <tr>
+                <td><code>shosei story &lt;subcommand&gt;</code></td>
+                <td>story workspace と scene map を扱う</td>
                 <td>利用可能</td>
               </tr>
               <tr>
@@ -126,6 +137,18 @@ shosei series sync --path ./my-series</code></pre>
           <p><code>page check</code> は manga project 向けで、ページ順や見開き候補を確認します。</p>
           <pre><code>shosei page check
 shosei page check --book vol-01</code></pre>
+          <p><code>story scaffold</code> は物語補助の workspace を生成します。<code>single-book</code> では <code>story/</code>、<code>series</code> では共有 canon 用の <code>shared/metadata/story/</code> か巻固有の <code>books/&lt;book-id&gt;/story/</code> を作ります。</p>
+          <pre><code>shosei story scaffold
+shosei story scaffold --book vol-01
+shosei story scaffold --shared
+shosei story map
+shosei story map --book vol-01
+shosei story check
+shosei story check --book vol-01
+shosei story drift --book vol-01
+shosei story sync --book vol-01 --from shared --kind character --id lead
+shosei story sync --book vol-01 --to shared --kind character --id lead
+shosei story sync --book vol-01 --from shared --report dist/reports/vol-01-story-drift.json --force</code></pre>
         </section>
 
         <section>
@@ -142,6 +165,77 @@ shosei chapter add books/vol-01/manuscript/02.md --book vol-01 --title "Chapter 
         </section>
 
         <section>
+          <h2>Story scaffold</h2>
+          <p><code>story scaffold</code> は manual-first の物語補助 workspace を作ります。</p>
+          <ul>
+            <li><code>single-book</code>: <code>story/</code></li>
+            <li><code>series --shared</code>: <code>shared/metadata/story/</code></li>
+            <li><code>series --book &lt;book-id&gt;</code>: <code>books/&lt;book-id&gt;/story/</code></li>
+          </ul>
+          <p>生成するのは <code>README.md</code>、entity directory ごとの <code>README.md</code>、book scope のときだけ <code>scenes.yml</code> です。</p>
+          <p>既定では既存 file を保持し、template を上書きしたい場合だけ <code>--force</code> を付けます。</p>
+        </section>
+
+        <section>
+          <h2>Story map</h2>
+          <p><code>story map</code> は book-scoped な <code>scenes.yml</code> を読み、scene 一覧と JSON report を出します。</p>
+          <ul>
+            <li><code>single-book</code>: <code>story/scenes.yml</code></li>
+            <li><code>series</code>: <code>books/&lt;book-id&gt;/story/scenes.yml</code></li>
+            <li>report: <code>single-book</code> は <code>dist/reports/default-story-map.json</code>、<code>series</code> は <code>dist/reports/&lt;book-id&gt;-story-map.json</code></li>
+          </ul>
+          <pre><code>scenes:
+  - file: manuscript/01-chapter-1.md
+    title: Opening</code></pre>
+        </section>
+
+        <section>
+          <h2>Story check</h2>
+          <p><code>story check</code> は <code>scenes.yml</code>、scene Markdown frontmatter、book-scoped story entity Markdown を読み、軽い整合チェック結果を JSON report に出します。</p>
+          <ul>
+            <li>duplicate <code>file</code> entry は warning</li>
+            <li>invalid repo-relative path は error</li>
+            <li>実ファイルが存在しない <code>file</code> は warning</li>
+            <li>entity frontmatter の <code>id</code> は参照解決に使われ、未指定時は filename stem を使う</li>
+            <li>同一 kind 内の duplicate entity <code>id</code> は error</li>
+            <li><code>series</code> では book-scoped story data と <code>shared/metadata/story/</code> の両方から参照を解決する</li>
+            <li>scene frontmatter の未解決 entity 参照は warning</li>
+            <li>invalid scene/entity frontmatter は error</li>
+            <li>report: <code>single-book</code> は <code>dist/reports/default-story-check.json</code>、<code>series</code> は <code>dist/reports/&lt;book-id&gt;-story-check.json</code></li>
+          </ul>
+        </section>
+
+        <section>
+          <h2>Story drift</h2>
+          <p><code>story drift</code> は <code>series</code> で shared canon と巻固有 story data の衝突を JSON report に出します。</p>
+          <ul>
+            <li>対象: <code>shared/metadata/story/</code> と <code>books/&lt;book-id&gt;/story/</code></li>
+            <li>report には <code>drifts</code> 配列を含める</li>
+            <li>same-scope duplicate entity <code>id</code> は error</li>
+            <li>内容が分岐した shared/book の同一 <code>id</code> は error</li>
+            <li>内容が同じ shared/book の同一 <code>id</code> は warning</li>
+            <li>report: <code>dist/reports/&lt;book-id&gt;-story-drift.json</code></li>
+          </ul>
+        </section>
+
+        <section>
+          <h2>Story sync</h2>
+          <p><code>story sync</code> は <code>series</code> で shared canon と巻固有 story workspace の間を明示コピーします。1 entity の単体 sync と、<code>story drift</code> report からの batch sync を持ちます。</p>
+          <ul>
+            <li>例: <code>shosei story sync --book vol-01 --from shared --kind character --id lead</code></li>
+            <li>例: <code>shosei story sync --book vol-01 --to shared --kind character --id lead</code></li>
+            <li>例: <code>shosei story sync --book vol-01 --from shared --report dist/reports/vol-01-story-drift.json --force</code></li>
+            <li><code>--from shared</code> か <code>--to shared</code> のどちらか一方を使う</li>
+            <li>単体 mode では <code>kind</code>: <code>character|location|term|faction</code></li>
+            <li>report mode では <code>--report</code> を使い、<code>--kind</code> / <code>--id</code> は使わない</li>
+            <li>report mode は <code>--force</code> 必須</li>
+            <li>destination 側に同じ <code>id</code> があり内容が違う場合は error</li>
+            <li><code>--force</code> を付けた場合だけ source 内容で destination 側を上書きする</li>
+            <li>destination 側に同じ内容があれば no-op</li>
+          </ul>
+        </section>
+
+        <section>
           <h2>Validate checks</h2>
           <p>現在の <code>validate</code> は、JSON レポートを出しつつ、次のような preflight を行います。</p>
           <ul>
@@ -152,9 +246,12 @@ shosei chapter add books/vol-01/manuscript/02.md --book vol-01 --title "Chapter 
             <li>prose 原稿の alt 欠落</li>
             <li>chapter ファイルの level-1 heading 不足</li>
             <li>heading hierarchy の飛び級</li>
+            <li>prose project の editorial sidecar に基づく表記ゆれ、claim / figure / freshness の検査</li>
             <li>Kindle / print / manga 向けの target 別警告</li>
           </ul>
           <p>severity は <code>validation.accessibility</code>, <code>validation.missing_image</code>, <code>validation.missing_alt</code>, <code>validation.broken_link</code> の設定で調整できます。</p>
+          <p>issue の <code>location</code> は、特定できる場合は file path に加えて line 番号も持ちます。</p>
+          <p>CLI では summary の後に、先頭最大 5 件の issue を <code>原因 / 発生箇所 / 修正例</code> の形で続けて表示します。</p>
         </section>
 
         <section>
@@ -169,10 +266,32 @@ shosei explain --book vol-01</code></pre>
             <li><code>cover.ebook_image</code></li>
             <li><code>outputs.kindle.target</code></li>
             <li><code>outputs.print.target</code></li>
+            <li><code>editorial.style</code></li>
+            <li><code>editorial.claims</code></li>
+            <li><code>editorial.figures</code></li>
+            <li><code>editorial.freshness</code></li>
             <li><code>pdf.engine</code></li>
             <li><code>pdf.toc</code></li>
             <li><code>pdf.page_number</code></li>
             <li><code>pdf.running_header</code></li>
+          </ul>
+          <p>editorial sidecar が設定されている場合、<code>explain</code> は rule / claim / figure / freshness item の件数も summary に出します。</p>
+        </section>
+
+        <section>
+          <h2>Editorial sidecars</h2>
+          <p>prose project では、<code>book.yml</code> から editorial 用 sidecar file を参照できます。</p>
+          <pre><code>editorial:
+  style: editorial/style.yml
+  claims: editorial/claims.yml
+  figures: editorial/figures.yml
+  freshness: editorial/freshness.yml</code></pre>
+          <p>現在の <code>validate</code> は次を検査します。</p>
+          <ul>
+            <li><code>style.yml</code> の推奨表記と禁止語</li>
+            <li><code>claims.yml</code> の source と section の整合</li>
+            <li><code>figures.yml</code> の asset / source と manuscript 参照の整合</li>
+            <li><code>freshness.yml</code> の参照整合と期限切れ</li>
           </ul>
         </section>
 
@@ -199,14 +318,16 @@ pdf:
           <p>テンプレートに応じて、次のような土台を生成します。</p>
           <ul>
             <li>`book.yml` または `series.yml`</li>
-            <li>`manuscript/` または `manga/`</li>
-            <li>`assets/cover/`, `assets/images/`, `assets/fonts/`</li>
-            <li>`styles/`</li>
             <li>`dist/`</li>
             <li>`.gitignore`, `.gitattributes`</li>
             <li>`.agents/skills/shosei-project/SKILL.md`</li>
+            <li>`single-book` では `assets/cover/`, `assets/images/`, `assets/fonts/`, `styles/`</li>
+            <li>`series` では `shared/assets/`, `shared/styles/`, `shared/fonts/`, `shared/metadata/`, `books/&lt;book-id&gt;/assets/`</li>
+            <li>prose 系では `single-book` に `manuscript/01-chapter-1.md` と `editorial/*.yml`、`series` に `books/&lt;book-id&gt;/manuscript/01-chapter-1.md` と `books/&lt;book-id&gt;/editorial/*.yml`</li>
+            <li>manga 系では `single-book` に `manga/`、`series` に `books/&lt;book-id&gt;/manga/`</li>
           </ul>
-          <p>prose 系テンプレートでは、最初の章ファイルとして <code>manuscript/01-chapter-1.md</code> も生成します。この <code>01-</code> prefix は初期命名の慣例で、章順の source of truth ではありません。</p>
+          <p>prose 系テンプレートでは、最初の章ファイルとして <code>single-book</code> では <code>manuscript/01-chapter-1.md</code>、<code>series</code> では <code>books/&lt;book-id&gt;/manuscript/01-chapter-1.md</code> を生成します。この <code>01-</code> prefix は初期命名の慣例で、章順の source of truth ではありません。</p>
+          <p>また、prose 系では空の <code>editorial/style.yml</code>, <code>editorial/claims.yml</code>, <code>editorial/figures.yml</code>, <code>editorial/freshness.yml</code> を生成し、<code>single-book</code> では <code>book.yml</code>、<code>series</code> では <code>books/&lt;book-id&gt;/book.yml</code> から参照します。style 側は <code>single-book</code> では <code>styles/base.css</code>, <code>styles/epub.css</code>, <code>styles/print.css</code>、<code>series</code> では <code>shared/styles/base.css</code> を生成します。</p>
         </section>
 
         <section>
@@ -215,6 +336,8 @@ pdf:
           <pre><code>shosei preview --watch
 shosei preview --watch --target print</code></pre>
           <p><code>page check</code> は <code>dist/reports/&lt;book-id&gt;-page-check.json</code> を出しつつ、ページ順、ファイル名順序、ページサイズ、見開き候補、カラーポリシーを確認します。</p>
+          <p>summary には page order と spread candidates も出ます。</p>
+          <p>CLI では summary の後に、先頭最大 5 件の issue を <code>原因 / 発生箇所 / 修正例</code> の形で続けて表示します。</p>
           <p><code>doctor</code> は利用可能 / 不足 / pending を分けて表示し、PATH 解決結果、バージョン、導入ヒントを返します。</p>
           <ul>
             <li><code>pandoc</code></li>
@@ -224,9 +347,10 @@ shosei preview --watch --target print</code></pre>
             <li><code>weasyprint</code></li>
             <li><code>typst</code></li>
             <li><code>lualatex</code></li>
-            <li>代表 PDF engine</li>
+            <li><code>PDF engine</code></li>
             <li>Kindle Previewer</li>
           </ul>
+          <p><code>handoff proof</code> は validate report に加えて、<code>review-notes.md</code>、<code>reports/review-packet.json</code>、editorial sidecar のコピーも package に含めます。<code>manifest.json</code> には review packet の path と editorial summary 件数も入ります。</p>
         </section>
       </article>
     </main>

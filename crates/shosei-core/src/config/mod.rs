@@ -74,6 +74,7 @@ pub struct EffectiveBookConfig {
     pub cover: CoverSettings,
     pub pdf: Option<PdfSettings>,
     pub outputs: OutputSettings,
+    pub editorial: EditorialSettings,
     pub manga: Option<MangaSettings>,
     pub manuscript: Option<ManuscriptSettings>,
     pub validation: ValidationSettings,
@@ -231,6 +232,14 @@ impl PdfRunningHeader {
 pub struct OutputSettings {
     pub kindle: Option<String>,
     pub print: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct EditorialSettings {
+    pub style: Option<RepoPath>,
+    pub claims: Option<RepoPath>,
+    pub figures: Option<RepoPath>,
+    pub freshness: Option<RepoPath>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -646,6 +655,26 @@ pub fn explain_book_config(context: &RepoContext) -> Result<ExplainedConfig, Con
             resolved.effective.outputs.print.as_deref(),
             output_origin(&book_config.raw, series_defaults.as_ref(), "print"),
         ),
+        explained_optional_repo_path(
+            "editorial.style",
+            resolved.effective.editorial.style.as_ref(),
+            origin(&["editorial", "style"]),
+        ),
+        explained_optional_repo_path(
+            "editorial.claims",
+            resolved.effective.editorial.claims.as_ref(),
+            origin(&["editorial", "claims"]),
+        ),
+        explained_optional_repo_path(
+            "editorial.figures",
+            resolved.effective.editorial.figures.as_ref(),
+            origin(&["editorial", "figures"]),
+        ),
+        explained_optional_repo_path(
+            "editorial.freshness",
+            resolved.effective.editorial.freshness.as_ref(),
+            origin(&["editorial", "freshness"]),
+        ),
         explained(
             "validation.strict",
             resolved.effective.validation.strict.to_string(),
@@ -801,6 +830,10 @@ fn validate_repo_paths(raw: &Value, config_path: &Path) -> Result<(), ConfigErro
     let _ = parse_repo_path_values(raw, &["shared", "fonts"], config_path)?;
     let _ = parse_repo_path_values(raw, &["shared", "metadata"], config_path)?;
     let _ = parse_repo_path_values(raw, &["git", "lockable"], config_path)?;
+    let _ = optional_repo_path_at(raw, &["editorial", "style"], config_path)?;
+    let _ = optional_repo_path_at(raw, &["editorial", "claims"], config_path)?;
+    let _ = optional_repo_path_at(raw, &["editorial", "figures"], config_path)?;
+    let _ = optional_repo_path_at(raw, &["editorial", "freshness"], config_path)?;
 
     if let Some(books) = lookup(raw, &["books"]).and_then(Value::as_sequence) {
         for book in books {
@@ -871,6 +904,7 @@ fn parse_effective_book_config(
         cover: parse_cover(raw, config_path)?,
         pdf: parse_pdf(raw, config_path, project_type)?,
         outputs,
+        editorial: parse_editorial(raw, config_path)?,
         manga,
         manuscript: parse_manuscript(raw, config_path, project_type)?,
         validation: ValidationSettings {
@@ -1028,6 +1062,15 @@ fn parse_profile(
         ));
     }
     Ok(profile)
+}
+
+fn parse_editorial(raw: &Value, config_path: &Path) -> Result<EditorialSettings, ConfigError> {
+    Ok(EditorialSettings {
+        style: optional_repo_path_at(raw, &["editorial", "style"], config_path)?,
+        claims: optional_repo_path_at(raw, &["editorial", "claims"], config_path)?,
+        figures: optional_repo_path_at(raw, &["editorial", "figures"], config_path)?,
+        freshness: optional_repo_path_at(raw, &["editorial", "freshness"], config_path)?,
+    })
 }
 
 fn parse_writing_mode(
