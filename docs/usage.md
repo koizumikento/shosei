@@ -15,6 +15,16 @@ shosei build
 shosei validate
 ```
 
+series として始める場合は、次のように `--repo-mode series` を付ける。
+
+```bash
+shosei init ./my-series --config-template business --repo-mode series
+cd my-series
+shosei explain --book vol-01
+shosei build --book vol-01
+shosei validate --book vol-01
+```
+
 ## Commands
 
 | Command | Purpose | Status |
@@ -185,9 +195,13 @@ scenes:
 - prose 原稿の alt 欠落
 - chapter ファイルの level-1 heading 不足
 - heading hierarchy の飛び級
+- prose project の editorial sidecar に基づく表記ゆれ、claim / figure / freshness の検査
 - Kindle / print / manga 向けの target 別警告
 
 severity は `validation.accessibility`, `validation.missing_image`, `validation.missing_alt`, `validation.broken_link` の設定で調整できる。
+
+issue の `location` は、特定できる場合は file path に加えて line 番号も持つ。
+CLI では summary の後に、先頭最大 5 件の issue を `原因 / 発生箇所 / 修正例` の形で続けて表示する。
 
 ## Inspect resolved config
 
@@ -203,10 +217,35 @@ shosei explain --book vol-01
 - `cover.ebook_image`
 - `outputs.kindle.target`
 - `outputs.print.target`
+- `editorial.style`
+- `editorial.claims`
+- `editorial.figures`
+- `editorial.freshness`
 - `pdf.engine`
 - `pdf.toc`
 - `pdf.page_number`
 - `pdf.running_header`
+
+editorial sidecar が設定されている場合、`explain` は rule / claim / figure / freshness item の件数も summary に出す。
+
+## Editorial sidecars
+
+prose project では、`book.yml` から editorial 用 sidecar file を参照できる。
+
+```yaml
+editorial:
+  style: editorial/style.yml
+  claims: editorial/claims.yml
+  figures: editorial/figures.yml
+  freshness: editorial/freshness.yml
+```
+
+現在の `validate` は次を検査する。
+
+- `style.yml` の推奨表記と禁止語
+- `claims.yml` の source と section の整合
+- `figures.yml` の asset / source と manuscript 参照の整合
+- `freshness.yml` の参照整合と期限切れ
 
 ## Print TOC
 
@@ -237,6 +276,7 @@ pdf:
 
 - `book.yml` または `series.yml`
 - `manuscript/` または `manga/`
+- prose 系では `editorial/`
 - `assets/cover/`, `assets/images/`, `assets/fonts/`
 - `styles/`
 - `dist/`
@@ -244,6 +284,8 @@ pdf:
 - `.agents/skills/shosei-project/SKILL.md`
 
 prose 系テンプレートでは、最初の章ファイルとして `manuscript/01-chapter-1.md` も生成する。この `01-` prefix は初期命名の慣例で、章順の source of truth ではない。
+
+また、prose 系では空の `editorial/style.yml`, `editorial/claims.yml`, `editorial/figures.yml`, `editorial/freshness.yml` を生成し、`book.yml` から参照する。
 
 ## Preview and doctor
 
@@ -262,6 +304,10 @@ shosei preview --watch --target print
 - 見開き候補と `manga.spread_policy_for_kindle` の整合
 - `manga.front_color_pages` と `manga.body_mode` の整合
 
+summary には page order と spread candidates も出る。
+
+CLI では summary の後に、先頭最大 5 件の issue を `原因 / 発生箇所 / 修正例` の形で続けて表示する。
+
 `doctor` は利用可能 / 不足 / pending を分けて表示し、次の依存について PATH 解決結果、バージョン、導入ヒントを返す。
 
 - `pandoc`
@@ -271,5 +317,7 @@ shosei preview --watch --target print
 - `weasyprint`
 - `typst`
 - `lualatex`
-- 代表 PDF engine
+- `PDF engine`
 - Kindle Previewer
+
+`handoff proof` は validate report に加えて、`review-notes.md`、`reports/review-packet.json`、editorial sidecar のコピーも package に含める。`manifest.json` には review packet の path と editorial summary 件数も入る。

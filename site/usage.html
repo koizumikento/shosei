@@ -39,6 +39,12 @@
 shosei explain
 shosei build
 shosei validate</code></pre>
+          <p>series として始める場合は、次のように <code>--repo-mode series</code> を付けます。</p>
+          <pre><code>shosei init ./my-series --config-template business --repo-mode series
+cd my-series
+shosei explain --book vol-01
+shosei build --book vol-01
+shosei validate --book vol-01</code></pre>
         </section>
 
         <section>
@@ -240,9 +246,12 @@ shosei chapter add books/vol-01/manuscript/02.md --book vol-01 --title "Chapter 
             <li>prose 原稿の alt 欠落</li>
             <li>chapter ファイルの level-1 heading 不足</li>
             <li>heading hierarchy の飛び級</li>
+            <li>prose project の editorial sidecar に基づく表記ゆれ、claim / figure / freshness の検査</li>
             <li>Kindle / print / manga 向けの target 別警告</li>
           </ul>
           <p>severity は <code>validation.accessibility</code>, <code>validation.missing_image</code>, <code>validation.missing_alt</code>, <code>validation.broken_link</code> の設定で調整できます。</p>
+          <p>issue の <code>location</code> は、特定できる場合は file path に加えて line 番号も持ちます。</p>
+          <p>CLI では summary の後に、先頭最大 5 件の issue を <code>原因 / 発生箇所 / 修正例</code> の形で続けて表示します。</p>
         </section>
 
         <section>
@@ -257,10 +266,32 @@ shosei explain --book vol-01</code></pre>
             <li><code>cover.ebook_image</code></li>
             <li><code>outputs.kindle.target</code></li>
             <li><code>outputs.print.target</code></li>
+            <li><code>editorial.style</code></li>
+            <li><code>editorial.claims</code></li>
+            <li><code>editorial.figures</code></li>
+            <li><code>editorial.freshness</code></li>
             <li><code>pdf.engine</code></li>
             <li><code>pdf.toc</code></li>
             <li><code>pdf.page_number</code></li>
             <li><code>pdf.running_header</code></li>
+          </ul>
+          <p>editorial sidecar が設定されている場合、<code>explain</code> は rule / claim / figure / freshness item の件数も summary に出します。</p>
+        </section>
+
+        <section>
+          <h2>Editorial sidecars</h2>
+          <p>prose project では、<code>book.yml</code> から editorial 用 sidecar file を参照できます。</p>
+          <pre><code>editorial:
+  style: editorial/style.yml
+  claims: editorial/claims.yml
+  figures: editorial/figures.yml
+  freshness: editorial/freshness.yml</code></pre>
+          <p>現在の <code>validate</code> は次を検査します。</p>
+          <ul>
+            <li><code>style.yml</code> の推奨表記と禁止語</li>
+            <li><code>claims.yml</code> の source と section の整合</li>
+            <li><code>figures.yml</code> の asset / source と manuscript 参照の整合</li>
+            <li><code>freshness.yml</code> の参照整合と期限切れ</li>
           </ul>
         </section>
 
@@ -288,6 +319,7 @@ pdf:
           <ul>
             <li>`book.yml` または `series.yml`</li>
             <li>`manuscript/` または `manga/`</li>
+            <li>prose 系では `editorial/`</li>
             <li>`assets/cover/`, `assets/images/`, `assets/fonts/`</li>
             <li>`styles/`</li>
             <li>`dist/`</li>
@@ -295,6 +327,7 @@ pdf:
             <li>`.agents/skills/shosei-project/SKILL.md`</li>
           </ul>
           <p>prose 系テンプレートでは、最初の章ファイルとして <code>manuscript/01-chapter-1.md</code> も生成します。この <code>01-</code> prefix は初期命名の慣例で、章順の source of truth ではありません。</p>
+          <p>また、prose 系では空の <code>editorial/style.yml</code>, <code>editorial/claims.yml</code>, <code>editorial/figures.yml</code>, <code>editorial/freshness.yml</code> を生成し、<code>book.yml</code> から参照します。</p>
         </section>
 
         <section>
@@ -303,6 +336,8 @@ pdf:
           <pre><code>shosei preview --watch
 shosei preview --watch --target print</code></pre>
           <p><code>page check</code> は <code>dist/reports/&lt;book-id&gt;-page-check.json</code> を出しつつ、ページ順、ファイル名順序、ページサイズ、見開き候補、カラーポリシーを確認します。</p>
+          <p>summary には page order と spread candidates も出ます。</p>
+          <p>CLI では summary の後に、先頭最大 5 件の issue を <code>原因 / 発生箇所 / 修正例</code> の形で続けて表示します。</p>
           <p><code>doctor</code> は利用可能 / 不足 / pending を分けて表示し、PATH 解決結果、バージョン、導入ヒントを返します。</p>
           <ul>
             <li><code>pandoc</code></li>
@@ -312,9 +347,10 @@ shosei preview --watch --target print</code></pre>
             <li><code>weasyprint</code></li>
             <li><code>typst</code></li>
             <li><code>lualatex</code></li>
-            <li>代表 PDF engine</li>
+            <li><code>PDF engine</code></li>
             <li>Kindle Previewer</li>
           </ul>
+          <p><code>handoff proof</code> は validate report に加えて、<code>review-notes.md</code>、<code>reports/review-packet.json</code>、editorial sidecar のコピーも package に含めます。<code>manifest.json</code> には review packet の path と editorial summary 件数も入ります。</p>
         </section>
       </article>
     </main>

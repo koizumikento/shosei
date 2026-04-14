@@ -1,5 +1,5 @@
 use serde::Serialize;
-use std::path::PathBuf;
+use std::{fmt, path::PathBuf};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Diagnostic {
@@ -41,10 +41,40 @@ pub enum Severity {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct IssueLocation {
+    pub path: PathBuf,
+    pub line: Option<usize>,
+}
+
+impl IssueLocation {
+    pub fn with_line(path: impl Into<PathBuf>, line: usize) -> Self {
+        Self {
+            path: path.into(),
+            line: Some(line),
+        }
+    }
+}
+
+impl From<PathBuf> for IssueLocation {
+    fn from(path: PathBuf) -> Self {
+        Self { path, line: None }
+    }
+}
+
+impl fmt::Display for IssueLocation {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.line {
+            Some(line) => write!(f, "{}:{}", self.path.display(), line),
+            None => write!(f, "{}", self.path.display()),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct ValidationIssue {
     pub severity: Severity,
     pub target: String,
-    pub location: Option<PathBuf>,
+    pub location: Option<IssueLocation>,
     pub cause: String,
     pub remedy: String,
 }
@@ -79,7 +109,17 @@ impl ValidationIssue {
     }
 
     pub fn at(mut self, path: impl Into<PathBuf>) -> Self {
-        self.location = Some(path.into());
+        self.location = Some(path.into().into());
+        self
+    }
+
+    pub fn at_line(mut self, path: impl Into<PathBuf>, line: usize) -> Self {
+        self.location = Some(IssueLocation::with_line(path, line));
+        self
+    }
+
+    pub fn at_location(mut self, location: IssueLocation) -> Self {
+        self.location = Some(location);
         self
     }
 }

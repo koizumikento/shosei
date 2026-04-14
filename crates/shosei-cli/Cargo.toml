@@ -12,3 +12,6 @@ path = "src/main.rs"
 anyhow.workspace = true
 clap.workspace = true
 shosei-core = { path = "../shosei-core" }
+
+[dev-dependencies]
+serde_json.workspace = true

@@ -3,6 +3,7 @@ pub mod cli_api;
 pub mod config;
 pub mod diagnostics;
 pub mod domain;
+mod editorial;
 pub mod fs;
 mod manga;
 pub mod markdown;

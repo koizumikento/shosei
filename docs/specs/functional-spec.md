@@ -18,6 +18,7 @@
 - 原稿構成の管理
 - 出力 profile に応じたビルド
 - 検証と品質ゲート
+- editorial metadata に基づく review readiness
 - 納品用成果物の取りまとめ
 - Git 前提の履歴管理
 - macOS / Windows / Linux で動作する単一 CLI の提供
@@ -125,6 +126,11 @@ CLI バイナリ名は `shosei` とする。
 ```text
 project/
   book.yml
+  editorial/
+    style.yml
+    claims.yml
+    figures.yml
+    freshness.yml
   .agents/
     skills/
       shosei-project/
@@ -156,6 +162,7 @@ project/
 
 - `manuscript/` は文章書籍向け
 - `manga/` は漫画向け
+- `editorial/` は prose 系で表記、根拠、図表、鮮度管理を置く
 - `story/` は物語補助を使う場合の opt-in workspace
 - `assets/cover/` の画像は外部カバーアセットとし、本文 frontmatter とは分離する
 - 実際に使わないディレクトリは空でもよい
@@ -186,11 +193,12 @@ v0.1 の現行質問項目:
 4. 著者名
 5. 言語
 6. 出力先: `kindle | print | both`
+7. 実行後に `doctor` を流すか
 
 補足:
 
 - `--non-interactive --config-template <template>` を使うと既定値で scaffold を生成できる
-- 実行後に `doctor` を流すかどうかは v0.1 でも確認対象に含めてよい
+- prose project では `editorial/style.yml`, `claims.yml`, `figures.yml`, `freshness.yml` も scaffold に含める
 
 ### 7.2 `shosei build`
 
@@ -212,6 +220,7 @@ v0.1 の現行質問項目:
 - 最終有効設定の表示
 - 各値が `book.yml`、`series.yml` の `defaults`、または built-in default のどれで決まったかの表示
 - `series` の `shared.*` 探索パスの表示
+- editorial sidecar の参照先と件数の表示
 
 v0.1 の最小要件:
 
@@ -232,11 +241,20 @@ v0.1 の最小要件:
 - 人間向け summary と機械可読レポートを両方出せる
 
 - 共通 lint
+- prose editorial lint
 - build に必要なツールの事前確認
+- prose editorial lint
 - EPUB 検証
 - Kindle 想定検証
 - 印刷想定検証
 - 機械可読レポート出力
+
+prose editorial lint の対象:
+
+- style guide に基づく推奨表記と禁止語
+- figure ledger の asset / source / manuscript 参照整合
+- claim ledger の section / source 整合
+- freshness ledger の参照整合と review due
 
 ### 7.5 `shosei preview`
 
@@ -307,6 +325,7 @@ v0.1 の最小要件:
 - 仕様サマリ
 - build 情報
 - commit 情報
+- proof 向け review note
 
 ### 7.8 `shosei chapter`
 
@@ -907,12 +926,16 @@ v0.1 の既定:
 - 端末向け summary
 - JSON レポート
 - 必要に応じて外部 validator の詳細成果物への参照
+- CLI の text 出力では、JSON レポート順の先頭最大 5 件を `原因 / 発生箇所 / 修正例` の形で続けて表示できる
+- issue が 6 件以上ある場合、text 出力では末尾に残件数だけを `... and N more` で示す
 
 各 issue は次を持つ。
 
 - severity
 - target
 - 発生箇所
+  - file path
+  - 特定できる場合は line 番号
 - 原因
 - 修正例
 
@@ -970,6 +993,7 @@ v0.1 の既定:
 - 通常操作は `init`, `build`, `validate`, `preview`, `doctor`, `handoff` に絞る
 - raw な外部ツールエラーをそのまま主表示しない
 - エラーは `原因 / 発生箇所 / 修正例` の三点で示す
+- `発生箇所` は file path を基本とし、特定できる場合は line 番号も含める
 - 失敗時の詳細ログは `dist/logs/` に保存する
 - 実行結果は人間向け表示と JSON を両方出力できる
 - エラーメッセージは OS 固有表現に寄り過ぎず、同じ構造で理解できること
@@ -1004,8 +1028,13 @@ v0.1 の既定:
 - 参照用 EPUB
 - validation / preflight summary
 - タイトル、巻、target、build 時刻、commit hash を含む manifest
+- `manifest.json` には `review_notes`、`review_packet`、`editorial_summary.claim_count`、`editorial_summary.figure_count` も含める
 - 外部校正・編集者が参照すべき注意点一覧
-- v0.1 では `dist/handoff/<book-id>-proof/` に成果物コピーと `manifest.json` を出す
+- `reports/review-packet.json` に unresolved issue、reviewer note、claim / figure / freshness の構造化一覧
+- `reports/review-packet.json` には `issue_summary`、`reviewer_notes`、`editorial_summary` を含める
+- editorial sidecar のコピー
+- claim / figure / freshness の reviewer note 要約
+- v0.1 では `dist/handoff/<book-id>-proof/` に成果物コピー、`manifest.json`、`review-notes.md`、`reports/review-packet.json`、`editorial/` 配下の sidecar コピーを出す
 
 ## 20. MVP の範囲
 
