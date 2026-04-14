@@ -121,12 +121,12 @@ CLI バイナリ名は `shosei` とする。
 
 リポジトリ管理単位の詳細は [リポジトリ管理モデル](repository-model.md) を参照する。
 
-初期構成の標準形は以下とする。
+初期構成の標準形は以下とする。`project.type` に応じて prose (`editorial/` + `manuscript/`) か manga (`manga/`) のどちらかを生成し、`story/` workspace は `shosei story scaffold` で追加する。
 
 ```text
 project/
   book.yml
-  editorial/
+  [prose] editorial/
     style.yml
     claims.yml
     figures.yml
@@ -135,10 +135,9 @@ project/
     skills/
       shosei-project/
         SKILL.md
-  manuscript/
-    00-title.md
+  [prose] manuscript/
     01-chapter-1.md
-  manga/
+  [manga] manga/
     script/
     storyboard/
     pages/
@@ -162,6 +161,7 @@ project/
 - `manuscript/` は文章書籍向け
 - `manga/` は漫画向け
 - `editorial/` は prose 系で表記、根拠、図表、鮮度管理を置く
+- `story/` は物語補助を使う場合だけ `shosei story scaffold` で追加する opt-in workspace
 - `assets/cover/` の画像は外部カバーアセットとし、本文 frontmatter とは分離する
 - 実際に使わないディレクトリは空でもよい
 
@@ -389,7 +389,156 @@ v0.1 の最小要件:
 - prose book では `shared/metadata/series-catalog.md` を `manuscript.backmatter` に同期する
 - 手書き本文 Markdown を直接 rewrite しない
 
-### 7.11 将来候補
+### 7.11 `shosei story scaffold`
+
+repo-native な物語補助 workspace を生成する。
+
+- `shosei story scaffold`
+- `shosei story scaffold --book vol-01`
+- `shosei story scaffold --shared`
+
+主な責務:
+
+- `single-book` では `story/` を生成する
+- `series` では `shared/metadata/story/` と `books/<book-id>/story/` を分ける
+- `README.md` と最小 template file を生成する
+- 既存 file は既定で保持し、`--force` のときだけ上書きする
+
+非責務:
+
+- story schema 全体の validation
+- scene map や continuity lint
+- 本文の自動生成
+- `book.yml` / `series.yml` への story field 追加
+
+v0.1 の最小要件:
+
+- manual-first の scaffold のみ提供する
+- `single-book` / `series` の repo discovery ルールに従う
+- shared canon と巻固有 story workspace を混同しない
+
+### 7.12 `shosei story map`
+
+book-scoped な `scenes.yml` を読み、scene 一覧と report を出力する。
+
+- `shosei story map`
+- `shosei story map --book vol-01`
+
+主な責務:
+
+- `single-book` の `story/scenes.yml` を読む
+- `series` の `books/<book-id>/story/scenes.yml` を読む
+- list order をそのまま scene order として扱う
+- `single-book` では `dist/reports/default-story-map.json` を、`series` では `dist/reports/<book-id>-story-map.json` を出力する
+
+非責務:
+
+- shared canon の解析
+- entity directory の暗黙走査
+- story validation 全般
+- 本文 file の存在確認や cross-reference 整合確認
+
+v0.1 の最小要件:
+
+- scene entry の最小 shape は `file` と optional `title`
+- `file` は repo-relative path として解釈する
+- text summary と JSON report を返す
+
+### 7.13 `shosei story check`
+
+book-scoped な `scenes.yml` を読み、軽い整合チェック結果を report として出力する。
+
+- `shosei story check`
+- `shosei story check --book vol-01`
+
+主な責務:
+
+- duplicate `file` entry を warning として報告する
+- invalid repo-relative path を error として報告する
+- repo 内に存在しない scene file を warning として報告する
+- book-scoped story entity Markdown を scan して entity ID を集める
+- scene frontmatter の entity 参照を検査する
+- `single-book` では `dist/reports/default-story-check.json` を、`series` では `dist/reports/<book-id>-story-check.json` を出力する
+
+非責務:
+
+- shared canon drift の検査
+- semantic continuity lint
+- 本文内容の解析
+
+v0.1 の最小要件:
+
+- `scenes.yml` と book-scoped story entity Markdown を入力にする
+- issue 数と report path を summary で返す
+- error issue がある場合は non-zero exit で返せる
+- `characters`, `locations`, `terms`, `factions` の entity ID は frontmatter `id` を優先し、未指定時は filename stem を使う
+- duplicate entity `id` は error とする
+- `series` では scene 参照解決時に book-scoped story data と `shared/metadata/story/` の両方を見る
+- scene frontmatter の未解決 entity 参照は warning とする
+- invalid scene/entity frontmatter は error とする
+
+### 7.14 `shosei story drift`
+
+`series` における shared canon と巻固有 story data の衝突を report として出力する。
+
+- `shosei story drift --book vol-01`
+
+主な責務:
+
+- `shared/metadata/story/` と `books/<book-id>/story/` を比較する
+- machine-readable な `drifts` 配列を report に含める
+- same-scope duplicate entity `id` を error として報告する
+- shared/book で内容が分岐した同一 kind + `id` を drift error として報告する
+- shared/book で内容が同じ同一 kind + `id` を redundant copy warning として報告する
+- `dist/reports/<book-id>-story-drift.json` を出力する
+
+非責務:
+
+- scene file や `scenes.yml` の検査
+- semantic continuity lint
+- 本文内容の解析
+
+v0.1 の最小要件:
+
+- `series` のみ対象とする
+- report path と issue 数を summary で返す
+- error issue がある場合は non-zero exit で返せる
+
+### 7.15 `shosei story sync`
+
+`series` で shared canon と巻固有 story workspace の間を明示コピーする。単体 sync と `story drift` report を使う batch sync の両方を扱う。
+
+- `shosei story sync --book vol-01 --from shared --kind character --id lead`
+- `shosei story sync --book vol-01 --to shared --kind character --id lead`
+- `shosei story sync --book vol-01 --from shared --kind character --id lead --force`
+- `shosei story sync --book vol-01 --to shared --kind character --id lead --force`
+- `shosei story sync --book vol-01 --from shared --report dist/reports/vol-01-story-drift.json --force`
+- `shosei story sync --book vol-01 --to shared --report dist/reports/vol-01-story-drift.json --force`
+
+主な責務:
+
+- 単体 mode では source scope から `kind` + `id` で 1 entity を選ぶ
+- `--from shared` では `books/<book-id>/story/` へ同じ entity を copy する
+- `--to shared` では `shared/metadata/story/` へ同じ entity を copy する
+- `--report` 時は `story drift` report の `drifts` 配列を読んで対象 entity 群を確定する
+- destination 側に diverged copy がある場合、`--force` が無ければ error にする
+- `--force` 時のみ source 内容で destination 側を上書きする
+
+非責務:
+
+- `scenes.yml` の更新
+- automatic merge
+
+v0.1 の最小要件:
+
+- `series` のみ対象とする
+- `--from shared` か `--to shared` のどちらか一方を必須にする
+- 単体 mode では `kind` を `character|location|term|faction` から 1 件指定する
+- 単体 mode では `id` を 1 件だけ指定する
+- report mode では `--report` を必須にし、`--kind` / `--id` は受け付けない
+- report mode は `--force` を必須にする
+
+### 7.16 将来候補
 
 - `shosei release`: handoff + tag 前提の成果物固定化
 - `shosei page add`

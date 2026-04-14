@@ -640,6 +640,8 @@ mod tests {
         assert!(skill.contains("single-book"));
         assert!(skill.contains("shosei explain"));
         assert!(skill.contains("manuscript/"));
+        assert!(skill.contains("shosei story scaffold"));
+        assert!(skill.contains("shosei story check"));
         assert!(result.summary.contains("single-book scaffold"));
     }
 
@@ -669,6 +671,13 @@ mod tests {
         assert!(skill.contains("shosei explain --book vol-01"));
         assert!(skill.contains("shosei page check --book vol-01"));
         assert!(skill.contains("books/<book-id>/manga/"));
+        assert!(skill.contains("shosei story scaffold --book <book-id>"));
+        assert!(skill.contains("shared/metadata/story/"));
+        assert!(skill.contains("resolves scene references against both"));
+        assert!(skill.contains("shosei story drift --book <book-id>"));
+        assert!(skill.contains("shosei story sync --book <book-id> --from shared"));
+        assert!(skill.contains("--to shared"));
+        assert!(skill.contains("--report <drift-report> --force"));
     }
 
     #[test]

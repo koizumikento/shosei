@@ -59,6 +59,10 @@ pub enum Commands {
         #[command(subcommand)]
         command: ChapterCommands,
     },
+    Story {
+        #[command(subcommand)]
+        command: StoryCommands,
+    },
     Series {
         #[command(subcommand)]
         command: SeriesCommands,
@@ -130,6 +134,56 @@ pub enum ChapterCommands {
 }
 
 #[derive(Debug, Subcommand)]
+pub enum StoryCommands {
+    Check {
+        #[arg(long)]
+        book: Option<String>,
+        #[arg(long, value_name = "PATH", default_value = ".")]
+        path: PathBuf,
+    },
+    Drift {
+        #[arg(long)]
+        book: Option<String>,
+        #[arg(long, value_name = "PATH", default_value = ".")]
+        path: PathBuf,
+    },
+    Sync {
+        #[arg(long)]
+        book: Option<String>,
+        #[arg(long = "from", value_name = "SOURCE", value_parser = ["shared"])]
+        source: Option<String>,
+        #[arg(long = "to", value_name = "DESTINATION", value_parser = ["shared"])]
+        destination: Option<String>,
+        #[arg(long, value_name = "KIND", value_parser = ["character", "location", "term", "faction"])]
+        kind: Option<String>,
+        #[arg(long, value_name = "ID")]
+        id: Option<String>,
+        #[arg(long, value_name = "REPORT")]
+        report: Option<PathBuf>,
+        #[arg(long)]
+        force: bool,
+        #[arg(long, value_name = "PATH", default_value = ".")]
+        path: PathBuf,
+    },
+    Map {
+        #[arg(long)]
+        book: Option<String>,
+        #[arg(long, value_name = "PATH", default_value = ".")]
+        path: PathBuf,
+    },
+    Scaffold {
+        #[arg(long)]
+        shared: bool,
+        #[arg(long)]
+        force: bool,
+        #[arg(long)]
+        book: Option<String>,
+        #[arg(long, value_name = "PATH", default_value = ".")]
+        path: PathBuf,
+    },
+}
+
+#[derive(Debug, Subcommand)]
 pub enum PageCommands {
     Check {
         #[arg(long)]
@@ -153,7 +207,7 @@ mod tests {
 
     use clap::Parser;
 
-    use super::{ChapterCommands, Cli, Commands, SeriesCommands};
+    use super::{ChapterCommands, Cli, Commands, SeriesCommands, StoryCommands};
 
     #[test]
     fn parses_chapter_add_command() {
@@ -265,6 +319,239 @@ mod tests {
                 assert_eq!(start_at, 3);
                 assert_eq!(width, 4);
                 assert!(dry_run);
+            }
+            other => panic!("unexpected command: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_story_scaffold_command() {
+        let cli = Cli::parse_from([
+            "shosei",
+            "story",
+            "scaffold",
+            "--shared",
+            "--force",
+            "--path",
+            "books/vol-01",
+        ]);
+
+        match cli.command {
+            Commands::Story {
+                command:
+                    StoryCommands::Scaffold {
+                        shared,
+                        force,
+                        path,
+                        ..
+                    },
+            } => {
+                assert!(shared);
+                assert!(force);
+                assert_eq!(path, PathBuf::from("books/vol-01"));
+            }
+            other => panic!("unexpected command: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_story_map_command() {
+        let cli = Cli::parse_from([
+            "shosei",
+            "story",
+            "map",
+            "--book",
+            "vol-01",
+            "--path",
+            "books/vol-01",
+        ]);
+
+        match cli.command {
+            Commands::Story {
+                command: StoryCommands::Map { book, path },
+            } => {
+                assert_eq!(book.as_deref(), Some("vol-01"));
+                assert_eq!(path, PathBuf::from("books/vol-01"));
+            }
+            other => panic!("unexpected command: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_story_check_command() {
+        let cli = Cli::parse_from([
+            "shosei",
+            "story",
+            "check",
+            "--book",
+            "vol-01",
+            "--path",
+            "books/vol-01",
+        ]);
+
+        match cli.command {
+            Commands::Story {
+                command: StoryCommands::Check { book, path },
+            } => {
+                assert_eq!(book.as_deref(), Some("vol-01"));
+                assert_eq!(path, PathBuf::from("books/vol-01"));
+            }
+            other => panic!("unexpected command: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_story_drift_command() {
+        let cli = Cli::parse_from([
+            "shosei",
+            "story",
+            "drift",
+            "--book",
+            "vol-01",
+            "--path",
+            "books/vol-01",
+        ]);
+
+        match cli.command {
+            Commands::Story {
+                command: StoryCommands::Drift { book, path },
+            } => {
+                assert_eq!(book.as_deref(), Some("vol-01"));
+                assert_eq!(path, PathBuf::from("books/vol-01"));
+            }
+            other => panic!("unexpected command: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_story_sync_command() {
+        let cli = Cli::parse_from([
+            "shosei",
+            "story",
+            "sync",
+            "--book",
+            "vol-01",
+            "--from",
+            "shared",
+            "--kind",
+            "character",
+            "--id",
+            "lead",
+            "--force",
+            "--path",
+            "books/vol-01",
+        ]);
+
+        match cli.command {
+            Commands::Story {
+                command:
+                    StoryCommands::Sync {
+                        book,
+                        source,
+                        destination,
+                        kind,
+                        id,
+                        report,
+                        force,
+                        path,
+                    },
+            } => {
+                assert_eq!(book.as_deref(), Some("vol-01"));
+                assert_eq!(source.as_deref(), Some("shared"));
+                assert_eq!(destination, None);
+                assert_eq!(kind.as_deref(), Some("character"));
+                assert_eq!(id.as_deref(), Some("lead"));
+                assert_eq!(report, None);
+                assert!(force);
+                assert_eq!(path, PathBuf::from("books/vol-01"));
+            }
+            other => panic!("unexpected command: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_story_sync_to_shared_command() {
+        let cli = Cli::parse_from([
+            "shosei",
+            "story",
+            "sync",
+            "--book",
+            "vol-01",
+            "--to",
+            "shared",
+            "--kind",
+            "character",
+            "--id",
+            "lead",
+        ]);
+
+        match cli.command {
+            Commands::Story {
+                command:
+                    StoryCommands::Sync {
+                        book,
+                        source,
+                        destination,
+                        kind,
+                        id,
+                        report,
+                        force,
+                        path,
+                    },
+            } => {
+                assert_eq!(book.as_deref(), Some("vol-01"));
+                assert_eq!(source, None);
+                assert_eq!(destination.as_deref(), Some("shared"));
+                assert_eq!(kind.as_deref(), Some("character"));
+                assert_eq!(id.as_deref(), Some("lead"));
+                assert_eq!(report, None);
+                assert!(!force);
+                assert_eq!(path, PathBuf::from("."));
+            }
+            other => panic!("unexpected command: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_story_sync_report_command() {
+        let cli = Cli::parse_from([
+            "shosei",
+            "story",
+            "sync",
+            "--book",
+            "vol-01",
+            "--from",
+            "shared",
+            "--report",
+            "dist/reports/vol-01-story-drift.json",
+            "--force",
+        ]);
+
+        match cli.command {
+            Commands::Story {
+                command:
+                    StoryCommands::Sync {
+                        book,
+                        source,
+                        destination,
+                        kind,
+                        id,
+                        report,
+                        force,
+                        path,
+                    },
+            } => {
+                assert_eq!(book.as_deref(), Some("vol-01"));
+                assert_eq!(source.as_deref(), Some("shared"));
+                assert_eq!(destination, None);
+                assert_eq!(kind, None);
+                assert_eq!(id, None);
+                assert_eq!(
+                    report,
+                    Some(PathBuf::from("dist/reports/vol-01-story-drift.json"))
+                );
+                assert!(force);
+                assert_eq!(path, PathBuf::from("."));
             }
             other => panic!("unexpected command: {other:?}"),
         }

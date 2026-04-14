@@ -20,6 +20,11 @@ Architecture Decision Record の一覧。
 - [ADR-0016: `shosei init` で repo-scoped agent skill template を生成する](0016-init-generates-repo-scoped-agent-skill-template.md)
 - [ADR-0017: `shosei chapter` は prose の source structure だけを更新する](0017-chapter-commands-follow-prose-source-structure.md)
 - [ADR-0018: prose 向け editorial metadata は sidecar file で扱い、`handoff proof` に review packet を含める](0018-editorial-sidecars-and-proof-packets.md)
+- [ADR-0019: 物語補助は explicit な repo-native scaffold から始める](0019-story-support-starts-with-explicit-repo-native-scaffold.md)
+- [ADR-0020: story drift は series 向けの別コマンドとして扱う](0020-story-drift-is-a-separate-series-command.md)
+- [ADR-0021: story sync は explicit な shared-to-book copy から始める](0021-story-sync-starts-as-explicit-shared-to-book-copy.md)
+- [ADR-0022: story sync は explicit のまま 1 entity の双方向 copy を許可する](0022-story-sync-stays-explicit-but-supports-both-directions.md)
+- [ADR-0023: story sync の batch 適用は drift report 駆動で扱う](0023-story-sync-batch-replays-drift-report.md)
 
 記法:
 

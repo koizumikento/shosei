@@ -96,6 +96,7 @@ shosei-core/src/
 - `doctor`
 - `handoff`
 - `explain_config`
+- `story_scaffold`
 - `sync_series`
 - `check_pages`
 
