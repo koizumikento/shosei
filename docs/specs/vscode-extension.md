@@ -1,0 +1,129 @@
+# VS Code 拡張仕様 v0.1
+
+作成日: 2026-04-14  
+状態: Draft
+
+## 1. 目的
+
+`shosei` を使う制作リポジトリを VS Code から扱いやすくする。
+
+ただし、拡張は別実装の出版エンジンを持たない。`build` / `validate` / `preview` / `explain` の実処理は既存の `shosei` CLI に委譲し、VS Code 側は editor integration に責務を絞る。
+
+## 2. 設計原則
+
+- `CLI を source of truth にする`
+- `repo discovery と config merge を複製しない`
+- `実処理は shosei が行い、VS Code 側は command / terminal / diagnostics を仲介する`
+- `series` の book 解決は editor context と既存 repo model に合わせる
+- `validate` / `page check` の Problems 反映は、既存 JSON report を再利用する
+
+## 3. スコープ
+
+v0.1 の VS Code 拡張は次を扱う。
+
+- `shosei explain`
+- `shosei validate`
+- `shosei build`
+- `shosei preview`
+- `shosei preview --watch`
+- `shosei doctor`
+- `shosei page check`
+- `shosei series sync`
+
+`init` の対話式 UI、設定編集 UI、Pandoc や PDF engine の独自設定画面は v0.1 の対象外とする。
+
+## 4. 実行モデル
+
+### 4.1 CLI 呼び出し
+
+VS Code 拡張は `shosei` を外部プロセスとして実行する。
+
+設定項目:
+
+- `shosei.cli.command`: 既定値 `shosei`
+- `shosei.cli.args`: 既定値 `[]`
+
+ローカル開発で source tree の CLI を直接使いたい場合は、次のように設定できる。
+
+```json
+{
+  "shosei.cli.command": "cargo",
+  "shosei.cli.args": ["run", "-p", "shosei-cli", "--bin", "shosei", "--"]
+}
+```
+
+### 4.2 one-shot と watch
+
+- one-shot command は child process と output channel で実行する
+- `preview --watch` は VS Code task / terminal で実行する
+- watch 中の停止は VS Code terminal 側で行う
+
+## 5. repo context 解決
+
+### 5.1 repo root
+
+拡張は active file か workspace folder から上方探索し、最も近い `book.yml` または `series.yml` を repo root として扱う。
+
+### 5.2 `single-book`
+
+- `book.yml` を見つけた場合は `single-book` とみなす
+- book 指定は不要
+- `--path <repo-root>` を付けて CLI を実行する
+
+### 5.3 `series`
+
+`series.yml` を見つけた場合は `series` とみなす。
+
+book 解決の優先順位:
+
+1. 専用ビューで明示的に選んだ book
+2. active file または選択中 workspace path が `books/<book-id>/...` 配下にある
+3. `shosei.series.defaultBookId`
+4. `books/` 配下の候補を Quick Pick で選ぶ
+5. 候補列挙ができない場合は Input Box で手入力する
+
+book が必要な command では `--book <book-id> --path <repo-root>` を付ける。
+
+専用ビューで選んだ book は workspace state に保持してよい。
+
+## 6. Diagnostics
+
+### 6.1 `validate`
+
+`shosei validate` は既存の `dist/reports/*-validate.json` を出力する。拡張は CLI 実行後に report path を読み取り、`issues[].location` を VS Code Problems に反映する。
+
+### 6.2 `page check`
+
+`shosei page check` も同様に `dist/reports/*-page-check.json` を読み、manga page まわりの issue を Problems に反映する。
+
+### 6.3 scope
+
+- line/column 情報がない issue は file 単位の diagnostic として先頭行に付与する
+- location を持たない issue は output channel に残し、Problems には出さない
+
+## 7. 実装配置
+
+VS Code 拡張は Cargo workspace とは別に、repo root 配下の次に置く。
+
+```text
+repo/
+  editors/
+    vscode/
+      package.json
+      extension.js
+      src/
+      test/
+```
+
+補足:
+
+- VS Code extension host 自体は JavaScript で実装してよい
+- ただし、出版ロジック、repo model、config loading、pipeline planning は Rust 側から移さない
+- v0.1 では sidebar の専用 Tree View を持ってよい
+
+## 8. 非目標
+
+- `book.yml` / `series.yml` schema を JS 側で再実装すること
+- build / validate / handoff の中身を VS Code extension host に移すこと
+- prose / manga の独自 editor を v0.1 で提供すること
+- CLI と別系統の状態管理を持つこと

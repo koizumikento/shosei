@@ -109,6 +109,16 @@ CLI バイナリ名は `shosei` とする。
 - パス区切りの違いを内部で吸収すること
 - UTF-8 を含むファイル名を扱えること
 
+### 4.4 Editor integration
+
+VS Code 拡張のような editor integration は追加してよいが、build / validate / explain などの実処理は `shosei` CLI に委譲する。
+
+方針:
+
+- editor 側で repo discovery、config merge、pipeline planning を複製しない
+- `validate` / `page check` の既存 report を diagnostics 連携に使ってよい
+- editor integration の詳細は [VS Code 拡張仕様](vscode-extension.md) を参照する
+
 ## 5. 想定ユーザー
 
 - 技術書・ビジネス書の著者
