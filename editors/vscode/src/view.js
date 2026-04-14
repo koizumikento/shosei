@@ -44,6 +44,10 @@ class ShoseiViewProvider {
       ];
     }
 
+    if (Array.isArray(element.children)) {
+      return element.children;
+    }
+
     if (element.group === "context") {
       return buildContextItems(this.vscode, snapshot);
     }
@@ -76,6 +80,20 @@ function createGroupItem(vscode, label, group, icon) {
   item.group = group;
   item.iconPath = new vscode.ThemeIcon(icon);
   item.contextValue = `shosei.group.${group}`;
+  return item;
+}
+
+function createNestedGroupItem(vscode, label, description, icon, children) {
+  const item = new vscode.TreeItem(
+    label,
+    children.length > 0
+      ? vscode.TreeItemCollapsibleState.Expanded
+      : vscode.TreeItemCollapsibleState.None
+  );
+  item.description = description || "";
+  item.iconPath = new vscode.ThemeIcon(icon || "list-tree");
+  item.contextValue = "shosei.nestedGroup";
+  item.children = children;
   return item;
 }
 
@@ -311,62 +329,59 @@ function buildStructureItems(vscode, snapshot) {
   const items = [];
 
   if (explain.manuscript) {
+    const chapterItems = explain.manuscript.chapters.map((chapter) =>
+      createChapterItem(vscode, chapter, path.resolve(explain.repo_root, chapter))
+    );
     items.push(
-      createInfoItem(
+      createNestedGroupItem(
         vscode,
         "Chapters",
-        `${explain.manuscript.chapters.length} file(s)`,
-        "list-ordered"
+        `${chapterItems.length} file(s)`,
+        "list-ordered",
+        chapterItems
       )
     );
-    for (const chapter of explain.manuscript.chapters) {
-      items.push(
-        createChapterItem(vscode, chapter, path.resolve(explain.repo_root, chapter))
-      );
-    }
 
     if (explain.manuscript.frontmatter.length > 0) {
-      items.push(
-        createInfoItem(
+      const frontmatterItems = explain.manuscript.frontmatter.map((entry) =>
+        createPathItem(
           vscode,
-          "Frontmatter",
-          `${explain.manuscript.frontmatter.length} file(s)`,
-          "list-flat"
+          path.basename(entry),
+          entry,
+          path.resolve(explain.repo_root, entry),
+          "file"
         )
       );
-      for (const entry of explain.manuscript.frontmatter) {
-        items.push(
-          createPathItem(
-            vscode,
-            path.basename(entry),
-            entry,
-            path.resolve(explain.repo_root, entry),
-            "file"
-          )
-        );
-      }
+      items.push(
+        createNestedGroupItem(
+          vscode,
+          "Frontmatter",
+          `${frontmatterItems.length} file(s)`,
+          "list-flat",
+          frontmatterItems
+        )
+      );
     }
 
     if (explain.manuscript.backmatter.length > 0) {
-      items.push(
-        createInfoItem(
+      const backmatterItems = explain.manuscript.backmatter.map((entry) =>
+        createPathItem(
           vscode,
-          "Backmatter",
-          `${explain.manuscript.backmatter.length} file(s)`,
-          "list-flat"
+          path.basename(entry),
+          entry,
+          path.resolve(explain.repo_root, entry),
+          "file"
         )
       );
-      for (const entry of explain.manuscript.backmatter) {
-        items.push(
-          createPathItem(
-            vscode,
-            path.basename(entry),
-            entry,
-            path.resolve(explain.repo_root, entry),
-            "file"
-          )
-        );
-      }
+      items.push(
+        createNestedGroupItem(
+          vscode,
+          "Backmatter",
+          `${backmatterItems.length} file(s)`,
+          "list-flat",
+          backmatterItems
+        )
+      );
     }
   } else {
     items.push(
@@ -380,18 +395,44 @@ function buildStructureItems(vscode, snapshot) {
   }
 
   if (hasEditorialContent(explain.editorial)) {
+    const editorialItems = [];
+    pushEditorialPathItem(
+      vscode,
+      editorialItems,
+      explain.repo_root,
+      "Style Guide",
+      explain.editorial.style_path
+    );
+    pushEditorialPathItem(
+      vscode,
+      editorialItems,
+      explain.repo_root,
+      "Claims",
+      explain.editorial.claims_path
+    );
+    pushEditorialPathItem(
+      vscode,
+      editorialItems,
+      explain.repo_root,
+      "Figures",
+      explain.editorial.figures_path
+    );
+    pushEditorialPathItem(
+      vscode,
+      editorialItems,
+      explain.repo_root,
+      "Freshness",
+      explain.editorial.freshness_path
+    );
     items.push(
-      createInfoItem(
+      createNestedGroupItem(
         vscode,
         "Editorial Files",
         "Open sidecar config",
-        "note"
+        "note",
+        editorialItems
       )
     );
-    pushEditorialPathItem(vscode, items, explain.repo_root, "Style Guide", explain.editorial.style_path);
-    pushEditorialPathItem(vscode, items, explain.repo_root, "Claims", explain.editorial.claims_path);
-    pushEditorialPathItem(vscode, items, explain.repo_root, "Figures", explain.editorial.figures_path);
-    pushEditorialPathItem(vscode, items, explain.repo_root, "Freshness", explain.editorial.freshness_path);
   }
 
   return items;
@@ -534,5 +575,8 @@ function toolStatusIcon(status) {
 }
 
 module.exports = {
-  ShoseiViewProvider
+  ShoseiViewProvider,
+  __test: {
+    buildStructureItems
+  }
 };
