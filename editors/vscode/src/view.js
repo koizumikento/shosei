@@ -466,6 +466,13 @@ function buildActionItems(vscode, snapshot) {
   items.push(createActionItem(vscode, "Build", "shosei.build", "gear"));
   items.push(createActionItem(vscode, "Preview", "shosei.preview", "eye"));
   items.push(createActionItem(vscode, "Preview (Watch)", "shosei.previewWatch", "debug-start"));
+  items.push(createActionItem(vscode, "Reference Scaffold", "shosei.referenceScaffold", "new-folder"));
+  items.push(createActionItem(vscode, "Reference Map", "shosei.referenceMap", "list-selection"));
+  items.push(createActionItem(vscode, "Reference Check", "shosei.referenceCheck", "checklist"));
+  if (snapshot.mode === "series") {
+    items.push(createActionItem(vscode, "Reference Drift", "shosei.referenceDrift", "compare-changes"));
+    items.push(createActionItem(vscode, "Reference Sync", "shosei.referenceSync", "sync"));
+  }
   items.push(createActionItem(vscode, "Doctor", "shosei.doctor", "tools"));
 
   if (projectType === "manga") {
@@ -577,6 +584,7 @@ function toolStatusIcon(status) {
 module.exports = {
   ShoseiViewProvider,
   __test: {
+    buildActionItems,
     buildStructureItems
   }
 };

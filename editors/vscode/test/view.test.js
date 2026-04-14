@@ -96,3 +96,54 @@ test("buildStructureItems creates frontmatter and backmatter nested groups when 
     path.resolve("/tmp/book", "manuscript/frontmatter/title.md")
   );
 });
+
+test("buildActionItems includes reference actions for single-book repos", () => {
+  const vscode = createFakeVscode();
+  const items = view.__test.buildActionItems(vscode, {
+    mode: "single-book",
+    explain: {
+      project_type: "novel",
+      manuscript: {
+        chapters: ["manuscript/01.md"]
+      }
+    }
+  });
+
+  assert.deepEqual(
+    items.map((item) => item.label),
+    [
+      "Chapter Add",
+      "Chapter Renumber",
+      "Explain",
+      "Validate",
+      "Build",
+      "Preview",
+      "Preview (Watch)",
+      "Reference Scaffold",
+      "Reference Map",
+      "Reference Check",
+      "Doctor"
+    ]
+  );
+});
+
+test("buildActionItems includes drift and sync for series repos", () => {
+  const vscode = createFakeVscode();
+  const items = view.__test.buildActionItems(vscode, {
+    mode: "series",
+    explain: {
+      project_type: "novel",
+      manuscript: {
+        chapters: ["books/vol-01/manuscript/01.md", "books/vol-01/manuscript/02.md"]
+      }
+    }
+  });
+
+  assert(items.some((item) => item.label === "Select Book"));
+  assert(items.some((item) => item.label === "Reference Scaffold"));
+  assert(items.some((item) => item.label === "Reference Map"));
+  assert(items.some((item) => item.label === "Reference Check"));
+  assert(items.some((item) => item.label === "Reference Drift"));
+  assert(items.some((item) => item.label === "Reference Sync"));
+  assert(items.some((item) => item.label === "Series Sync"));
+});

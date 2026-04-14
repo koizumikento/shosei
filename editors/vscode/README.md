@@ -21,6 +21,11 @@
 - `Shosei: Build`
 - `Shosei: Preview`
 - `Shosei: Preview (Watch)`
+- `Shosei: Reference Scaffold`
+- `Shosei: Reference Map`
+- `Shosei: Reference Check`
+- `Shosei: Reference Drift`
+- `Shosei: Reference Sync`
 - `Shosei: Doctor`
 - `Shosei: Page Check`
 - `Shosei: Series Sync`
@@ -35,13 +40,15 @@ Activity Bar に `Shosei` view container を追加する。
 - `Toolchain`: host OS、required / optional summary、tool status
 - `Resolved Config`: title、project type、language、outputs、writing mode、binding、editorial summary
 - `Structure`: config file、chapter list、editorial sidecar file
-- `Actions`: explain / validate / build / preview / doctor などの主要操作
+- `Actions`: explain / validate / build / preview / doctor / reference などの主要操作
 
 repo が見つからない場合は、view から `Init` を直接起動できる。
 
 `series` では view から target book を選べる。選択値は workspace state に保持し、コマンド実行時の `--book` に使う。
 
 prose project では chapter item の context menu から move / remove を呼べる。add / renumber は action と command palette から使う。
+
+reference surface は command palette と sidebar action から使う。`reference scaffold|map|check` は single-book / series shared / series book を切り替えて起動でき、`reference drift|sync` は series book を対象に実行する。`reference map` / `reference check` は対象 workspace が未初期化なら `reference scaffold` を提案する。`reference check` と `reference drift` は CLI report を読んで Problems に反映する。
 
 ## Settings
 

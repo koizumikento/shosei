@@ -441,6 +441,22 @@ status: summarized
 }
 
 #[test]
+fn reference_map_cli_suggests_scaffold_when_workspace_is_missing() {
+    let root = temp_dir("reference-map-missing-workspace");
+    write_reference_fixture(&root);
+
+    let output = Command::new(env!("CARGO_BIN_EXE_shosei"))
+        .args(["reference", "map", "--path", root.to_str().unwrap()])
+        .output()
+        .unwrap();
+
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("reference entries directory not found"));
+    assert!(stderr.contains("run `shosei reference scaffold` first"));
+}
+
+#[test]
 fn reference_check_cli_prints_issue_preview_and_fails_on_errors() {
     let root = temp_dir("reference-check");
     write_reference_fixture(&root);

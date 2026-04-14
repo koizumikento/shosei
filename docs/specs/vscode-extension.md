@@ -27,6 +27,7 @@ v0.1 の VS Code 拡張は次を扱う。
 - `shosei build`
 - `shosei preview`
 - `shosei preview --watch`
+- `shosei reference scaffold|map|check|drift|sync`
 - `shosei chapter add|move|remove|renumber`
 - `shosei doctor`
 - `shosei page check`
@@ -86,7 +87,10 @@ VS Code 側で template / repo mode / title / author / language / output preset 
 - `Toolchain`: host OS / required・optional summary / individual tool status
 - `Resolved Config`: title / project type / language / outputs / writing mode / binding / editorial summary
 - `Structure`: config file、prose の chapter list、editorial sidecar file
+- `Actions`: explain / validate / build / preview / doctor / reference surface
 - prose では chapter add / move / remove / renumber を command palette と chapter item context menu から起動してよい
+- reference surface は command palette と sidebar action から起動してよい
+- `reference map` / `reference check` の対象 workspace が未初期化なら、拡張は `reference scaffold` 実行を提案してよい
 
 chapter や sidecar file はクリックで open してよい。
 
@@ -132,6 +136,14 @@ book が必要な command では `--book <book-id> --path <repo-root>` を付け
 
 - line/column 情報がない issue は file 単位の diagnostic として先頭行に付与する
 - location を持たない issue は output channel に残し、Problems には出さない
+
+### 6.4 `reference check` / `reference drift`
+
+- `shosei reference check` の `dist/reports/*-reference-check.json` を読み、issue を Problems に反映してよい
+- `shosei reference drift` の `dist/reports/*-reference-drift.json` も同様に issue を Problems に反映してよい
+- `reference map` は text/report 確認用とし、Problems には流さない
+- `reference sync` は同期 command として扱い、Problems 連携は必須にしない
+- `reference map` / `reference check` 実行前に対象 scope の `entries/` がなければ、Problems 連携より先に scaffold 導線を出してよい
 
 ## 7. 実装配置
 

@@ -12,6 +12,12 @@ function activate(context) {
   const output = vscode.window.createOutputChannel("Shosei");
   const validateDiagnostics = vscode.languages.createDiagnosticCollection("shosei-validate");
   const pageCheckDiagnostics = vscode.languages.createDiagnosticCollection("shosei-page-check");
+  const referenceCheckDiagnostics = vscode.languages.createDiagnosticCollection(
+    "shosei-reference-check"
+  );
+  const referenceDriftDiagnostics = vscode.languages.createDiagnosticCollection(
+    "shosei-reference-drift"
+  );
   const viewProvider = new ShoseiViewProvider(vscode, {
     getSnapshot: () => resolveViewSnapshot(vscode, context)
   });
@@ -20,7 +26,14 @@ function activate(context) {
     showCollapseAll: false
   });
 
-  context.subscriptions.push(output, validateDiagnostics, pageCheckDiagnostics, treeView);
+  context.subscriptions.push(
+    output,
+    validateDiagnostics,
+    pageCheckDiagnostics,
+    referenceCheckDiagnostics,
+    referenceDriftDiagnostics,
+    treeView
+  );
   context.subscriptions.push(
     vscode.window.onDidChangeActiveTextEditor(() => viewProvider.refresh()),
     vscode.workspace.onDidChangeWorkspaceFolders(() => viewProvider.refresh()),
@@ -103,6 +116,30 @@ function activate(context) {
 
   registerCommand(context, "shosei.previewWatch", () =>
     runPreviewWatchTask(vscode, output, context)
+  );
+
+  registerCommand(context, "shosei.referenceScaffold", () =>
+    runReferenceScaffoldCommand(vscode, output, context, viewProvider)
+  );
+  registerCommand(context, "shosei.referenceMap", () =>
+    runReferenceMapCommand(vscode, output, context, viewProvider)
+  );
+  registerCommand(context, "shosei.referenceCheck", async () => {
+    referenceCheckDiagnostics.clear();
+    await runReferenceCheckCommand(
+      vscode,
+      output,
+      context,
+      referenceCheckDiagnostics,
+      viewProvider
+    );
+  });
+  registerCommand(context, "shosei.referenceDrift", async () => {
+    referenceDriftDiagnostics.clear();
+    await runReferenceDriftCommand(vscode, output, context, referenceDriftDiagnostics);
+  });
+  registerCommand(context, "shosei.referenceSync", () =>
+    runReferenceSyncCommand(vscode, output, context, viewProvider, referenceDriftDiagnostics)
   );
 
   registerCommand(context, "shosei.doctor", () =>
@@ -973,6 +1010,434 @@ async function runChapterRenumberCommand(vscode, output, extensionContext, viewP
   }
 }
 
+async function runReferenceScaffoldCommand(vscode, output, extensionContext, viewProvider) {
+  const referenceContext = await resolveReferenceScopeContext(vscode, extensionContext, {
+    title: "reference scaffold"
+  });
+  if (!referenceContext) {
+    return;
+  }
+
+  await runReferenceScaffoldWithResolved(
+    vscode,
+    output,
+    extensionContext,
+    referenceContext.resolved,
+    referenceContext.shared,
+    viewProvider
+  );
+}
+
+async function runReferenceScaffoldWithResolved(
+  vscode,
+  output,
+  extensionContext,
+  resolved,
+  shared,
+  viewProvider
+) {
+  let force = false;
+  if (fs.existsSync(referenceWorkspaceRoot(resolved, shared))) {
+    const overwrite = await promptBooleanChoice(vscode, {
+      title: "Reference scaffold mode",
+      placeHolder: "Overwrite scaffold template files if they already exist?",
+      trueLabel: "Overwrite templates",
+      falseLabel: "Keep existing files",
+      defaultValue: false
+    });
+    if (overwrite === undefined) {
+      return;
+    }
+    force = overwrite;
+  }
+
+  const result = await runManagedCommandWithResolved(
+    vscode,
+    output,
+    {
+      title: "reference scaffold",
+      commandParts: buildReferenceScopedCommandParts("scaffold", {
+        shared,
+        force
+      }),
+      extensionContext
+    },
+    resolved
+  );
+  if (!result) {
+    return null;
+  }
+
+  if (viewProvider) {
+    viewProvider.refresh();
+  }
+
+  return result;
+}
+
+async function runReferenceMapCommand(vscode, output, extensionContext, viewProvider) {
+  const referenceContext = await resolveReferenceScopeContext(vscode, extensionContext, {
+    title: "reference map"
+  });
+  if (!referenceContext) {
+    return;
+  }
+
+  const ready = await ensureReferenceWorkspaceInitialized(
+    vscode,
+    output,
+    extensionContext,
+    referenceContext,
+    viewProvider
+  );
+  if (!ready) {
+    return;
+  }
+
+  await runTextCommandWithResolved(
+    vscode,
+    output,
+    {
+      title: "reference map",
+      commandParts: buildReferenceScopedCommandParts("map", {
+        shared: referenceContext.shared
+      }),
+      extensionContext
+    },
+    referenceContext.resolved
+  );
+}
+
+async function runReferenceCheckCommand(
+  vscode,
+  output,
+  extensionContext,
+  diagnostics,
+  viewProvider
+) {
+  const referenceContext = await resolveReferenceScopeContext(vscode, extensionContext, {
+    title: "reference check"
+  });
+  if (!referenceContext) {
+    return;
+  }
+
+  const ready = await ensureReferenceWorkspaceInitialized(
+    vscode,
+    output,
+    extensionContext,
+    referenceContext,
+    viewProvider
+  );
+  if (!ready) {
+    return;
+  }
+
+  await runManagedCommandWithResolved(
+    vscode,
+    output,
+    {
+      title: "reference check",
+      commandParts: buildReferenceScopedCommandParts("check", {
+        shared: referenceContext.shared
+      }),
+      extensionContext,
+      acceptedExitCodes: [0, 1],
+      onComplete: (result, resolved) =>
+        applyDiagnosticsFromReport(
+          vscode,
+          output,
+          diagnostics,
+          "shosei reference check",
+          result,
+          resolved
+        )
+    },
+    referenceContext.resolved
+  );
+}
+
+async function runReferenceDriftCommand(
+  vscode,
+  output,
+  extensionContext,
+  diagnostics
+) {
+  const resolved = await resolveExecutionContext(vscode, {
+    title: "reference drift",
+    requireBook: true,
+    requireSeriesRepo: true,
+    extensionContext
+  });
+  if (!resolved) {
+    return;
+  }
+
+  await runReferenceDriftWithResolved(
+    vscode,
+    output,
+    extensionContext,
+    diagnostics,
+    resolved
+  );
+}
+
+async function runReferenceDriftWithResolved(
+  vscode,
+  output,
+  extensionContext,
+  diagnostics,
+  resolved,
+  options = {}
+) {
+  const result = await runProcess(
+    vscode,
+    output,
+    "reference drift",
+    resolved,
+    {
+      title: "reference drift",
+      commandParts: ["reference", "drift"],
+      extensionContext,
+      acceptedExitCodes: [0, 1]
+    }
+  );
+  if (!result) {
+    return null;
+  }
+
+  await applyDiagnosticsFromReport(
+    vscode,
+    output,
+    diagnostics,
+    "shosei reference drift",
+    result,
+    resolved
+  );
+
+  if (!options.silentOutcome) {
+    const outcome = core.classifyCommandResult(result, {
+      acceptedExitCodes: [0, 1],
+      fallbackMessage: "reference drift completed"
+    });
+    if (outcome.level === "error") {
+      vscode.window.showErrorMessage(outcome.message);
+      return null;
+    }
+    if (outcome.level === "warning") {
+      vscode.window.showWarningMessage(outcome.message);
+    } else {
+      vscode.window.showInformationMessage(outcome.message);
+    }
+  }
+
+  return result;
+}
+
+async function runReferenceSyncCommand(
+  vscode,
+  output,
+  extensionContext,
+  viewProvider,
+  driftDiagnostics
+) {
+  const resolved = await resolveExecutionContext(vscode, {
+    title: "reference sync",
+    requireBook: true,
+    requireSeriesRepo: true,
+    extensionContext
+  });
+  if (!resolved) {
+    return;
+  }
+
+  const direction = await promptReferenceSyncDirection(vscode);
+  if (!direction) {
+    return;
+  }
+
+  const mode = await promptReferenceSyncMode(vscode);
+  if (!mode) {
+    return;
+  }
+
+  let commandParts;
+  if (mode === "single") {
+    const id = await vscode.window.showInputBox({
+      title: "Reference id",
+      prompt: "Reference entry id to sync",
+      ignoreFocusOut: true,
+      validateInput: (value) => (value.trim() ? null : "Reference id is required")
+    });
+    if (id === undefined) {
+      return;
+    }
+
+    const force = await promptBooleanChoice(vscode, {
+      title: "Overwrite diverged destination",
+      placeHolder: "Pass --force when the destination entry differs?",
+      trueLabel: "Allow overwrite",
+      falseLabel: "No overwrite",
+      defaultValue: false
+    });
+    if (force === undefined) {
+      return;
+    }
+
+    commandParts = buildReferenceSyncCommandParts({
+      direction,
+      id: id.trim(),
+      force
+    });
+  } else {
+    const confirmed = await promptBooleanChoice(vscode, {
+      title: "Batch sync from drift report",
+      placeHolder: "Generate the latest reference drift report and apply it with --force?",
+      trueLabel: "Generate and apply",
+      falseLabel: "Cancel",
+      defaultValue: false
+    });
+    if (confirmed !== true) {
+      return;
+    }
+
+    if (driftDiagnostics) {
+      driftDiagnostics.clear();
+    }
+    const driftResult = await runReferenceDriftWithResolved(
+      vscode,
+      output,
+      extensionContext,
+      driftDiagnostics,
+      resolved,
+      { silentOutcome: true }
+    );
+    if (!driftResult) {
+      return;
+    }
+
+    const reportPath = core.extractReportPath([driftResult.stdout, driftResult.stderr].join("\n"));
+    if (!reportPath) {
+      vscode.window.showErrorMessage("reference drift report path was not found in CLI output.");
+      return;
+    }
+
+    commandParts = buildReferenceSyncCommandParts({
+      direction,
+      report: core.toAbsolutePath(resolved.repoRoot, reportPath),
+      force: true
+    });
+  }
+
+  const result = await runManagedCommandWithResolved(
+    vscode,
+    output,
+    {
+      title: "reference sync",
+      commandParts,
+      extensionContext,
+      requireBook: true
+    },
+    resolved
+  );
+  if (!result) {
+    return;
+  }
+
+  if (viewProvider) {
+    viewProvider.refresh();
+  }
+}
+
+async function resolveReferenceScopeContext(vscode, extensionContext, options = {}) {
+  const startPath = await pickStartPath(vscode, { promptForWorkspace: true });
+  if (!startPath) {
+    vscode.window.showErrorMessage("Open a workspace folder or file before running shosei commands.");
+    return null;
+  }
+
+  const repo = core.findRepoRoot(startPath);
+  if (!repo) {
+    vscode.window.showErrorMessage("Could not find book.yml or series.yml from the current workspace context.");
+    return null;
+  }
+
+  if (repo.mode === "single-book") {
+    return {
+      shared: false,
+      resolved: {
+        repoRoot: repo.repoRoot,
+        mode: repo.mode,
+        bookId: null
+      }
+    };
+  }
+
+  const shared = await promptReferenceScope(vscode, options.title);
+  if (shared === null) {
+    return null;
+  }
+  if (shared) {
+    return {
+      shared: true,
+      resolved: {
+        repoRoot: repo.repoRoot,
+        mode: repo.mode,
+        bookId: null
+      }
+    };
+  }
+
+  const bookId = await resolveSeriesBookId(vscode, extensionContext, repo.repoRoot, startPath);
+  if (!bookId) {
+    return null;
+  }
+
+  return {
+    shared: false,
+    resolved: {
+      repoRoot: repo.repoRoot,
+      mode: repo.mode,
+      bookId
+    }
+  };
+}
+
+async function ensureReferenceWorkspaceInitialized(
+  vscode,
+  output,
+  extensionContext,
+  referenceContext,
+  viewProvider
+) {
+  if (fs.existsSync(referenceEntriesRoot(referenceContext.resolved, referenceContext.shared))) {
+    return true;
+  }
+
+  const selected = await vscode.window.showWarningMessage(
+    `Reference workspace is not initialized at ${referenceWorkspaceRoot(
+      referenceContext.resolved,
+      referenceContext.shared
+    )}.`,
+    "Run Reference Scaffold",
+    "Cancel"
+  );
+  if (selected !== "Run Reference Scaffold") {
+    return false;
+  }
+
+  return Boolean(
+    await runReferenceScaffoldWithResolved(
+      vscode,
+      output,
+      extensionContext,
+      referenceContext.resolved,
+      referenceContext.shared,
+      viewProvider
+    )
+  );
+}
+
 async function resolveProseChapterContext(vscode, extensionContext) {
   const resolved = await resolveExecutionContext(vscode, {
     title: "chapter",
@@ -1549,6 +2014,31 @@ function buildChapterRenumberCommandParts(options) {
   return commandParts;
 }
 
+function buildReferenceScopedCommandParts(subcommand, options = {}) {
+  const commandParts = ["reference", subcommand];
+  if (options.shared) {
+    commandParts.push("--shared");
+  }
+  if (options.force) {
+    commandParts.push("--force");
+  }
+  return commandParts;
+}
+
+function buildReferenceSyncCommandParts(options) {
+  const commandParts = ["reference", "sync", options.direction.flag, "shared"];
+  if (typeof options.id === "string" && options.id.trim()) {
+    commandParts.push("--id", options.id.trim());
+  }
+  if (typeof options.report === "string" && options.report.trim()) {
+    commandParts.push("--report", options.report.trim());
+  }
+  if (options.force) {
+    commandParts.push("--force");
+  }
+  return commandParts;
+}
+
 function defaultTitleForTemplate(configTemplate) {
   switch (configTemplate) {
     case "business":
@@ -1579,6 +2069,28 @@ async function promptQuickPickValue(vscode, items, options) {
   return picked ? picked.value : null;
 }
 
+async function promptReferenceScope(vscode, title) {
+  return promptQuickPickValue(
+    vscode,
+    [
+      {
+        label: "Book Reference Workspace",
+        description: "current book reference entries",
+        value: false
+      },
+      {
+        label: "Shared Reference Workspace",
+        description: "shared/metadata/references",
+        value: true
+      }
+    ],
+    {
+      title: title || "Reference scope",
+      placeHolder: "Select the reference workspace scope"
+    }
+  );
+}
+
 async function promptBooleanChoice(vscode, options) {
   const items = [
     { label: options.trueLabel || "Yes", value: true },
@@ -1593,6 +2105,64 @@ async function promptBooleanChoice(vscode, options) {
     placeHolder: options.placeHolder
   });
   return picked ? picked.value : undefined;
+}
+
+async function promptReferenceSyncDirection(vscode) {
+  return promptQuickPickValue(
+    vscode,
+    [
+      {
+        label: "Shared -> Book",
+        description: "copy a shared reference into the selected book",
+        value: { flag: "--from", label: "shared" }
+      },
+      {
+        label: "Book -> Shared",
+        description: "copy a book reference into shared metadata",
+        value: { flag: "--to", label: "shared" }
+      }
+    ],
+    {
+      title: "Reference sync direction",
+      placeHolder: "Select the direction for reference sync"
+    }
+  );
+}
+
+async function promptReferenceSyncMode(vscode) {
+  return promptQuickPickValue(
+    vscode,
+    [
+      {
+        label: "Single Reference Id",
+        description: "copy one reference entry by id",
+        value: "single"
+      },
+      {
+        label: "Batch From Drift Report",
+        description: "generate the latest drift report and apply it with --force",
+        value: "report"
+      }
+    ],
+    {
+      title: "Reference sync mode",
+      placeHolder: "Select how to choose entries for sync"
+    }
+  );
+}
+
+function referenceWorkspaceRoot(resolved, shared) {
+  if (resolved.mode === "single-book") {
+    return path.join(resolved.repoRoot, "references");
+  }
+  if (shared) {
+    return path.join(resolved.repoRoot, "shared", "metadata", "references");
+  }
+  return path.join(resolved.repoRoot, "books", resolved.bookId, "references");
+}
+
+function referenceEntriesRoot(resolved, shared) {
+  return path.join(referenceWorkspaceRoot(resolved, shared), "entries");
 }
 
 async function promptForSeriesBookId(
@@ -1679,6 +2249,10 @@ module.exports = {
     buildChapterMoveCommandParts,
     buildChapterRemoveCommandParts,
     buildChapterRenumberCommandParts,
+    buildReferenceScopedCommandParts,
+    buildReferenceSyncCommandParts,
+    referenceEntriesRoot,
+    referenceWorkspaceRoot,
     resolveDiagnosticLocation,
     suggestChapterPath,
     validateChapterPathInput

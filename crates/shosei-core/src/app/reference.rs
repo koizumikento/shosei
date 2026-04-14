@@ -119,8 +119,13 @@ pub enum ReferenceMapError {
     SharedRequiresSeries,
     #[error("use either --shared or --book, not both")]
     ConflictingScope,
-    #[error("reference entries directory not found: {path}")]
-    MissingEntriesDir { path: PathBuf },
+    #[error(
+        "reference entries directory not found: {path}\nrun `{scaffold_command}` first to initialize the workspace"
+    )]
+    MissingEntriesDir {
+        path: PathBuf,
+        scaffold_command: String,
+    },
     #[error("failed to scan reference entries directory {path}: {source}")]
     ScanEntriesDir {
         path: PathBuf,
@@ -171,8 +176,13 @@ pub enum ReferenceCheckError {
     SharedRequiresSeries,
     #[error("use either --shared or --book, not both")]
     ConflictingScope,
-    #[error("reference entries directory not found: {path}")]
-    MissingEntriesDir { path: PathBuf },
+    #[error(
+        "reference entries directory not found: {path}\nrun `{scaffold_command}` first to initialize the workspace"
+    )]
+    MissingEntriesDir {
+        path: PathBuf,
+        scaffold_command: String,
+    },
     #[error("failed to scan reference entries directory {path}: {source}")]
     ScanEntriesDir {
         path: PathBuf,
@@ -555,6 +565,7 @@ pub fn reference_map(
     if !workspace.entries_root.is_dir() {
         return Err(ReferenceMapError::MissingEntriesDir {
             path: workspace.entries_root.clone(),
+            scaffold_command: workspace.scope.scaffold_command(),
         });
     }
 
@@ -604,6 +615,7 @@ pub fn reference_check(
     if !workspace.entries_root.is_dir() {
         return Err(ReferenceCheckError::MissingEntriesDir {
             path: workspace.entries_root.clone(),
+            scaffold_command: workspace.scope.scaffold_command(),
         });
     }
 
@@ -812,6 +824,16 @@ impl ReferenceScope {
             Self::SingleBook => "single-book reference workspace".to_string(),
             Self::SeriesBook { book_id } => format!("reference workspace for {book_id}"),
             Self::SharedSeries => "shared series reference workspace".to_string(),
+        }
+    }
+
+    fn scaffold_command(&self) -> String {
+        match self {
+            Self::SingleBook => "shosei reference scaffold".to_string(),
+            Self::SeriesBook { book_id } => {
+                format!("shosei reference scaffold --book {book_id}")
+            }
+            Self::SharedSeries => "shosei reference scaffold --shared".to_string(),
         }
     }
 
