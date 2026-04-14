@@ -196,6 +196,10 @@ fn report_path(resolved: &config::ResolvedBookConfig) -> PathBuf {
         .join(format!("{book_id}-page-check.json"))
 }
 
+fn manga_pages_dir(book_root: &Path) -> PathBuf {
+    book_root.join("manga").join("pages")
+}
+
 fn write_report(path: &Path, report: &PageCheckReport) -> Result<(), PageCheckError> {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent).map_err(|source| PageCheckError::WriteReport {
@@ -271,7 +275,7 @@ fn page_order_issues(book_root: &Path, page_files: &[PathBuf]) -> Vec<Validation
             "lexicographic page order differs from numeric order".to_string(),
             "ページ順はファイル名の辞書順で決まります。ゼロ埋めした連番へ揃えてください。",
         )
-        .at(book_root.join("manga/pages")),
+        .at(manga_pages_dir(book_root)),
     ]
 }
 
@@ -300,7 +304,7 @@ fn page_size_issues(
                 ),
                 "manga/pages/ の画像を修正し、すべてのページを同じ仕上がりサイズに揃えてください。",
             )
-            .at(book_root.join("manga/pages").join(&page.file_name))
+            .at(manga_pages_dir(book_root).join(&page.file_name))
         })
         .collect()
 }
@@ -327,7 +331,8 @@ fn kindle_spread_policy_issues(
             .as_ref()
             .expect("book context must exist")
             .root
-            .join("manga/pages")
+            .join("manga")
+            .join("pages")
             .join(file_name)
     };
 
@@ -389,7 +394,8 @@ fn manga_color_policy_issues(
             .as_ref()
             .expect("book context must exist")
             .root
-            .join("manga/pages")
+            .join("manga")
+            .join("pages")
             .join(file_name)
     };
 

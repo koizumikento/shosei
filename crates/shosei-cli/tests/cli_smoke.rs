@@ -294,7 +294,10 @@ fn page_check_cli_prints_summary_and_issue_preview() {
     assert!(stdout.contains("spread candidates: none"));
     assert!(stdout.contains("issues:"));
     assert!(stdout.contains("[warn] lexicographic page order differs from numeric order"));
-    assert!(stdout.contains(&format!("location: {}", root.join("manga/pages").display())));
+    assert!(stdout.contains(&format!(
+        "location: {}",
+        root.join("manga").join("pages").display()
+    )));
     assert!(stdout.contains(
         "remedy: ページ順はファイル名の辞書順で決まります。ゼロ埋めした連番へ揃えてください。"
     ));
