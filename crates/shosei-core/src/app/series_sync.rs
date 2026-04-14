@@ -238,8 +238,13 @@ fn sync_generated_backmatter(book_config_path: &Path) -> Result<bool, SeriesSync
         return Ok(false);
     }
 
-    let manuscript = ensure_mapping(root, "manuscript");
-    let backmatter = ensure_sequence(manuscript, "backmatter");
+    let manuscript = ensure_optional_mapping(root, "manuscript", book_config_path)?;
+    let backmatter = ensure_optional_sequence(
+        manuscript,
+        "backmatter",
+        "manuscript.backmatter",
+        book_config_path,
+    )?;
     let already_present = backmatter
         .iter()
         .any(|entry| entry.as_str() == Some(GENERATED_BACKMATTER_PATH));
@@ -355,24 +360,41 @@ fn string_at(mapping: &Mapping, key: &str, file_path: &Path) -> Result<String, S
         })
 }
 
-fn ensure_mapping<'a>(mapping: &'a mut Mapping, key: &str) -> &'a mut Mapping {
+fn ensure_optional_mapping<'a>(
+    mapping: &'a mut Mapping,
+    key: &str,
+    file_path: &Path,
+) -> Result<&'a mut Mapping, SeriesSyncError> {
     let value = mapping
         .entry(Value::String(key.to_string()))
         .or_insert_with(|| Value::Mapping(Mapping::new()));
     if !matches!(value, Value::Mapping(_)) {
-        *value = Value::Mapping(Mapping::new());
+        return Err(SeriesSyncError::InvalidFieldType {
+            path: file_path.to_path_buf(),
+            field: key.to_string(),
+            expected: "a mapping",
+        });
     }
-    value.as_mapping_mut().expect("mapping inserted above")
+    Ok(value.as_mapping_mut().expect("mapping inserted above"))
 }
 
-fn ensure_sequence<'a>(mapping: &'a mut Mapping, key: &str) -> &'a mut Vec<Value> {
+fn ensure_optional_sequence<'a>(
+    mapping: &'a mut Mapping,
+    key: &str,
+    field: &str,
+    file_path: &Path,
+) -> Result<&'a mut Vec<Value>, SeriesSyncError> {
     let value = mapping
         .entry(Value::String(key.to_string()))
         .or_insert_with(|| Value::Sequence(Vec::new()));
     if !matches!(value, Value::Sequence(_)) {
-        *value = Value::Sequence(Vec::new());
+        return Err(SeriesSyncError::InvalidFieldType {
+            path: file_path.to_path_buf(),
+            field: field.to_string(),
+            expected: "a sequence",
+        });
     }
-    value.as_sequence_mut().expect("sequence inserted above")
+    Ok(value.as_sequence_mut().expect("sequence inserted above"))
 }
 
 fn relative_to(root: &Path, path: &Path) -> String {
@@ -500,5 +522,53 @@ manuscript:
         let result = series_sync(&CommandContext::new(&root, None, None)).unwrap();
 
         assert!(result.updated_books.is_empty());
+    }
+
+    #[test]
+    fn series_sync_rejects_non_sequence_backmatter_without_rewriting_book() {
+        let root = temp_dir("invalid-backmatter");
+        fs::create_dir_all(root.join("books/vol-01/manuscript")).unwrap();
+        fs::write(
+            root.join("series.yml"),
+            r#"
+series:
+  id: demo
+  title: "Demo Series"
+  language: ja
+  type: novel
+books:
+  - id: vol-01
+    path: books/vol-01
+    number: 1
+    title: "Volume 1"
+"#,
+        )
+        .unwrap();
+        let original = r#"
+project:
+  type: novel
+  vcs: git
+book:
+  title: "Volume 1"
+  authors:
+    - "Author"
+manuscript:
+  chapters:
+    - books/vol-01/manuscript/01.md
+  backmatter: shared/metadata/existing.md
+"#;
+        fs::write(root.join("books/vol-01/book.yml"), original).unwrap();
+        fs::write(root.join("books/vol-01/manuscript/01.md"), "# Chapter 1\n").unwrap();
+
+        let error = series_sync(&CommandContext::new(&root, None, None)).unwrap_err();
+
+        assert!(matches!(
+            error,
+            SeriesSyncError::InvalidFieldType { ref field, .. } if field == "manuscript.backmatter"
+        ));
+        assert_eq!(
+            fs::read_to_string(root.join("books/vol-01/book.yml")).unwrap(),
+            original
+        );
     }
 }
