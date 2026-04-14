@@ -133,7 +133,7 @@ VS Code 拡張のような editor integration は追加してよいが、build /
 
 リポジトリ管理単位の詳細は [リポジトリ管理モデル](repository-model.md) を参照する。
 
-初期構成の標準形は以下とする。`project.type` に応じて prose (`editorial/` + `manuscript/`) か manga (`manga/`) のどちらかを生成し、`story/` workspace は `shosei story scaffold` で追加する。
+初期構成の標準形は以下とする。`project.type` に応じて prose (`editorial/` + `manuscript/`) か manga (`manga/`) のどちらかを生成し、`references/` と `story/` workspace は必要なときだけ明示 command で追加する。
 
 ```text
 project/
@@ -147,6 +147,8 @@ project/
     skills/
       shosei-project/
         SKILL.md
+  [opt-in] references/
+  [opt-in] story/
   [prose] manuscript/
     01-chapter-1.md
   [manga] manga/
@@ -173,6 +175,7 @@ project/
 - `manuscript/` は文章書籍向け
 - `manga/` は漫画向け
 - `editorial/` は prose 系で表記、根拠、図表、鮮度管理を置く
+- `references/` は参考リンクと作業メモを置く opt-in workspace
 - `story/` は物語補助を使う場合だけ `shosei story scaffold` で追加する opt-in workspace
 - `assets/cover/` の画像は外部カバーアセットとし、本文 frontmatter とは分離する
 - 実際に使わないディレクトリは空でもよい
@@ -557,7 +560,163 @@ v0.1 の最小要件:
 - report mode では `--report` を必須にし、`--kind` / `--id` は受け付けない
 - report mode は `--force` を必須にする
 
-### 7.16 将来候補
+### 7.16 `shosei reference scaffold`
+
+repo-native な参考資料 workspace を生成する。
+
+- `shosei reference scaffold`
+- `shosei reference scaffold --book vol-01`
+- `shosei reference scaffold --shared`
+
+主な責務:
+
+- `single-book` では `references/` を生成する
+- `series` では `shared/metadata/references/` と `books/<book-id>/references/` を分ける
+- `README.md` と最小 template file を生成する
+- 既存 file は既定で保持し、`--force` のときだけ上書きする
+
+非責務:
+
+- reference entry の検索や一覧
+- broken link の検査
+- `editorial.claims.yml` や本文との自動照合
+- `book.yml` / `series.yml` への reference field 追加
+
+v0.1 の最小要件:
+
+- manual-first の scaffold のみ提供する
+- `single-book` / `series` の repo discovery ルールに従う
+- shared reference と巻固有 reference を混同しない
+- reference entry は Markdown + frontmatter の 1 file 1 entry を前提にする
+
+### 7.17 `shosei reference map`
+
+reference entry 一覧を読み、text と report を出力する。
+
+- `shosei reference map`
+- `shosei reference map --book vol-01`
+- `shosei reference map --shared`
+
+主な責務:
+
+- `single-book` では `references/entries/` を読む
+- `series` では `shared/metadata/references/entries/` または `books/<book-id>/references/entries/` を読む
+- entry 数と一覧を text summary に出す
+- machine-readable な JSON report を出力する
+
+非責務:
+
+- duplicate `id` の検査
+- broken link の検査
+- 本文や `editorial.claims.yml` との参照整合
+- shared/book 間の同期
+
+v0.1 の最小要件:
+
+- manual-first の一覧出力に留める
+- `single-book` / `series` の repo discovery ルールに従う
+- shared reference と巻固有 reference を混同しない
+- frontmatter に `id`, `title`, `links`, `tags`, `related_sections`, `status` を置ける
+- `id` は frontmatter 優先、未指定時は filename stem を使う
+
+### 7.18 `shosei reference check`
+
+reference entry を検査し、issue report を出力する。
+
+- `shosei reference check`
+- `shosei reference check --book vol-01`
+- `shosei reference check --shared`
+
+主な責務:
+
+- `single-book` では `references/entries/` を読む
+- `series` では `shared/metadata/references/entries/` または `books/<book-id>/references/entries/` を読む
+- frontmatter shape の破損を error として report する
+- duplicate `id` を error として report する
+- `links` と `related_sections` の local path を軽く検査し、missing target を warning として report する
+- prose book では `editorial.claims.yml` の `sources` にある `ref:<id>` を reference entry id として解決する
+- machine-readable な JSON report を出力する
+
+非責務:
+
+- 外部 URL の到達確認
+- 本文との参照整合
+- shared/book 間の drift 判定や同期
+
+v0.1 の最小要件:
+
+- manual-first の lightweight check に留める
+- `single-book` / `series` の repo discovery ルールに従う
+- shared reference と巻固有 reference を混同しない
+- `links` は URL または repo-relative path を受け付ける
+- `related_sections` は repo-relative path を受け付ける
+- prose book では `editorial.claims.yml` の `ref:<id>` source を同じ book の reference id と照合できる
+
+### 7.19 `shosei reference drift`
+
+`series` で shared reference と巻固有 reference の重複、分岐、gap を report 化する。
+
+- `shosei reference drift --book vol-01`
+
+主な責務:
+
+- `shared/metadata/references/entries/` と `books/<book-id>/references/entries/` を比較する
+- 同じ `id` を shared と book の両方が持つ entry を `drifts` 配列に出す
+- 同一内容なら warning として `redundant-copy` を report する
+- 異なる内容なら error として `drift` を report する
+- shared にだけある entry と book にだけある entry を `gaps` 配列に出す
+- `shared-only`, `book-only` gap は warning として report する
+- invalid frontmatter や same-scope duplicate `id` も issue として report する
+- machine-readable な JSON report を出力する
+
+非責務:
+
+- shared/book 間の自動同期
+- local path や外部 URL の再検証
+
+v0.1 の最小要件:
+
+- `series` の book scope 専用にする
+- repo root からは `--book <book-id>` を要求する
+- `entries/` directory が存在しない scope は empty として扱う
+- `id` は frontmatter 優先、未指定時は filename stem を使う
+
+### 7.20 `shosei reference sync`
+
+`series` で shared reference と巻固有 reference の間を明示コピーする。単体 sync と `reference drift` report を使う batch sync の両方を扱う。
+
+- `shosei reference sync --book vol-01 --from shared --id market`
+- `shosei reference sync --book vol-01 --to shared --id market`
+- `shosei reference sync --book vol-01 --from shared --id market --force`
+- `shosei reference sync --book vol-01 --to shared --id market --force`
+- `shosei reference sync --book vol-01 --from shared --report dist/reports/vol-01-reference-drift.json --force`
+- `shosei reference sync --book vol-01 --to shared --report dist/reports/vol-01-reference-drift.json --force`
+
+主な責務:
+
+- 単体 mode では source scope から `id` で 1 entry を選ぶ
+- `--from shared` では `books/<book-id>/references/entries/` へ同じ entry を copy する
+- `--to shared` では `shared/metadata/references/entries/` へ同じ entry を copy する
+- `--report` 時は `reference drift` report の `drifts` 配列と source 側に存在する `gaps` を読んで対象 entry 群を確定する
+- `--from shared` は `shared-only` gap を適用し、`book-only` gap は skip する
+- `--to shared` は `book-only` gap を適用し、`shared-only` gap は skip する
+- destination 側に diverged copy がある場合、`--force` が無ければ error にする
+- `--force` 時のみ source 内容で destination 側を上書きする
+
+非責務:
+
+- automatic merge
+- local path や外部 URL の再検証
+
+v0.1 の最小要件:
+
+- `series` のみ対象とする
+- `--from shared` か `--to shared` のどちらか一方を必須にする
+- 単体 mode では `id` を 1 件だけ指定する
+- report mode では `--report` を必須にし、`--id` は受け付けない
+- report mode は `--force` を必須にする
+
+### 7.21 将来候補
 
 - `shosei release`: handoff + tag 前提の成果物固定化
 - `shosei page add`

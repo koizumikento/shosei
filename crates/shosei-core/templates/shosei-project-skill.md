@@ -42,6 +42,12 @@ Use this skill for day-to-day work inside this repository. It is repo-scoped on 
    - Config changes go through `book.yml` / `series.yml`.
    - Prose content lives in `manuscript/`.
    - Manga content lives in `manga/script/`, `manga/storyboard/`, `manga/pages/`, `manga/spreads/`, and `manga/metadata/`.
+   - Reference support is opt-in. Start with `shosei reference scaffold` for `single-book`, `shosei reference scaffold --book <book-id>` for book-scoped `series` work, or `shosei reference scaffold --shared` for shared reference notes.
+   - When reference support is present, edit only explicit reference files such as Markdown under `references/entries/`, `books/<book-id>/references/entries/`, or `shared/metadata/references/entries/`.
+   - Use `shosei reference map`, `shosei reference map --book <book-id>`, or `shosei reference map --shared` to inspect which reference entries are currently tracked before expanding the workspace further.
+   - Use `shosei reference check`, `shosei reference check --book <book-id>`, or `shosei reference check --shared` when you need a lightweight check for frontmatter shape, duplicate `id`, or missing local reference paths.
+   - In `series`, use `shosei reference drift --book <book-id>` to compare shared and book-scoped reference entries before deciding whether shared or book should be the source of truth.
+   - Use `shosei reference sync --book <book-id> --from shared|--to shared --id <id>` for a single explicit copy, or `--report <drift-report> --force` to apply a reviewed drift report in one direction.
    - Story support is opt-in. Start with `shosei story scaffold` for `single-book`, `shosei story scaffold --book <book-id>` for book-scoped `series` work, or `shosei story scaffold --shared` for shared canon notes.
    - When story support is present, edit only explicit story files such as `story/scenes.yml`, `books/<book-id>/story/scenes.yml`, Markdown under those story directories, or `shared/metadata/story/` for shared canon notes.
    - Use `shosei story map` / `shosei story map --book <book-id>` to inspect scene lists and `shosei story check` / `shosei story check --book <book-id>` for lightweight scene/entity checks before expanding the workspace further.

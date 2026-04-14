@@ -28,6 +28,8 @@ Architecture Decision Record の一覧。
 - [ADR-0024: 論文と発表前刷りは prose 系として扱い、発表前刷りは print layout preset で表す](0024-paper-and-preprint-stay-in-prose.md)
 - [ADR-0025: VS Code 拡張は `shosei` CLI を呼び出す薄いアダプタにする](0025-vscode-extension-shells-out-to-cli.md)
 - [ADR-0026: prose print の v0.1 PDF backend は weasyprint を正式採用する](0026-prose-print-uses-weasyprint-in-v0.1.md)
+- [ADR-0027: 参考資料ワークスペースは独立した opt-in surface として導入する](0027-reference-workspace-starts-as-an-explicit-opt-in-surface.md)
+- [ADR-0028: `claims.yml` の reference source は `ref:<id>` で明示する](0028-claims-source-ref-prefix-links-editorial-and-reference.md)
 
 記法:
 

@@ -45,6 +45,7 @@ shosei build --target print
 | `shosei validate` | config / preflight を検証する | 利用可能 |
 | `shosei preview` | one-shot / watch preview を生成する | 利用可能 |
 | `shosei chapter <subcommand>` | prose の `manuscript.chapters` を更新する | 利用可能 |
+| `shosei reference <subcommand>` | 参考資料 workspace と entry 一覧 / check / drift / sync を扱う | 利用可能 |
 | `shosei story <subcommand>` | story workspace と scene map を扱う | 利用可能 |
 | `shosei series sync` | series metadata と prose backmatter を同期する | 利用可能 |
 | `shosei page check` | manga のページ順と見開き候補を検査する | 利用可能 |
@@ -85,6 +86,24 @@ shosei page check
 shosei page check --book vol-01
 ```
 
+`reference scaffold` は参考リンクや作業メモの workspace を生成する。`single-book` では `references/`、`series` では共有用の `shared/metadata/references/` か巻固有の `books/<book-id>/references/` を作る。
+
+```bash
+shosei reference scaffold
+shosei reference scaffold --book vol-01
+shosei reference scaffold --shared
+shosei reference map
+shosei reference map --book vol-01
+shosei reference map --shared
+shosei reference check
+shosei reference check --book vol-01
+shosei reference check --shared
+shosei reference drift --book vol-01
+shosei reference sync --book vol-01 --from shared --id market
+shosei reference sync --book vol-01 --to shared --id market
+shosei reference sync --book vol-01 --from shared --report dist/reports/vol-01-reference-drift.json --force
+```
+
 `story scaffold` は物語補助の workspace を生成する。`single-book` では `story/`、`series` では共有 canon 用の `shared/metadata/story/` か巻固有の `books/<book-id>/story/` を作る。
 
 ```bash
@@ -118,6 +137,101 @@ shosei chapter add books/vol-01/manuscript/02.md --book vol-01 --title "Chapter 
 `page check` とは別系統で、`manga/pages/` や manga metadata には触れない。
 
 `renumber` は章順を変えずに filename prefix だけを整える。`book.yml` の `manuscript.chapters` と対応する `sections.file` は更新するが、Markdown 本文中の link destination は自動 rewrite しない。
+
+## Reference scaffold
+
+`reference scaffold` は manual-first の参考資料 workspace を作る。
+
+- `single-book`: `references/`
+- `series --shared`: `shared/metadata/references/`
+- `series --book <book-id>`: `books/<book-id>/references/`
+
+生成するもの:
+
+- `README.md`
+- `entries/README.md`
+
+既定では既存 file を保持し、template を上書きしたい場合だけ `--force` を付ける。
+
+## Reference map
+
+`reference map` は reference workspace の `entries/` を読み、entry 一覧と JSON report を出す。
+
+- `single-book`: `references/entries/`
+- `series --shared`: `shared/metadata/references/entries/`
+- `series --book <book-id>`: `books/<book-id>/references/entries/`
+- report: `single-book` は `dist/reports/default-reference-map.json`、`series --shared` は `dist/reports/shared-reference-map.json`、`series --book <book-id>` は `dist/reports/<book-id>-reference-map.json`
+
+entry frontmatter の最小 shape:
+
+```yaml
+id: market-report-2026
+title: 2026年国内市場レポート
+links:
+  - https://example.com/report
+tags:
+  - market
+status: unread
+```
+
+- `id` は frontmatter 優先、未指定時は filename stem
+- `title`, `status` は任意
+- `links`, `tags`, `related_sections` は任意の string 配列
+- `README.md` は scan 対象外
+
+## Reference check
+
+`reference check` は reference workspace の `entries/` を読み、frontmatter shape、duplicate `id`、local path を軽く検査して JSON report を出す。prose book では、`editorial.claims.yml` の `sources` にある `ref:<id>` も照合する。
+
+- `single-book`: `references/entries/`
+- `series --shared`: `shared/metadata/references/entries/`
+- `series --book <book-id>`: `books/<book-id>/references/entries/`
+- report: `single-book` は `dist/reports/default-reference-check.json`、`series --shared` は `dist/reports/shared-reference-check.json`、`series --book <book-id>` は `dist/reports/<book-id>-reference-check.json`
+
+v0.1 の検査対象:
+
+- invalid / unclosed frontmatter
+- `id` の空文字や duplicate `id`
+- `links` の local repo path
+- `related_sections` の repo-relative path
+- `claims.yml` の `ref:<id>`
+- local path が存在しない場合は warning
+- 解決できない `ref:<id>` は error
+- `claims.yml` の `ref:<id>` は `single-book` では current book、`series --book <book-id>` では current book と shared の reference id に解決する
+- `https://`, `http://`, `mailto:`, `tel:`, `#anchor` は存在確認しない
+
+## Reference drift
+
+`reference drift` は `series` の shared reference と巻固有 reference の衝突と gap を JSON report に出す。
+
+- 対象: `shared/metadata/references/entries/` と `books/<book-id>/references/entries/`
+- report: `dist/reports/<book-id>-reference-drift.json`
+- 同じ `id` が shared と book の両方にある entry だけを比較する
+- 同じ内容なら `redundant-copy` として warning
+- 異なる内容なら `drift` として error
+- shared にだけある entry は `shared-only`
+- book にだけある entry は `book-only`
+- invalid frontmatter や same-scope duplicate `id` も issue に含める
+- `entries/` directory が存在しない scope は empty として扱う
+
+## Reference sync
+
+`reference sync` は `series` で shared reference と巻固有 reference の間を明示コピーする。単体 sync と、`reference drift` report からの batch sync を持つ。
+
+- 例: `shosei reference sync --book vol-01 --from shared --id market`
+- 例: `shosei reference sync --book vol-01 --to shared --id market`
+- 例: `shosei reference sync --book vol-01 --from shared --report dist/reports/vol-01-reference-drift.json --force`
+- `--from shared` か `--to shared` のどちらか一方を使う
+- 単体 mode では `id` を 1 件指定する
+- report mode では `--report` を使い、`--id` は使わない
+- report mode は `--force` 必須
+- report mode では `drifts` に加えて source 側にある `gaps` も適用する
+- `--from shared` は `shared-only` gap を適用し、`book-only` gap は skip する
+- `--to shared` は `book-only` gap を適用し、`shared-only` gap は skip する
+- destination 側に同じ `id` があり内容が違う場合は error
+- `--force` を付けた場合だけ source 内容で destination 側を上書きする
+- destination 側に同じ内容があれば no-op
+- destination 側に同じ `id` が無い場合は source filename を引き継いで新規作成する
 
 ## Story scaffold
 
