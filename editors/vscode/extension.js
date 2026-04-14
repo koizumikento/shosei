@@ -675,6 +675,7 @@ async function runInitCommand(vscode, output, extensionContext, viewProvider) {
     commandParts: core.buildInitCommandParts({
       path: normalizedTarget,
       configTemplate: initOptions.configTemplate,
+      configProfile: initOptions.configProfile,
       repoMode: initOptions.repoMode,
       title: initOptions.title,
       author: initOptions.author,
@@ -1101,6 +1102,11 @@ async function promptInitOptions(vscode, targetRoot) {
     vscode,
     [
       {
+        label: "Paper",
+        description: "horizontal prose, print-first by default",
+        value: "paper"
+      },
+      {
         label: "Novel",
         description: "vertical prose, single-book by default",
         value: "novel"
@@ -1130,6 +1136,32 @@ async function promptInitOptions(vscode, targetRoot) {
     return null;
   }
 
+  const configProfile =
+    configTemplate === "paper"
+      ? await promptQuickPickValue(
+          vscode,
+          [
+            {
+              label: "Paper",
+              description: "general paper or report scaffold",
+              value: "paper"
+            },
+            {
+              label: "Conference Preprint",
+              description: "A4 two-column preprint preset",
+              value: "conference-preprint"
+            }
+          ],
+          {
+            title: "Paper profile",
+            placeHolder: "Select the profile written to book.yml"
+          }
+        )
+      : null;
+  if (configTemplate === "paper" && !configProfile) {
+    return null;
+  }
+
   const repoMode = await promptQuickPickValue(vscode, buildRepoModeItems(configTemplate), {
     title: "Repository mode",
     placeHolder: "Select the repository layout"
@@ -1141,7 +1173,7 @@ async function promptInitOptions(vscode, targetRoot) {
   const title = await vscode.window.showInputBox({
     title: "Book title",
     prompt: "Title written to book.yml or series.yml",
-    value: defaultTitleForTemplate(configTemplate),
+    value: defaultTitleForTemplate(configProfile || configTemplate),
     ignoreFocusOut: true,
     validateInput: (value) => (value.trim() ? null : "Title is required")
   });
@@ -1173,23 +1205,7 @@ async function promptInitOptions(vscode, targetRoot) {
 
   const outputPreset = await promptQuickPickValue(
     vscode,
-    [
-      {
-        label: "Kindle",
-        description: "enable Kindle output only",
-        value: "kindle"
-      },
-      {
-        label: "Print",
-        description: "enable print output only",
-        value: "print"
-      },
-      {
-        label: "Both",
-        description: "enable Kindle and print outputs",
-        value: "both"
-      }
-    ],
+    buildOutputPresetItems(configTemplate),
     {
       title: "Output preset",
       placeHolder: "Select the output preset for the scaffold"
@@ -1227,6 +1243,7 @@ async function promptInitOptions(vscode, targetRoot) {
 
   return {
     configTemplate,
+    configProfile,
     repoMode,
     title: title.trim(),
     author: author.trim(),
@@ -1386,6 +1403,37 @@ function buildRepoModeItems(configTemplate) {
   });
 }
 
+function buildOutputPresetItems(configTemplate) {
+  const defaultOutputPreset = configTemplate === "paper" ? "print" : "kindle";
+  const items = [
+    {
+      label: "Kindle",
+      description: "enable Kindle output only",
+      value: "kindle"
+    },
+    {
+      label: "Print",
+      description: "enable print output only",
+      value: "print"
+    },
+    {
+      label: "Both",
+      description: "enable Kindle and print outputs",
+      value: "both"
+    }
+  ];
+
+  return items.sort((left, right) => {
+    if (left.value === defaultOutputPreset) {
+      return -1;
+    }
+    if (right.value === defaultOutputPreset) {
+      return 1;
+    }
+    return left.label.localeCompare(right.label);
+  });
+}
+
 function suggestChapterPath(explain) {
   const chapters = explain?.manuscript?.chapters || [];
   const nextNumber = String(chapters.length + 1).padStart(2, "0");
@@ -1483,6 +1531,10 @@ function defaultTitleForTemplate(configTemplate) {
   switch (configTemplate) {
     case "business":
       return "Untitled Business Book";
+    case "paper":
+      return "Untitled Paper";
+    case "conference-preprint":
+      return "Untitled Conference Preprint";
     case "light-novel":
       return "Untitled Light Novel";
     case "manga":

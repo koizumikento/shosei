@@ -105,6 +105,39 @@ test("buildInitCommandParts maps guided init answers to flags", () => {
   ]);
 });
 
+test("buildInitCommandParts includes paper config profile when selected", () => {
+  const commandParts = core.buildInitCommandParts({
+    path: "/tmp/preprint",
+    configTemplate: "paper",
+    configProfile: "conference-preprint",
+    repoMode: "single-book",
+    title: "Preprint",
+    author: "Ken",
+    language: "ja",
+    outputPreset: "print"
+  });
+
+  assert.deepEqual(commandParts, [
+    "init",
+    "/tmp/preprint",
+    "--non-interactive",
+    "--config-template",
+    "paper",
+    "--config-profile",
+    "conference-preprint",
+    "--repo-mode",
+    "single-book",
+    "--title",
+    "Preprint",
+    "--author",
+    "Ken",
+    "--language",
+    "ja",
+    "--output-preset",
+    "print"
+  ]);
+});
+
 test("resolveCliTooling falls back to repo cargo manifest in development", () => {
   const root = tempDir("dev-cli");
   const extensionPath = path.join(root, "editors", "vscode");

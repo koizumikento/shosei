@@ -254,7 +254,7 @@ shosei chapter add books/vol-01/manuscript/02.md --book vol-01 --title "Chapter 
             <li>heading hierarchy の飛び級</li>
             <li>prose project の editorial sidecar に基づく表記ゆれ、claim / figure / freshness の検査</li>
             <li>Kindle / print / manga 向けの target 別警告</li>
-            <li><code>conference-preprint</code> profile の A4 / 2 段 / print preset 逸脱 warning</li>
+            <li><code>conference-preprint</code> profile の print preset 逸脱 warning</li>
           </ul>
           <p>severity は <code>validation.accessibility</code>, <code>validation.missing_image</code>, <code>validation.missing_alt</code>, <code>validation.broken_link</code> の設定で調整できます。</p>
           <p>issue の <code>location</code> は、特定できる場合は file path に加えて line 番号も持ちます。</p>
@@ -333,7 +333,7 @@ pdf:
 
         <section>
           <h2>Generated scaffold</h2>
-          <p><code>init</code> は標準では短い対話式で、作品カテゴリ、repo mode、タイトル、著者名、言語、出力先を確認してから scaffold を生成します。<code>--non-interactive --config-template &lt;template&gt;</code> を使うと既定値で生成できます。<code>--title</code>, <code>--author</code>, <code>--language</code>, <code>--output-preset</code>, <code>--repo-mode</code> で対話項目を explicit に上書きできます。<code>paper</code> では追加で <code>--config-profile paper|conference-preprint</code> を受け付けます。</p>
+          <p><code>init</code> は標準では短い対話式で、作品カテゴリ、<code>paper</code> の場合は profile、repo mode、タイトル、著者名、言語、出力先を確認してから scaffold を生成します。<code>--non-interactive --config-template &lt;template&gt;</code> を使うと既定値で生成できます。<code>--title</code>, <code>--author</code>, <code>--language</code>, <code>--output-preset</code>, <code>--repo-mode</code> で対話項目を explicit に上書きできます。<code>paper</code> では追加で <code>--config-profile paper|conference-preprint</code> を受け付けます。</p>
           <p>テンプレートに応じて、次のような土台を生成します。</p>
           <ul>
             <li>`book.yml` または `series.yml`</li>

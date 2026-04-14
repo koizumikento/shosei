@@ -299,66 +299,156 @@ fn schema_warning_issues(resolved: &config::ResolvedBookConfig) -> Vec<Validatio
     }
 
     if resolved.effective.book.profile == "conference-preprint" {
+        let pdf = resolved.effective.pdf.as_ref();
+        let print = resolved.effective.print.as_ref();
+        let mut push_preprint_warning = |summary: &str, detail: &str| {
+            issues.push(
+                ValidationIssue::warning("print", summary.to_string(), detail.to_string())
+                    .at(config_path.clone()),
+            );
+        };
+
         if resolved.effective.outputs.print.is_none() {
-            issues.push(
-                ValidationIssue::warning(
-                    "print",
-                    "conference-preprint profile usually expects print output".to_string(),
-                    "conference-preprint では outputs.print.enabled を true にしてください。",
-                )
-                .at(config_path.clone()),
+            push_preprint_warning(
+                "conference-preprint profile usually expects print output",
+                "conference-preprint では outputs.print.enabled を true にしてください。",
             );
         }
 
-        if resolved
-            .effective
-            .pdf
-            .as_ref()
-            .map(|pdf| pdf.column_count != 2)
+        if pdf
+            .map(|settings| settings.engine != config::PdfEngine::Weasyprint)
             .unwrap_or(true)
         {
-            issues.push(
-                ValidationIssue::warning(
-                    "print",
-                    "conference-preprint profile usually expects pdf.column_count = 2".to_string(),
-                    "conference-preprint では pdf.column_count を 2 にしてください。",
-                )
-                .at(config_path.clone()),
+            push_preprint_warning(
+                "conference-preprint profile usually expects pdf.engine = weasyprint",
+                "conference-preprint では pdf.engine を weasyprint にしてください。",
             );
         }
 
-        if resolved
-            .effective
-            .print
-            .as_ref()
-            .map(|print| print.trim_size != config::PrintTrimSize::A4)
+        if pdf.map(|settings| settings.toc).unwrap_or(true) {
+            push_preprint_warning(
+                "conference-preprint profile usually expects pdf.toc = false",
+                "conference-preprint では pdf.toc を false にしてください。",
+            );
+        }
+
+        if pdf.map(|settings| settings.page_number).unwrap_or(true) {
+            push_preprint_warning(
+                "conference-preprint profile usually expects pdf.page_number = false",
+                "conference-preprint では pdf.page_number を false にしてください。",
+            );
+        }
+
+        if pdf
+            .map(|settings| settings.running_header != config::PdfRunningHeader::None)
             .unwrap_or(true)
         {
-            issues.push(
-                ValidationIssue::warning(
-                    "print",
-                    "conference-preprint profile usually expects print.trim_size = A4".to_string(),
-                    "conference-preprint では print.trim_size を A4 にしてください。",
-                )
-                .at(config_path.clone()),
+            push_preprint_warning(
+                "conference-preprint profile usually expects pdf.running_header = none",
+                "conference-preprint では pdf.running_header を none にしてください。",
             );
         }
 
-        if resolved
-            .effective
-            .print
-            .as_ref()
-            .and_then(|print| print.max_pages)
-            .map(|max_pages| max_pages > 2)
-            .unwrap_or(false)
+        if pdf
+            .map(|settings| settings.column_count != 2)
+            .unwrap_or(true)
         {
-            issues.push(
-                ValidationIssue::warning(
-                    "print",
-                    "conference-preprint profile usually expects print.max_pages <= 2".to_string(),
-                    "conference-preprint では print.max_pages を 2 以下にしてください。",
-                )
-                .at(config_path.clone()),
+            push_preprint_warning(
+                "conference-preprint profile usually expects pdf.column_count = 2",
+                "conference-preprint では pdf.column_count を 2 にしてください。",
+            );
+        }
+
+        if pdf
+            .map(|settings| settings.column_gap != "10mm")
+            .unwrap_or(true)
+        {
+            push_preprint_warning(
+                "conference-preprint profile usually expects pdf.column_gap = 10mm",
+                "conference-preprint では pdf.column_gap を 10mm にしてください。",
+            );
+        }
+
+        if pdf
+            .map(|settings| settings.base_font_size != "9pt")
+            .unwrap_or(true)
+        {
+            push_preprint_warning(
+                "conference-preprint profile usually expects pdf.base_font_size = 9pt",
+                "conference-preprint では pdf.base_font_size を 9pt にしてください。",
+            );
+        }
+
+        if pdf
+            .map(|settings| settings.line_height != "14pt")
+            .unwrap_or(true)
+        {
+            push_preprint_warning(
+                "conference-preprint profile usually expects pdf.line_height = 14pt",
+                "conference-preprint では pdf.line_height を 14pt にしてください。",
+            );
+        }
+
+        if print
+            .map(|settings| settings.trim_size != config::PrintTrimSize::A4)
+            .unwrap_or(true)
+        {
+            push_preprint_warning(
+                "conference-preprint profile usually expects print.trim_size = A4",
+                "conference-preprint では print.trim_size を A4 にしてください。",
+            );
+        }
+
+        if print
+            .map(|settings| settings.bleed != "0mm")
+            .unwrap_or(true)
+        {
+            push_preprint_warning(
+                "conference-preprint profile usually expects print.bleed = 0mm",
+                "conference-preprint では print.bleed を 0mm にしてください。",
+            );
+        }
+
+        if print.map(|settings| settings.crop_marks).unwrap_or(true) {
+            push_preprint_warning(
+                "conference-preprint profile usually expects print.crop_marks = false",
+                "conference-preprint では print.crop_marks を false にしてください。",
+            );
+        }
+
+        if print
+            .and_then(|settings| settings.page_margin.as_ref())
+            .map(|margin| {
+                margin.top == "20mm"
+                    && margin.bottom == "20mm"
+                    && margin.left == "15mm"
+                    && margin.right == "15mm"
+            })
+            != Some(true)
+        {
+            push_preprint_warning(
+                "conference-preprint profile usually expects print.page_margin = {top: 20mm, bottom: 20mm, left: 15mm, right: 15mm}",
+                "conference-preprint では print.page_margin を top/bottom=20mm, left/right=15mm にしてください。",
+            );
+        }
+
+        if print
+            .map(|settings| settings.sides != config::PrintSides::Duplex)
+            .unwrap_or(true)
+        {
+            push_preprint_warning(
+                "conference-preprint profile usually expects print.sides = duplex",
+                "conference-preprint では print.sides を duplex にしてください。",
+            );
+        }
+
+        if print
+            .map(|settings| settings.max_pages != Some(2))
+            .unwrap_or(true)
+        {
+            push_preprint_warning(
+                "conference-preprint profile usually expects print.max_pages = 2",
+                "conference-preprint では print.max_pages を 2 にしてください。",
             );
         }
     }
@@ -2137,6 +2227,7 @@ outputs:
 cover:
   ebook_image: assets/cover/front.png
 pdf:
+  engine: typst
   column_count: 1
 print:
   trim_size: B6
@@ -2159,14 +2250,42 @@ git:
         assert!(!result.has_errors, "{report}");
         assert!(report.contains("conference-preprint profile usually expects print output"));
         assert!(
+            report.contains("conference-preprint profile usually expects pdf.engine = weasyprint")
+        );
+        assert!(report.contains("conference-preprint profile usually expects pdf.toc = false"));
+        assert!(
+            report.contains("conference-preprint profile usually expects pdf.page_number = false")
+        );
+        assert!(
+            report
+                .contains("conference-preprint profile usually expects pdf.running_header = none")
+        );
+        assert!(
             report.contains("conference-preprint profile usually expects pdf.column_count = 2")
+        );
+        assert!(
+            report.contains("conference-preprint profile usually expects pdf.column_gap = 10mm")
+        );
+        assert!(
+            report.contains("conference-preprint profile usually expects pdf.base_font_size = 9pt")
+        );
+        assert!(
+            report.contains("conference-preprint profile usually expects pdf.line_height = 14pt")
         );
         assert!(
             report.contains("conference-preprint profile usually expects print.trim_size = A4")
         );
+        assert!(report.contains("conference-preprint profile usually expects print.bleed = 0mm"));
         assert!(
-            report.contains("conference-preprint profile usually expects print.max_pages <= 2")
+            report.contains("conference-preprint profile usually expects print.crop_marks = false")
         );
+        assert!(report.contains(
+            "conference-preprint profile usually expects print.page_margin = {top: 20mm, bottom: 20mm, left: 15mm, right: 15mm}"
+        ));
+        assert!(
+            report.contains("conference-preprint profile usually expects print.sides = duplex")
+        );
+        assert!(report.contains("conference-preprint profile usually expects print.max_pages = 2"));
     }
 
     #[test]

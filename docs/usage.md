@@ -207,7 +207,7 @@ scenes:
 - heading hierarchy の飛び級
 - prose project の editorial sidecar に基づく表記ゆれ、claim / figure / freshness の検査
 - Kindle / print / manga 向けの target 別警告
-- `conference-preprint` profile の A4 / 2 段 / print preset 逸脱 warning
+- `conference-preprint` profile の print preset 逸脱 warning
 
 severity は `validation.accessibility`, `validation.missing_image`, `validation.missing_alt`, `validation.broken_link` の設定で調整できる。
 
@@ -295,7 +295,7 @@ pdf:
 
 ## Generated scaffold
 
-`init` は標準では短い対話式で、作品カテゴリ、repo mode、タイトル、著者名、言語、出力先を確認してから scaffold を生成する。`--non-interactive --config-template <template>` を使うと既定値で生成できる。`--title`, `--author`, `--language`, `--output-preset`, `--repo-mode` で対話項目を explicit に上書きできる。`paper` では追加で `--config-profile paper|conference-preprint` を受け付ける。
+`init` は標準では短い対話式で、作品カテゴリ、`paper` の場合は profile、repo mode、タイトル、著者名、言語、出力先を確認してから scaffold を生成する。`--non-interactive --config-template <template>` を使うと既定値で生成できる。`--title`, `--author`, `--language`, `--output-preset`, `--repo-mode` で対話項目を explicit に上書きできる。`paper` では追加で `--config-profile paper|conference-preprint` を受け付ける。
 
 テンプレートに応じて、次のような土台を生成する。
 

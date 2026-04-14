@@ -745,9 +745,20 @@ git:
 - `outputs.kindle.enabled: true` なのに `book.reading_direction` が未指定なら error
 - `editorial.*` がある場合、参照先 path の形式不正は error
 - `book.profile: conference-preprint` なのに `outputs.print.enabled` が `true` でない場合は warning
+- `book.profile: conference-preprint` なのに `pdf.engine != weasyprint` の場合は warning
+- `book.profile: conference-preprint` なのに `pdf.toc != false` の場合は warning
+- `book.profile: conference-preprint` なのに `pdf.page_number != false` の場合は warning
+- `book.profile: conference-preprint` なのに `pdf.running_header != none` の場合は warning
 - `book.profile: conference-preprint` なのに `pdf.column_count != 2` の場合は warning
+- `book.profile: conference-preprint` なのに `pdf.column_gap != 10mm` の場合は warning
+- `book.profile: conference-preprint` なのに `pdf.base_font_size != 9pt` の場合は warning
+- `book.profile: conference-preprint` なのに `pdf.line_height != 14pt` の場合は warning
 - `book.profile: conference-preprint` なのに `print.trim_size != A4` の場合は warning
-- `book.profile: conference-preprint` なのに `print.max_pages > 2` の場合は warning
+- `book.profile: conference-preprint` なのに `print.bleed != 0mm` の場合は warning
+- `book.profile: conference-preprint` なのに `print.crop_marks != false` の場合は warning
+- `book.profile: conference-preprint` なのに `print.page_margin.top/bottom != 20mm` または `left/right != 15mm` の場合は warning
+- `book.profile: conference-preprint` なのに `print.sides != duplex` の場合は warning
+- `book.profile: conference-preprint` なのに `print.max_pages != 2` の場合は warning
 - `manga.front_color_pages` が resolved page count を超える場合は error
 - `manga.body_mode: monochrome` で `front_color_pages` を超えた本文ページに color 画像がある場合は error
 
