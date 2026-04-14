@@ -630,11 +630,9 @@ fn renumbered_repo_path(
         Some(suffix) => format!("{numbered}-{suffix}.md"),
         None => format!("{numbered}.md"),
     };
-    let new_path = match path.parent() {
-        Some(parent) if !parent.as_os_str().is_empty() => {
-            parent.join(&new_file_name).to_string_lossy().into_owned()
-        }
-        _ => new_file_name,
+    let new_path = match chapter.as_str().rsplit_once('/') {
+        Some((parent, _)) => format!("{parent}/{new_file_name}"),
+        None => new_file_name,
     };
     RepoPath::parse(new_path).map_err(|source| ChapterError::InvalidChapterPath {
         value: chapter.as_str().to_string(),

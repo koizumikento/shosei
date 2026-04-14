@@ -556,7 +556,7 @@ manga:
         assert_eq!(json["spread_candidates"].as_array().unwrap().len(), 0);
         assert_eq!(
             json["issues"][0]["location"]["path"],
-            root.join("manga/pages").display().to_string()
+            root.join("manga").join("pages").display().to_string()
         );
         assert!(json["issues"][0]["location"]["line"].is_null());
     }
@@ -583,7 +583,11 @@ manga:
         assert!(result.summary.contains("spread candidates: none"));
         assert_eq!(
             json["issues"][0]["location"]["path"],
-            root.join("manga/pages/001.png").display().to_string()
+            root.join("manga")
+                .join("pages")
+                .join("001.png")
+                .display()
+                .to_string()
         );
         assert!(json["issues"][0]["location"]["line"].is_null());
     }
