@@ -257,4 +257,5 @@ repo/
 
 - `shared.assets`, `shared.styles`, `shared.fonts`, `shared.metadata` は merge 値ではなく、`series.yml` の探索パスとして別表示する
 - v0.1 の `explain` は text 出力を基本とし、すべての schema 項目を網羅しなくてもよい
+- editor integration では `shosei explain --json` を使って同じ resolved config を機械可読で取得してよい
 - prose / manga で relevant な項目だけを表示してよい

@@ -21,16 +21,18 @@
 
 v0.1 の VS Code 拡張は次を扱う。
 
+- `shosei init`
 - `shosei explain`
 - `shosei validate`
 - `shosei build`
 - `shosei preview`
 - `shosei preview --watch`
+- `shosei chapter add|move|remove|renumber`
 - `shosei doctor`
 - `shosei page check`
 - `shosei series sync`
 
-`init` の対話式 UI、設定編集 UI、Pandoc や PDF engine の独自設定画面は v0.1 の対象外とする。
+設定編集 UI、Pandoc や PDF engine の独自設定画面は v0.1 の対象外とする。
 
 ## 4. 実行モデル
 
@@ -43,20 +45,50 @@ VS Code 拡張は `shosei` を外部プロセスとして実行する。
 - `shosei.cli.command`: 既定値 `shosei`
 - `shosei.cli.args`: 既定値 `[]`
 
-ローカル開発で source tree の CLI を直接使いたい場合は、次のように設定できる。
+ローカル開発で source tree の CLI を直接使いたい場合は、対象 repo の `cwd` からでも起動できるよう `--manifest-path` を付けて設定する。
 
 ```json
 {
   "shosei.cli.command": "cargo",
-  "shosei.cli.args": ["run", "-p", "shosei-cli", "--bin", "shosei", "--"]
+  "shosei.cli.args": [
+    "run",
+    "--manifest-path",
+    "/path/to/cb-tools/crates/shosei-cli/Cargo.toml",
+    "--bin",
+    "shosei",
+    "--"
+  ]
 }
 ```
 
-### 4.2 one-shot と watch
+### 4.2 guided init
+
+VS Code 側で template / repo mode / title / author / language / output preset を Quick Pick / Input Box で集め、`shosei init <path> --non-interactive ...` に変換して実行してよい。
+
+ルール:
+
+- scaffold 内容は必ず CLI に生成させる
+- VS Code 側で `book.yml` / `series.yml` の雛形を書かない
+- 成功後に optional で `shosei doctor` を続けて実行してよい
+- target path は workspace folder か folder picker から選ばせてよい
+
+### 4.3 one-shot と watch
 
 - one-shot command は child process と output channel で実行する
 - `preview --watch` は VS Code task / terminal で実行する
 - watch 中の停止は VS Code terminal 側で行う
+
+### 4.4 sidebar summary
+
+専用 view では `shosei explain --json` と `shosei doctor --json` を使い、少なくとも次を表示してよい。
+
+- `Context`: repo mode / repo root / target book
+- `Toolchain`: host OS / required・optional summary / individual tool status
+- `Resolved Config`: title / project type / language / outputs / writing mode / binding / editorial summary
+- `Structure`: config file、prose の chapter list、editorial sidecar file
+- prose では chapter add / move / remove / renumber を command palette と chapter item context menu から起動してよい
+
+chapter や sidecar file はクリックで open してよい。
 
 ## 5. repo context 解決
 
@@ -125,5 +157,6 @@ repo/
 
 - `book.yml` / `series.yml` schema を JS 側で再実装すること
 - build / validate / handoff の中身を VS Code extension host に移すこと
+- init scaffold を VS Code 側で直接生成すること
 - prose / manga の独自 editor を v0.1 で提供すること
 - CLI と別系統の状態管理を持つこと

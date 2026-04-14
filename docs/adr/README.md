@@ -26,6 +26,7 @@ Architecture Decision Record の一覧。
 - [ADR-0022: story sync は explicit のまま 1 entity の双方向 copy を許可する](0022-story-sync-stays-explicit-but-supports-both-directions.md)
 - [ADR-0023: story sync の batch 適用は drift report 駆動で扱う](0023-story-sync-batch-replays-drift-report.md)
 - [ADR-0024: VS Code 拡張は `shosei` CLI を呼び出す薄いアダプタにする](0024-vscode-extension-shells-out-to-cli.md)
+- [ADR-0025: prose print の v0.1 PDF backend は typst を正式採用する](0025-prose-print-uses-typst-in-v0.1.md)
 
 記法:
 

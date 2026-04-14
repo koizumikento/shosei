@@ -1456,6 +1456,10 @@ mod tests {
     }
 
     fn fake_toolchain(epubcheck: ToolStatus) -> ToolchainReport {
+        fake_toolchain_with_typst(epubcheck, ToolStatus::Available)
+    }
+
+    fn fake_toolchain_with_typst(epubcheck: ToolStatus, typst: ToolStatus) -> ToolchainReport {
         ToolchainReport {
             tools: vec![
                 ToolRecord {
@@ -1478,20 +1482,19 @@ mod tests {
                         .to_string(),
                 },
                 ToolRecord {
-                    key: "weasyprint",
-                    display_name: "weasyprint",
-                    status: ToolStatus::Available,
-                    detected_as: Some("weasyprint".to_string()),
+                    key: "typst",
+                    display_name: "typst",
+                    status: typst,
+                    detected_as: Some("typst".to_string()),
                     resolved_path: None,
                     version: None,
-                    install_hint: "Install weasyprint and ensure the launcher is on PATH."
-                        .to_string(),
+                    install_hint: "Install typst and ensure the launcher is on PATH.".to_string(),
                 },
                 ToolRecord {
                     key: "pdf-engine",
                     display_name: "PDF engine",
                     status: ToolStatus::Available,
-                    detected_as: Some("weasyprint".to_string()),
+                    detected_as: Some("typst".to_string()),
                     resolved_path: None,
                     version: None,
                     install_hint:
@@ -2069,7 +2072,7 @@ git:
 
         let result = validate_book_with_toolchain(
             &CommandContext::new(&root, None, None),
-            &fake_toolchain(ToolStatus::Missing),
+            &fake_toolchain_with_typst(ToolStatus::Missing, ToolStatus::Missing),
         )
         .unwrap();
 

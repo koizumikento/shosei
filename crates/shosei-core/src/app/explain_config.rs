@@ -10,6 +10,72 @@ use crate::{
 pub struct ExplainConfigResult {
     pub summary: String,
     pub explained: ExplainedConfig,
+    pub snapshot: ExplainConfigSnapshot,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct ExplainConfigSnapshot {
+    pub book_id: String,
+    pub repo_mode: String,
+    pub repo_root: String,
+    pub book_root: String,
+    pub config_path: String,
+    pub project_type: String,
+    pub title: String,
+    pub language: String,
+    pub profile: String,
+    pub writing_mode: String,
+    pub reading_direction: String,
+    pub binding: String,
+    pub outputs: Vec<String>,
+    pub values: Vec<ExplainConfigSnapshotValue>,
+    pub manuscript: Option<ExplainConfigSnapshotManuscript>,
+    pub editorial: Option<ExplainConfigSnapshotEditorial>,
+    pub manga: Option<ExplainConfigSnapshotManga>,
+    pub shared_paths: Option<ExplainConfigSnapshotSharedPaths>,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct ExplainConfigSnapshotValue {
+    pub field: String,
+    pub value: String,
+    pub origin: String,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct ExplainConfigSnapshotManuscript {
+    pub frontmatter: Vec<String>,
+    pub chapters: Vec<String>,
+    pub backmatter: Vec<String>,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct ExplainConfigSnapshotEditorial {
+    pub style_path: Option<String>,
+    pub claims_path: Option<String>,
+    pub figures_path: Option<String>,
+    pub freshness_path: Option<String>,
+    pub style_rule_count: usize,
+    pub claim_count: usize,
+    pub figure_count: usize,
+    pub freshness_count: usize,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct ExplainConfigSnapshotManga {
+    pub reading_direction: String,
+    pub default_page_side: String,
+    pub spread_policy_for_kindle: String,
+    pub front_color_pages: u64,
+    pub body_mode: String,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct ExplainConfigSnapshotSharedPaths {
+    pub assets: Vec<String>,
+    pub styles: Vec<String>,
+    pub fonts: Vec<String>,
+    pub metadata: Vec<String>,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -38,6 +104,13 @@ pub fn explain_config(command: &CommandContext) -> Result<ExplainConfigResult, E
         RepoMode::SingleBook => "single-book",
         RepoMode::Series => "series",
     };
+    let snapshot = build_snapshot(
+        book.id.as_str(),
+        mode,
+        &context,
+        &explained,
+        editorial.as_ref(),
+    );
 
     let mut lines = vec![
         format!("explain for {}", book.id),
@@ -103,6 +176,7 @@ pub fn explain_config(command: &CommandContext) -> Result<ExplainConfigResult, E
     Ok(ExplainConfigResult {
         summary: lines.join("\n"),
         explained,
+        snapshot,
     })
 }
 
@@ -115,5 +189,166 @@ fn display_repo_paths(paths: &[crate::domain::RepoPath]) -> String {
             .map(|path| path.as_str().to_string())
             .collect::<Vec<_>>()
             .join(", ")
+    }
+}
+
+fn build_snapshot(
+    book_id: &str,
+    mode: &str,
+    context: &crate::domain::RepoContext,
+    explained: &ExplainedConfig,
+    editorial: Option<&editorial::EditorialBundle>,
+) -> ExplainConfigSnapshot {
+    let effective = &explained.resolved.effective;
+    ExplainConfigSnapshot {
+        book_id: book_id.to_string(),
+        repo_mode: mode.to_string(),
+        repo_root: context.repo_root.display().to_string(),
+        book_root: context
+            .book
+            .as_ref()
+            .expect("selected book must exist")
+            .root
+            .display()
+            .to_string(),
+        config_path: context
+            .book
+            .as_ref()
+            .expect("selected book must exist")
+            .config_path
+            .display()
+            .to_string(),
+        project_type: effective.project.project_type.as_str().to_string(),
+        title: effective.book.title.clone(),
+        language: effective.book.language.clone(),
+        profile: effective.book.profile.clone(),
+        writing_mode: match effective.book.writing_mode {
+            config::WritingMode::HorizontalLtr => "horizontal-ltr",
+            config::WritingMode::VerticalRl => "vertical-rl",
+        }
+        .to_string(),
+        reading_direction: effective.book.reading_direction.as_str().to_string(),
+        binding: match effective.layout.binding {
+            config::Binding::Left => "left",
+            config::Binding::Right => "right",
+        }
+        .to_string(),
+        outputs: explained.resolved.outputs(),
+        values: explained
+            .values
+            .iter()
+            .map(|value| ExplainConfigSnapshotValue {
+                field: value.field.clone(),
+                value: value.value.clone(),
+                origin: value.origin.to_string(),
+            })
+            .collect(),
+        manuscript: effective.manuscript.as_ref().map(|manuscript| {
+            ExplainConfigSnapshotManuscript {
+                frontmatter: manuscript
+                    .frontmatter
+                    .iter()
+                    .map(|path| path.as_str().to_string())
+                    .collect(),
+                chapters: manuscript
+                    .chapters
+                    .iter()
+                    .map(|path| path.as_str().to_string())
+                    .collect(),
+                backmatter: manuscript
+                    .backmatter
+                    .iter()
+                    .map(|path| path.as_str().to_string())
+                    .collect(),
+            }
+        }),
+        editorial: Some(ExplainConfigSnapshotEditorial {
+            style_path: effective
+                .editorial
+                .style
+                .as_ref()
+                .map(|path| path.as_str().to_string()),
+            claims_path: effective
+                .editorial
+                .claims
+                .as_ref()
+                .map(|path| path.as_str().to_string()),
+            figures_path: effective
+                .editorial
+                .figures
+                .as_ref()
+                .map(|path| path.as_str().to_string()),
+            freshness_path: effective
+                .editorial
+                .freshness
+                .as_ref()
+                .map(|path| path.as_str().to_string()),
+            style_rule_count: editorial
+                .map(|bundle| bundle.style_rule_count())
+                .unwrap_or(0),
+            claim_count: editorial.map(|bundle| bundle.claim_count()).unwrap_or(0),
+            figure_count: editorial.map(|bundle| bundle.figure_count()).unwrap_or(0),
+            freshness_count: editorial
+                .map(|bundle| bundle.freshness_count())
+                .unwrap_or(0),
+        }),
+        manga: effective
+            .manga
+            .as_ref()
+            .map(|manga| ExplainConfigSnapshotManga {
+                reading_direction: manga.reading_direction.as_str().to_string(),
+                default_page_side: match manga.default_page_side {
+                    config::MangaPageSide::Left => "left",
+                    config::MangaPageSide::Right => "right",
+                }
+                .to_string(),
+                spread_policy_for_kindle: match manga.spread_policy_for_kindle {
+                    config::SpreadPolicyForKindle::Split => "split",
+                    config::SpreadPolicyForKindle::SinglePage => "single-page",
+                    config::SpreadPolicyForKindle::Skip => "skip",
+                }
+                .to_string(),
+                front_color_pages: manga.front_color_pages,
+                body_mode: match manga.body_mode {
+                    config::MangaBodyMode::Monochrome => "monochrome",
+                    config::MangaBodyMode::Color => "color",
+                    config::MangaBodyMode::Mixed => "mixed",
+                }
+                .to_string(),
+            }),
+        shared_paths: if context.mode == RepoMode::Series {
+            Some(ExplainConfigSnapshotSharedPaths {
+                assets: explained
+                    .resolved
+                    .shared
+                    .assets
+                    .iter()
+                    .map(|path| path.as_str().to_string())
+                    .collect(),
+                styles: explained
+                    .resolved
+                    .shared
+                    .styles
+                    .iter()
+                    .map(|path| path.as_str().to_string())
+                    .collect(),
+                fonts: explained
+                    .resolved
+                    .shared
+                    .fonts
+                    .iter()
+                    .map(|path| path.as_str().to_string())
+                    .collect(),
+                metadata: explained
+                    .resolved
+                    .shared
+                    .metadata
+                    .iter()
+                    .map(|path| path.as_str().to_string())
+                    .collect(),
+            })
+        } else {
+            None
+        },
     }
 }

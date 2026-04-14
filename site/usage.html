@@ -40,7 +40,7 @@ shosei explain
 shosei build
 shosei validate</code></pre>
           <p>series として始める場合は、次のように <code>--repo-mode series</code> を付けます。</p>
-          <pre><code>shosei init ./my-series --config-template business --repo-mode series
+          <pre><code>shosei init ./my-series --non-interactive --config-template business --repo-mode series --title "My Series" --author "Ken" --language ja --output-preset both
 cd my-series
 shosei explain --book vol-01
 shosei build --book vol-01
@@ -260,7 +260,8 @@ shosei chapter add books/vol-01/manuscript/02.md --book vol-01 --title "Chapter 
             `explain` は repo mode、対象 book、最終有効設定、値の由来を確認するための入口です。
           </p>
           <pre><code>shosei explain
-shosei explain --book vol-01</code></pre>
+shosei explain --book vol-01
+shosei explain --json</code></pre>
           <p>現在の `explain` では、たとえば次のような項目を確認できます。</p>
           <ul>
             <li><code>cover.ebook_image</code></li>
@@ -276,6 +277,7 @@ shosei explain --book vol-01</code></pre>
             <li><code>pdf.running_header</code></li>
           </ul>
           <p>editorial sidecar が設定されている場合、<code>explain</code> は rule / claim / figure / freshness item の件数も summary に出します。</p>
+          <p>editor integration 向けには <code>--json</code> も使えます。resolved config の要約、主要 field の origin、chapter list などを機械可読で返します。</p>
         </section>
 
         <section>
@@ -304,7 +306,7 @@ shosei explain --book vol-01</code></pre>
     target: print-jp-pdfx1a
 
 pdf:
-  engine: weasyprint
+  engine: typst
   toc: true
   page_number: true
   running_header: auto</code></pre>
@@ -314,7 +316,7 @@ pdf:
 
         <section>
           <h2>Generated scaffold</h2>
-          <p><code>init</code> は標準では短い対話式で、作品カテゴリ、repo mode、タイトル、著者名、言語、出力先を確認してから scaffold を生成します。<code>--non-interactive --config-template &lt;template&gt;</code> を使うと既定値で生成できます。</p>
+          <p><code>init</code> は標準では短い対話式で、作品カテゴリ、repo mode、タイトル、著者名、言語、出力先を確認してから scaffold を生成します。<code>--non-interactive --config-template &lt;template&gt;</code> を使うと既定値で生成でき、<code>--title</code>, <code>--author</code>, <code>--language</code>, <code>--output-preset</code>, <code>--repo-mode</code> で対話項目を explicit に上書きできます。</p>
           <p>テンプレートに応じて、次のような土台を生成します。</p>
           <ul>
             <li>`book.yml` または `series.yml`</li>
@@ -338,18 +340,20 @@ shosei preview --watch --target print</code></pre>
           <p><code>page check</code> は <code>dist/reports/&lt;book-id&gt;-page-check.json</code> を出しつつ、ページ順、ファイル名順序、ページサイズ、見開き候補、カラーポリシーを確認します。</p>
           <p>summary には page order と spread candidates も出ます。</p>
           <p>CLI では summary の後に、先頭最大 5 件の issue を <code>原因 / 発生箇所 / 修正例</code> の形で続けて表示します。</p>
-          <p><code>doctor</code> は利用可能 / 不足 / pending を分けて表示し、PATH 解決結果、バージョン、導入ヒントを返します。</p>
+          <p><code>doctor</code> は required / optional を分けて表示し、PATH 解決結果、バージョン、導入ヒントを返します。</p>
+          <pre><code>shosei doctor
+shosei doctor --json</code></pre>
           <ul>
-            <li><code>pandoc</code></li>
-            <li><code>epubcheck</code></li>
             <li><code>git</code></li>
-            <li><code>git-lfs</code></li>
-            <li><code>weasyprint</code></li>
+            <li><code>pandoc</code></li>
             <li><code>typst</code></li>
-            <li><code>lualatex</code></li>
-            <li><code>PDF engine</code></li>
+            <li><code>epubcheck</code></li>
+            <li><code>git-lfs</code></li>
             <li>Kindle Previewer</li>
           </ul>
+          <p>required tool は <code>git</code>, <code>pandoc</code>, <code>typst</code>。optional tool は <code>epubcheck</code>, <code>git-lfs</code>, Kindle Previewer です。</p>
+          <p><code>weasyprint</code>, <code>lualatex</code> は将来拡張候補として config 値では受け付けますが、v0.1 の doctor の必須確認対象には含めません。</p>
+          <p><code>--json</code> は editor integration 向けで、host OS、required / optional ごとの available / missing / pending 件数、各 tool の category / status / path / version / install hint を機械可読で返します。</p>
           <p><code>handoff proof</code> は validate report に加えて、<code>review-notes.md</code>、<code>reports/review-packet.json</code>、editorial sidecar のコピーも package に含めます。<code>manifest.json</code> には review packet の path と editorial summary 件数も入ります。</p>
         </section>
       </article>

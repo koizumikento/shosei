@@ -66,7 +66,7 @@ CLI バイナリ名は `shosei` とする。
 `business`, `novel`, `light-novel` は Pandoc を中核変換エンジンとして扱う。
 
 - EPUB: Pandoc EPUB3 writer を利用
-- PDF: Pandoc + PDF engine を利用
+- PDF: Pandoc + `typst` を v0.1 の既定 backend として利用する
 - ツール本体の責務:
   - プロジェクト構成管理
   - profile 解決
@@ -206,6 +206,7 @@ v0.1 の現行質問項目:
 補足:
 
 - `--non-interactive --config-template <template>` を使うと既定値で scaffold を生成できる
+- `--title`, `--author`, `--language`, `--output-preset`, `--repo-mode` を付けると対話で決める値を明示 override できる
 - prose project では `editorial/style.yml`, `claims.yml`, `figures.yml`, `freshness.yml` も scaffold に含める
 
 ### 7.2 `shosei build`
@@ -229,10 +230,12 @@ v0.1 の現行質問項目:
 - 各値が `book.yml`、`series.yml` の `defaults`、または built-in default のどれで決まったかの表示
 - `series` の `shared.*` 探索パスの表示
 - editorial sidecar の参照先と件数の表示
+- editor integration 向けに `--json` で機械可読 snapshot を返せること
 
 v0.1 の最小要件:
 
 - text 出力でよい
+- `--json` で title / type / outputs / origins / structure を返せる
 - `single-book` / `series` の両方に対応する
 - prose / manga の差分設定を表示する
 
@@ -299,11 +302,11 @@ v0.1 の最小要件:
 
 対象例:
 
-- `pandoc`
-- `epubcheck`
-- PDF engine
-- Kindle Previewer
 - `git`
+- `pandoc`
+- `typst`
+- `epubcheck`
+- Kindle Previewer
 - `git-lfs`
 
 追加要件:
@@ -314,8 +317,12 @@ v0.1 の最小要件:
 
 v0.1 の最小要件:
 
-- `pandoc`, `epubcheck`, `git`, `git-lfs`, PDF engine, Kindle Previewer を確認対象に含める
+- required tool と optional tool を分けて返せる
+- required tool は `git`, `pandoc`, `typst` とする
+- optional tool は `epubcheck`, `git-lfs`, Kindle Previewer とする
+- `weasyprint`, `lualatex` は将来拡張候補として config 値では受け付けても、v0.1 の doctor の必須確認対象には含めない
 - PATH 解決結果、バージョン、導入ヒントを text 出力で返せる
+- editor integration 向けに machine-readable な `--json` 出力を返せる
 - OS 別の詳細導入案内は将来拡張でよい
 
 ### 7.7 `shosei handoff`
@@ -599,7 +606,7 @@ outputs:
     target: print-jp-pdfx1a
 
 pdf:
-  engine: weasyprint
+  engine: typst
   toc: true
   page_number: true
   running_header: auto

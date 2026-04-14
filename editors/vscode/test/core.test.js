@@ -73,6 +73,87 @@ test("buildCliInvocation appends --book and --path", () => {
   ]);
 });
 
+test("buildInitCommandParts maps guided init answers to flags", () => {
+  const commandParts = core.buildInitCommandParts({
+    path: "/tmp/my-book",
+    configTemplate: "novel",
+    repoMode: "single-book",
+    title: "My Book",
+    author: "Ken",
+    language: "ja-JP",
+    outputPreset: "both",
+    force: true
+  });
+
+  assert.deepEqual(commandParts, [
+    "init",
+    "/tmp/my-book",
+    "--non-interactive",
+    "--force",
+    "--config-template",
+    "novel",
+    "--repo-mode",
+    "single-book",
+    "--title",
+    "My Book",
+    "--author",
+    "Ken",
+    "--language",
+    "ja-JP",
+    "--output-preset",
+    "both"
+  ]);
+});
+
+test("resolveCliTooling falls back to repo cargo manifest in development", () => {
+  const root = tempDir("dev-cli");
+  const extensionPath = path.join(root, "editors", "vscode");
+  const manifestPath = path.join(root, "crates", "shosei-cli", "Cargo.toml");
+  fs.mkdirSync(extensionPath, { recursive: true });
+  fs.mkdirSync(path.dirname(manifestPath), { recursive: true });
+  fs.writeFileSync(manifestPath, "[package]\nname = \"shosei-cli\"\n");
+
+  const tooling = core.resolveCliTooling({
+    cliCommand: "shosei",
+    cliArgs: [],
+    extensionPath,
+    enableDevelopmentFallback: true
+  });
+
+  assert.deepEqual(tooling, {
+    command: "cargo",
+    args: [
+      "run",
+      "--manifest-path",
+      manifestPath,
+      "--bin",
+      "shosei",
+      "--"
+    ]
+  });
+});
+
+test("resolveCliTooling keeps explicit CLI settings over development fallback", () => {
+  const root = tempDir("explicit-cli");
+  const extensionPath = path.join(root, "editors", "vscode");
+  const manifestPath = path.join(root, "crates", "shosei-cli", "Cargo.toml");
+  fs.mkdirSync(extensionPath, { recursive: true });
+  fs.mkdirSync(path.dirname(manifestPath), { recursive: true });
+  fs.writeFileSync(manifestPath, "[package]\nname = \"shosei-cli\"\n");
+
+  const tooling = core.resolveCliTooling({
+    cliCommand: "custom-shosei",
+    cliArgs: ["--flag"],
+    extensionPath,
+    enableDevelopmentFallback: true
+  });
+
+  assert.deepEqual(tooling, {
+    command: "custom-shosei",
+    args: ["--flag"]
+  });
+});
+
 test("extractReportPath picks the final report path from command output", () => {
   const output = [
     "validation completed for vol-01 with outputs: kindle, issues: 2, report: /tmp/a.json",

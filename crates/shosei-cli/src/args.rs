@@ -22,10 +22,20 @@ pub enum Commands {
         config_template: Option<String>,
         #[arg(long, value_name = "MODE", value_parser = ["single-book", "series"])]
         repo_mode: Option<String>,
+        #[arg(long, value_name = "TITLE")]
+        title: Option<String>,
+        #[arg(long, value_name = "AUTHOR")]
+        author: Option<String>,
+        #[arg(long, value_name = "LANGUAGE")]
+        language: Option<String>,
+        #[arg(long, value_name = "OUTPUT", value_parser = ["kindle", "print", "both"])]
+        output_preset: Option<String>,
     },
     Explain {
         #[arg(long)]
         book: Option<String>,
+        #[arg(long)]
+        json: bool,
         #[arg(long, value_name = "PATH", default_value = ".")]
         path: PathBuf,
     },
@@ -71,7 +81,10 @@ pub enum Commands {
         #[command(subcommand)]
         command: PageCommands,
     },
-    Doctor,
+    Doctor {
+        #[arg(long)]
+        json: bool,
+    },
     Handoff {
         destination: String,
         #[arg(long)]
@@ -288,6 +301,77 @@ mod tests {
                 assert_eq!(path, Some(PathBuf::from("./my-series")));
                 assert_eq!(config_template.as_deref(), Some("business"));
                 assert_eq!(repo_mode.as_deref(), Some("series"));
+            }
+            other => panic!("unexpected command: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_init_non_interactive_field_overrides() {
+        let cli = Cli::parse_from([
+            "shosei",
+            "init",
+            "./my-book",
+            "--non-interactive",
+            "--config-template",
+            "novel",
+            "--repo-mode",
+            "single-book",
+            "--title",
+            "Custom Title",
+            "--author",
+            "Ken",
+            "--language",
+            "ja-JP",
+            "--output-preset",
+            "both",
+        ]);
+
+        match cli.command {
+            Commands::Init {
+                path,
+                non_interactive,
+                config_template,
+                repo_mode,
+                title,
+                author,
+                language,
+                output_preset,
+                ..
+            } => {
+                assert_eq!(path, Some(PathBuf::from("./my-book")));
+                assert!(non_interactive);
+                assert_eq!(config_template.as_deref(), Some("novel"));
+                assert_eq!(repo_mode.as_deref(), Some("single-book"));
+                assert_eq!(title.as_deref(), Some("Custom Title"));
+                assert_eq!(author.as_deref(), Some("Ken"));
+                assert_eq!(language.as_deref(), Some("ja-JP"));
+                assert_eq!(output_preset.as_deref(), Some("both"));
+            }
+            other => panic!("unexpected command: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_explain_json_output_flag() {
+        let cli = Cli::parse_from(["shosei", "explain", "--json", "--book", "vol-01"]);
+
+        match cli.command {
+            Commands::Explain { book, json, .. } => {
+                assert_eq!(book.as_deref(), Some("vol-01"));
+                assert!(json);
+            }
+            other => panic!("unexpected command: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_doctor_json_output_flag() {
+        let cli = Cli::parse_from(["shosei", "doctor", "--json"]);
+
+        match cli.command {
+            Commands::Doctor { json } => {
+                assert!(json);
             }
             other => panic!("unexpected command: {other:?}"),
         }

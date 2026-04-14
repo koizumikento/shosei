@@ -6,9 +6,11 @@ class ShoseiViewProvider {
     this.options = options;
     this._onDidChangeTreeData = new vscode.EventEmitter();
     this.onDidChangeTreeData = this._onDidChangeTreeData.event;
+    this._snapshotPromise = null;
   }
 
   refresh() {
+    this._snapshotPromise = null;
     this._onDidChangeTreeData.fire();
   }
 
@@ -17,7 +19,7 @@ class ShoseiViewProvider {
   }
 
   async getChildren(element) {
-    const snapshot = await this.options.getSnapshot();
+    const snapshot = await this.getSnapshot();
     if (!element) {
       if (!snapshot.repoRoot) {
         return [
@@ -27,12 +29,17 @@ class ShoseiViewProvider {
             "Open a folder with book.yml or series.yml",
             "warning"
           ),
+          createGroupItem(this.vscode, "Toolchain", "toolchain", "tools"),
+          createActionItem(this.vscode, "Init", "shosei.init", "new-folder"),
           createActionItem(this.vscode, "Doctor", "shosei.doctor", "tools")
         ];
       }
 
       return [
         createGroupItem(this.vscode, "Context", "context", "info"),
+        createGroupItem(this.vscode, "Toolchain", "toolchain", "tools"),
+        createGroupItem(this.vscode, "Resolved Config", "config", "settings-gear"),
+        createGroupItem(this.vscode, "Structure", "structure", "list-tree"),
         createGroupItem(this.vscode, "Actions", "actions", "play")
       ];
     }
@@ -40,11 +47,27 @@ class ShoseiViewProvider {
     if (element.group === "context") {
       return buildContextItems(this.vscode, snapshot);
     }
+    if (element.group === "toolchain") {
+      return buildToolchainItems(this.vscode, snapshot);
+    }
+    if (element.group === "config") {
+      return buildConfigItems(this.vscode, snapshot);
+    }
+    if (element.group === "structure") {
+      return buildStructureItems(this.vscode, snapshot);
+    }
     if (element.group === "actions") {
       return buildActionItems(this.vscode, snapshot);
     }
 
     return [];
+  }
+
+  async getSnapshot() {
+    if (!this._snapshotPromise) {
+      this._snapshotPromise = Promise.resolve(this.options.getSnapshot());
+    }
+    return this._snapshotPromise;
   }
 }
 
@@ -62,8 +85,40 @@ function createInfoItem(vscode, label, description, icon, command) {
   item.iconPath = new vscode.ThemeIcon(icon || "circle-large-outline");
   item.contextValue = "shosei.info";
   if (command) {
-    item.command = { command, title: label };
+    item.command =
+      typeof command === "string"
+        ? { command, title: label }
+        : command;
   }
+  return item;
+}
+
+function createPathItem(vscode, label, description, absolutePath, icon) {
+  return createInfoItem(
+    vscode,
+    label,
+    description,
+    icon,
+    absolutePath
+      ? {
+          command: "vscode.open",
+          title: label,
+          arguments: [vscode.Uri.file(absolutePath)]
+        }
+      : undefined
+  );
+}
+
+function createChapterItem(vscode, repoPath, absolutePath) {
+  const item = createPathItem(
+    vscode,
+    path.basename(repoPath),
+    repoPath,
+    absolutePath,
+    "markdown"
+  );
+  item.contextValue = "shosei.chapter";
+  item.chapterPath = repoPath;
   return item;
 }
 
@@ -72,6 +127,15 @@ function createActionItem(vscode, label, command, icon) {
   item.command = { command, title: label };
   item.iconPath = new vscode.ThemeIcon(icon || "play");
   item.contextValue = "shosei.action";
+  return item;
+}
+
+function createToolItem(vscode, tool) {
+  const item = new vscode.TreeItem(tool.display_name, vscode.TreeItemCollapsibleState.None);
+  item.description = toolDescription(tool);
+  item.iconPath = new vscode.ThemeIcon(toolStatusIcon(tool.status));
+  item.contextValue = "shosei.tool";
+  item.tooltip = buildToolTooltip(tool);
   return item;
 }
 
@@ -106,11 +170,254 @@ function buildContextItems(vscode, snapshot) {
   return items;
 }
 
+function buildConfigItems(vscode, snapshot) {
+  if (snapshot.configError) {
+    return [
+      createInfoItem(
+        vscode,
+        "Config unavailable",
+        snapshot.configError,
+        "warning"
+      )
+    ];
+  }
+
+  if (!snapshot.explain) {
+    const message =
+      snapshot.mode === "series" && !snapshot.bookId
+        ? "Select a book to load resolved config"
+        : "Resolved config is not loaded";
+    return [createInfoItem(vscode, "Resolved Config", message, "info")];
+  }
+
+  const explain = snapshot.explain;
+  const items = [
+    createPathItem(vscode, "Config File", path.basename(explain.config_path), explain.config_path, "file-code"),
+    createInfoItem(vscode, "Title", formatWithOrigin(explain.title, originFor(explain, "book.title")), "book"),
+    createInfoItem(vscode, "Project Type", formatWithOrigin(explain.project_type, originFor(explain, "project.type")), "symbol-class"),
+    createInfoItem(vscode, "Language", formatWithOrigin(explain.language, originFor(explain, "book.language")), "globe"),
+    createInfoItem(vscode, "Profile", formatWithOrigin(explain.profile, originFor(explain, "book.profile")), "tag"),
+    createInfoItem(vscode, "Writing Mode", formatWithOrigin(explain.writing_mode, originFor(explain, "book.writing_mode")), "text-size"),
+    createInfoItem(vscode, "Binding", formatWithOrigin(explain.binding, originFor(explain, "layout.binding")), "layout"),
+    createInfoItem(
+      vscode,
+      "Outputs",
+      explain.outputs.length > 0 ? explain.outputs.join(", ") : "none",
+      "broadcast"
+    )
+  ];
+
+  if (hasEditorialContent(explain.editorial)) {
+    items.push(
+      createInfoItem(
+        vscode,
+        "Editorial",
+        editorialSummary(explain.editorial),
+        "note"
+      )
+    );
+  }
+
+  if (snapshot.mode === "series" && explain.shared_paths) {
+    items.push(
+      createInfoItem(
+        vscode,
+        "Shared Metadata",
+        explain.shared_paths.metadata.length > 0
+          ? explain.shared_paths.metadata.join(", ")
+          : "none",
+        "folder-library"
+      )
+    );
+  }
+
+  return items;
+}
+
+function buildToolchainItems(vscode, snapshot) {
+  if (snapshot.doctorError) {
+    return [
+      createInfoItem(
+        vscode,
+        "Toolchain unavailable",
+        snapshot.doctorError,
+        "warning"
+      )
+    ];
+  }
+
+  if (!snapshot.doctor) {
+    return [createInfoItem(vscode, "Toolchain", "Doctor status is not loaded", "info")];
+  }
+
+  const doctor = snapshot.doctor;
+  const items = [
+    createInfoItem(vscode, "Host", doctor.host_os, "device-desktop"),
+    createInfoItem(
+      vscode,
+      "Required",
+      `${doctor.required_available} available, ${doctor.required_missing} missing, ${doctor.required_pending} pending`,
+      "tools"
+    ),
+    createInfoItem(
+      vscode,
+      "Optional",
+      `${doctor.optional_available} available, ${doctor.optional_missing} missing, ${doctor.optional_pending} pending`,
+      "tools"
+    )
+  ];
+
+  const requiredTools = (doctor.tools || []).filter((tool) => tool.category === "required");
+  const optionalTools = (doctor.tools || []).filter((tool) => tool.category === "optional");
+
+  if (requiredTools.length > 0) {
+    items.push(createInfoItem(vscode, "Required Tools", "", "symbol-key"));
+  }
+  for (const tool of requiredTools) {
+    items.push(createToolItem(vscode, tool));
+  }
+
+  if (optionalTools.length > 0) {
+    items.push(createInfoItem(vscode, "Optional Tools", "", "beaker"));
+  }
+  for (const tool of optionalTools) {
+    items.push(createToolItem(vscode, tool));
+  }
+
+  return items;
+}
+
+function buildStructureItems(vscode, snapshot) {
+  if (snapshot.configError) {
+    return [
+      createInfoItem(
+        vscode,
+        "Structure unavailable",
+        snapshot.configError,
+        "warning"
+      )
+    ];
+  }
+
+  if (!snapshot.explain) {
+    const message =
+      snapshot.mode === "series" && !snapshot.bookId
+        ? "Select a book to inspect structure"
+        : "Structure is not loaded";
+    return [createInfoItem(vscode, "Structure", message, "info")];
+  }
+
+  const explain = snapshot.explain;
+  const items = [];
+
+  if (explain.manuscript) {
+    items.push(
+      createInfoItem(
+        vscode,
+        "Chapters",
+        `${explain.manuscript.chapters.length} file(s)`,
+        "list-ordered"
+      )
+    );
+    for (const chapter of explain.manuscript.chapters) {
+      items.push(
+        createChapterItem(vscode, chapter, path.resolve(explain.repo_root, chapter))
+      );
+    }
+
+    if (explain.manuscript.frontmatter.length > 0) {
+      items.push(
+        createInfoItem(
+          vscode,
+          "Frontmatter",
+          `${explain.manuscript.frontmatter.length} file(s)`,
+          "list-flat"
+        )
+      );
+      for (const entry of explain.manuscript.frontmatter) {
+        items.push(
+          createPathItem(
+            vscode,
+            path.basename(entry),
+            entry,
+            path.resolve(explain.repo_root, entry),
+            "file"
+          )
+        );
+      }
+    }
+
+    if (explain.manuscript.backmatter.length > 0) {
+      items.push(
+        createInfoItem(
+          vscode,
+          "Backmatter",
+          `${explain.manuscript.backmatter.length} file(s)`,
+          "list-flat"
+        )
+      );
+      for (const entry of explain.manuscript.backmatter) {
+        items.push(
+          createPathItem(
+            vscode,
+            path.basename(entry),
+            entry,
+            path.resolve(explain.repo_root, entry),
+            "file"
+          )
+        );
+      }
+    }
+  } else {
+    items.push(
+      createInfoItem(
+        vscode,
+        "Chapters",
+        "No manuscript chapter structure for this project type",
+        "info"
+      )
+    );
+  }
+
+  if (hasEditorialContent(explain.editorial)) {
+    items.push(
+      createInfoItem(
+        vscode,
+        "Editorial Files",
+        "Open sidecar config",
+        "note"
+      )
+    );
+    pushEditorialPathItem(vscode, items, explain.repo_root, "Style Guide", explain.editorial.style_path);
+    pushEditorialPathItem(vscode, items, explain.repo_root, "Claims", explain.editorial.claims_path);
+    pushEditorialPathItem(vscode, items, explain.repo_root, "Figures", explain.editorial.figures_path);
+    pushEditorialPathItem(vscode, items, explain.repo_root, "Freshness", explain.editorial.freshness_path);
+  }
+
+  return items;
+}
+
 function buildActionItems(vscode, snapshot) {
   const items = [];
+  const projectType = snapshot.explain?.project_type || null;
+  const chapterCount = snapshot.explain?.manuscript?.chapters?.length || 0;
+  const hasManuscript = Boolean(snapshot.explain?.manuscript);
 
   if (snapshot.mode === "series") {
     items.push(createActionItem(vscode, "Select Book", "shosei.selectBook", "list-selection"));
+  }
+
+  if (hasManuscript) {
+    items.push(createActionItem(vscode, "Chapter Add", "shosei.chapterAdd", "add"));
+    if (chapterCount > 1) {
+      items.push(createActionItem(vscode, "Chapter Move", "shosei.chapterMove", "move"));
+      items.push(createActionItem(vscode, "Chapter Remove", "shosei.chapterRemove", "trash"));
+    }
+    if (chapterCount > 0) {
+      items.push(
+        createActionItem(vscode, "Chapter Renumber", "shosei.chapterRenumber", "symbol-number")
+      );
+    }
   }
 
   items.push(createActionItem(vscode, "Explain", "shosei.explain", "search"));
@@ -119,13 +426,111 @@ function buildActionItems(vscode, snapshot) {
   items.push(createActionItem(vscode, "Preview", "shosei.preview", "eye"));
   items.push(createActionItem(vscode, "Preview (Watch)", "shosei.previewWatch", "debug-start"));
   items.push(createActionItem(vscode, "Doctor", "shosei.doctor", "tools"));
-  items.push(createActionItem(vscode, "Page Check", "shosei.pageCheck", "check"));
+
+  if (projectType === "manga") {
+    items.push(createActionItem(vscode, "Page Check", "shosei.pageCheck", "check"));
+  }
 
   if (snapshot.mode === "series") {
     items.push(createActionItem(vscode, "Series Sync", "shosei.seriesSync", "sync"));
   }
 
   return items;
+}
+
+function pushEditorialPathItem(vscode, items, repoRoot, label, repoPath) {
+  if (!repoPath) {
+    return;
+  }
+
+  items.push(
+    createPathItem(
+      vscode,
+      label,
+      path.basename(repoPath),
+      path.resolve(repoRoot, repoPath),
+      "file"
+    )
+  );
+}
+
+function formatWithOrigin(value, origin) {
+  return origin ? `${value} [${origin}]` : value;
+}
+
+function originFor(explain, field) {
+  const match = (explain.values || []).find((value) => value.field === field);
+  return match ? match.origin : null;
+}
+
+function hasEditorialContent(editorial) {
+  if (!editorial) {
+    return false;
+  }
+
+  return Boolean(
+    editorial.style_path ||
+      editorial.claims_path ||
+      editorial.figures_path ||
+      editorial.freshness_path ||
+      editorial.style_rule_count ||
+      editorial.claim_count ||
+      editorial.figure_count ||
+      editorial.freshness_count
+  );
+}
+
+function editorialSummary(editorial) {
+  return [
+    `${editorial.style_rule_count} rules`,
+    `${editorial.claim_count} claims`,
+    `${editorial.figure_count} figures`,
+    `${editorial.freshness_count} freshness`
+  ].join(", ");
+}
+
+function toolDescription(tool) {
+  if (tool.status !== "available") {
+    return tool.status;
+  }
+
+  if (tool.detected_as && tool.detected_as !== tool.display_name) {
+    return tool.detected_as;
+  }
+
+  return tool.version || tool.status;
+}
+
+function buildToolTooltip(tool) {
+  const lines = [`status: ${tool.status}`];
+  if (tool.detected_as) {
+    lines.push(`detected as: ${tool.detected_as}`);
+  }
+  if (tool.version) {
+    lines.push(`version: ${tool.version}`);
+  }
+  if (tool.resolved_path) {
+    lines.push(`path: ${tool.resolved_path}`);
+  }
+  if (tool.status !== "available" && tool.install_hint) {
+    lines.push("");
+    lines.push(tool.install_hint);
+  }
+  return lines.join("\n");
+}
+
+function toolStatusIcon(status) {
+  switch (status) {
+    case "available":
+      return "pass-filled";
+    case "not-yet-implemented":
+      return "clock";
+    case "planned":
+      return "circle-large-outline";
+    case "missing":
+    default:
+      return "warning";
+  }
 }
 
 module.exports = {

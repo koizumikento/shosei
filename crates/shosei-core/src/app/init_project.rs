@@ -379,7 +379,7 @@ fn outputs_block(template: ProjectTemplate, preset: OutputPreset) -> String {
         && matches!(preset, OutputPreset::Print | OutputPreset::Both)
     {
         lines.push("pdf:".to_string());
-        lines.push("  engine: weasyprint".to_string());
+        lines.push("  engine: typst".to_string());
         lines.push("  toc: true".to_string());
         lines.push("  page_number: true".to_string());
         lines.push("  running_header: auto".to_string());

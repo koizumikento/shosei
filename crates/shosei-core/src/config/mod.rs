@@ -1016,7 +1016,7 @@ fn parse_pdf_engine(raw: &Value, config_path: &Path) -> Result<PdfEngine, Config
                 "must be weasyprint, typst, or lualatex",
             )
         }),
-        None => Ok(PdfEngine::Weasyprint),
+        None => Ok(PdfEngine::Typst),
     }
 }
 
@@ -1992,7 +1992,7 @@ git:
         let resolved = resolve_book_config(&context).unwrap();
         let pdf = resolved.effective.pdf.as_ref().unwrap();
 
-        assert_eq!(pdf.engine, PdfEngine::Weasyprint);
+        assert_eq!(pdf.engine, PdfEngine::Typst);
         assert!(pdf.toc);
         assert!(pdf.page_number);
         assert_eq!(pdf.running_header, PdfRunningHeader::Auto);

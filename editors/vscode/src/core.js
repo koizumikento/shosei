@@ -95,6 +95,55 @@ function sanitizeCliArgs(value) {
     .filter(Boolean);
 }
 
+function resolveCliTooling(options = {}) {
+  const cliCommand = typeof options.cliCommand === "string" && options.cliCommand.trim()
+    ? options.cliCommand.trim()
+    : "shosei";
+  const cliArgs = sanitizeCliArgs(options.cliArgs);
+
+  if (
+    options.enableDevelopmentFallback &&
+    cliCommand === "shosei" &&
+    cliArgs.length === 0
+  ) {
+    const manifestPath = findRepoCliManifest(options.extensionPath);
+    if (manifestPath) {
+      return {
+        command: "cargo",
+        args: [
+          "run",
+          "--manifest-path",
+          manifestPath,
+          "--bin",
+          "shosei",
+          "--"
+        ]
+      };
+    }
+  }
+
+  return {
+    command: cliCommand,
+    args: cliArgs
+  };
+}
+
+function findRepoCliManifest(extensionPath) {
+  if (typeof extensionPath !== "string" || !extensionPath.trim()) {
+    return null;
+  }
+
+  const manifestPath = path.resolve(
+    extensionPath,
+    "..",
+    "..",
+    "crates",
+    "shosei-cli",
+    "Cargo.toml"
+  );
+  return fileExists(manifestPath) ? manifestPath : null;
+}
+
 function buildCliInvocation(options) {
   const cliCommand = options.cliCommand || "shosei";
   const cliArgs = sanitizeCliArgs(options.cliArgs);
@@ -113,6 +162,42 @@ function buildCliInvocation(options) {
     args,
     cwd: options.cwd || options.repoRoot || process.cwd()
   };
+}
+
+function buildInitCommandParts(options = {}) {
+  const args = ["init"];
+
+  if (typeof options.path === "string" && options.path.trim()) {
+    args.push(options.path.trim());
+  }
+
+  args.push("--non-interactive");
+
+  if (options.force) {
+    args.push("--force");
+  }
+
+  appendOptionArg(args, "--config-template", options.configTemplate);
+  appendOptionArg(args, "--repo-mode", options.repoMode);
+  appendOptionArg(args, "--title", options.title);
+  appendOptionArg(args, "--author", options.author);
+  appendOptionArg(args, "--language", options.language);
+  appendOptionArg(args, "--output-preset", options.outputPreset);
+
+  return args;
+}
+
+function appendOptionArg(args, flag, value) {
+  if (typeof value !== "string") {
+    return;
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return;
+  }
+
+  args.push(flag, trimmed);
 }
 
 function extractReportPath(output) {
@@ -181,12 +266,15 @@ function classifyCommandResult(result, options = {}) {
 
 module.exports = {
   buildCliInvocation,
+  buildInitCommandParts,
   classifyCommandResult,
   extractReportPath,
+  findRepoCliManifest,
   findRepoRoot,
   inferSeriesBookId,
   listSeriesBookIds,
   readIssuesFromReport,
+  resolveCliTooling,
   sanitizeCliArgs,
   toAbsolutePath
 };

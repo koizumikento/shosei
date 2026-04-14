@@ -74,14 +74,14 @@ shosei build
 shosei validate
 ```
 
-`init` は現在、短い対話式です。既定値で一気に scaffold を作る場合は `--non-interactive --config-template <template>` を使えます。利用できるテンプレートは `business`, `novel`, `light-novel`, `manga` です。
+`init` は現在、短い対話式です。既定値と explicit override で一気に scaffold を作る場合は `--non-interactive` と `--config-template`, `--repo-mode`, `--title`, `--author`, `--language`, `--output-preset` を使えます。利用できるテンプレートは `business`, `novel`, `light-novel`, `manga` です。
 
 ### series
 
 漫画テンプレートは既定で `series` 構成を生成します。
 
 ```bash
-shosei init ./my-series --config-template manga
+shosei init ./my-series --non-interactive --config-template manga --title "My Series"
 cd my-series
 shosei explain --book vol-01
 shosei build --book vol-01

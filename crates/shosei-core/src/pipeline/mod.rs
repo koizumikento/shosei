@@ -195,7 +195,7 @@ pub fn prose_validate_plan_with_toolchain(
             .pdf
             .as_ref()
             .map(|pdf| pdf.engine)
-            .unwrap_or(PdfEngine::Weasyprint);
+            .unwrap_or(PdfEngine::Typst);
         let pdf_engine_tool = configured_pdf_engine.as_str();
         checks.push(ValidationCheck {
             name: "print-target-check",
@@ -551,7 +551,7 @@ git:
         assert!(
             plan.checks
                 .iter()
-                .any(|check| check.name == "pdf-engine" && check.tool == Some("weasyprint"))
+                .any(|check| check.name == "pdf-engine" && check.tool == Some("typst"))
         );
     }
 }

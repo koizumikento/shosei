@@ -202,12 +202,15 @@ pub fn run_pandoc_pdf(
     output: &Path,
     title: &str,
     language: &str,
+    pdf_engine: &str,
     table_of_contents: bool,
 ) -> std::io::Result<ToolRunOutput> {
     let mut command = Command::new(executable);
     command
         .arg("--to")
         .arg("pdf")
+        .arg("--pdf-engine")
+        .arg(pdf_engine)
         .arg("--standalone")
         .arg("--metadata")
         .arg(format!("title={title}"))

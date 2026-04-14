@@ -264,7 +264,7 @@ outputs:
 
 ```yaml
 pdf:
-  engine: weasyprint
+  engine: typst
   toc: true
   page_number: true
   running_header: auto
@@ -272,13 +272,15 @@ pdf:
 
 | Field | Type | Required | Default | Allowed |
 |---|---|---|---|---|
-| `engine` | string | conditional | `weasyprint` | `weasyprint`, `typst`, `lualatex` |
+| `engine` | string | conditional | `typst` | `weasyprint`, `typst`, `lualatex` |
 | `toc` | boolean | no | `true` | `true`, `false` |
 | `page_number` | boolean | no | `true` | `true`, `false` |
 | `running_header` | string | no | `auto` | `auto`, `none`, `title`, `chapter` |
 
 補足:
 
+- v0.1 の prose print backend は `typst` を正式既定とする
+- `weasyprint`, `lualatex` は将来拡張・検証候補として値は受け付けるが、v0.1 の doctor / CI の必須サポート対象には含めない
 - `toc: true` は prose の導出済み navigation structure から目次を生成する
 - `running_header: chapter` は prose 本文の chapter title を参照する
 - `running_header: auto` は profile ごとの既定を使い、必要に応じて chapter title を参照する

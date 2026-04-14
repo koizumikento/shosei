@@ -2,7 +2,7 @@ use std::{fs, path::PathBuf};
 
 use crate::{
     cli_api::CommandContext,
-    config,
+    config::{self, PdfEngine},
     domain::ProjectType,
     fs::join_repo_path,
     manga, pipeline,
@@ -124,6 +124,12 @@ fn execute_build_outputs(
         .book
         .as_ref()
         .expect("book context must exist for build");
+    let pdf_engine = resolved
+        .effective
+        .pdf
+        .as_ref()
+        .map(|pdf| pdf.engine.as_str())
+        .unwrap_or(PdfEngine::Typst.as_str());
 
     for output in &plan.outputs {
         match output.channel {
@@ -178,6 +184,7 @@ fn execute_build_outputs(
                     &output.artifact_path,
                     &resolved.effective.book.title,
                     &resolved.effective.book.language,
+                    pdf_engine,
                     resolved
                         .effective
                         .pdf
@@ -492,14 +499,14 @@ git:
     fn write_print_book_without_toc(root: &std::path::Path) {
         write_print_book_with_pdf(
             root,
-            "pdf:\n  engine: weasyprint\n  toc: false\n  page_number: true\n  running_header: auto\n",
+            "pdf:\n  engine: typst\n  toc: false\n  page_number: true\n  running_header: auto\n",
         );
     }
 
     fn write_print_book_with_toc(root: &std::path::Path) {
         write_print_book_with_pdf(
             root,
-            "pdf:\n  engine: weasyprint\n  toc: true\n  page_number: true\n  running_header: auto\n",
+            "pdf:\n  engine: typst\n  toc: true\n  page_number: true\n  running_header: auto\n",
         );
     }
 
@@ -819,6 +826,8 @@ printf 'fake pdf' > "$out"
         assert!(result.artifacts[0].is_file());
         let args = fs::read_to_string(args_path).unwrap();
         assert!(args.lines().any(|arg| arg == "--toc"));
+        assert!(args.lines().any(|arg| arg == "--pdf-engine"));
+        assert!(args.lines().any(|arg| arg == "typst"));
     }
 
     #[test]
@@ -868,6 +877,8 @@ printf 'fake pdf' > "$out"
         assert!(result.artifacts[0].is_file());
         let args = fs::read_to_string(args_path).unwrap();
         assert!(!args.lines().any(|arg| arg == "--toc"));
+        assert!(args.lines().any(|arg| arg == "--pdf-engine"));
+        assert!(args.lines().any(|arg| arg == "typst"));
     }
 
     #[test]

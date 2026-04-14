@@ -5,7 +5,7 @@
 
 ## 1. 目的
 
-`shosei init` は、新規プロジェクトを最小の迷いで立ち上げるための対話式コマンドである。
+`shosei init` は、新規プロジェクトを最小の迷いで立ち上げるための対話式コマンドである。対話で集める値は、必要に応じて explicit な CLI 引数からも渡せる。
 
 このウィザードは次を行う。
 
@@ -67,16 +67,20 @@ shosei init path/to/project
 ### 例外的 override
 
 ```bash
-shosei init --non-interactive --config-template novel
+shosei init ./my-book --non-interactive --config-template novel --title "My Book" --author "Ken" --language ja --output-preset both
 ```
 
-v0.1 で残す引数は最小限:
+v0.1 で残す引数:
 
 - `--non-interactive`
 - `--force`
-- `--path`
 - `--config-template`
 - `--repo-mode`
+- `--title`
+- `--author`
+- `--language`
+- `--output-preset`
+- positional `PATH`
 
 ## 5. 質問一覧
 
@@ -421,16 +425,18 @@ Project summary
 
 ## 17. 非対話モード
 
-v0.1 では CI やテンプレート生成用途に限定する。
+v0.1 では CI や editor integration からの scaffold 生成にも使う。
 
-最低限必要:
+非対話モードでは template ごとの既定値を使って scaffold を生成し、次の値だけを explicit に override できる。
 
-- `project.type`
-- `book.title`
-- `book.authors`
-- `outputs`
+- `config-template`
+- `repo-mode`
+- `title`
+- `author`
+- `language`
+- `output-preset`
 
-不足時は failure にする。
+未指定の項目は template に応じた既定値にフォールバックする。
 
 ## 18. 将来拡張
 

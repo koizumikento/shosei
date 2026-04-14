@@ -787,7 +787,7 @@ mod tests {
                     key: "pdf-engine",
                     display_name: "PDF engine",
                     status: ToolStatus::Available,
-                    detected_as: Some("weasyprint".to_string()),
+                    detected_as: Some("typst".to_string()),
                     resolved_path: None,
                     version: None,
                     install_hint:

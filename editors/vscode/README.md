@@ -11,6 +11,11 @@
 
 ## Commands
 
+- `Shosei: Init`
+- `Shosei: Chapter Add`
+- `Shosei: Chapter Move`
+- `Shosei: Chapter Remove`
+- `Shosei: Chapter Renumber`
 - `Shosei: Explain`
 - `Shosei: Validate`
 - `Shosei: Build`
@@ -27,9 +32,16 @@
 Activity Bar に `Shosei` view container を追加する。
 
 - `Context`: repo mode、repo root、series の target book
+- `Toolchain`: host OS、required / optional summary、tool status
+- `Resolved Config`: title、project type、language、outputs、writing mode、binding、editorial summary
+- `Structure`: config file、chapter list、editorial sidecar file
 - `Actions`: explain / validate / build / preview / doctor などの主要操作
 
+repo が見つからない場合は、view から `Init` を直接起動できる。
+
 `series` では view から target book を選べる。選択値は workspace state に保持し、コマンド実行時の `--book` に使う。
+
+prose project では chapter item の context menu から move / remove を呼べる。add / renumber は action と command palette から使う。
 
 ## Settings
 
@@ -42,18 +54,49 @@ Activity Bar に `Shosei` view container を追加する。
 }
 ```
 
-この source tree の CLI を直接使う場合:
+この source tree の CLI を直接使う場合は、`cwd` が対象 book repo になっても動くように `--manifest-path` を付ける。
 
 ```json
 {
   "shosei.cli.command": "cargo",
-  "shosei.cli.args": ["run", "-p", "shosei-cli", "--bin", "shosei", "--"]
+  "shosei.cli.args": [
+    "run",
+    "--manifest-path",
+    "/path/to/cb-tools/crates/shosei-cli/Cargo.toml",
+    "--bin",
+    "shosei",
+    "--"
+  ]
 }
 ```
 
 `series` repo で active file が `books/<book-id>/` 配下にない場合は、`shosei.series.defaultBookId` を設定できる。
 
 ## Development
+
+VS Code で repo root を開けば、`.vscode/launch.json` の `shosei: Extension Development Host` からそのまま `F5` で拡張を起動できる。開発ホストは `--disable-extensions` 付きで立ち上げ、手元の他拡張の activation error を切り離す。
+
+開発ホストでは `shosei.cli.command` / `shosei.cli.args` が未設定でも、repo 内の `crates/shosei-cli/Cargo.toml` が見つかれば `cargo run --manifest-path ... --bin shosei --` に自動フォールバックする。
+
+`Shosei: Init` は VS Code 側で template / repo mode / title / author / language / output preset を集め、`shosei init <path> --non-interactive ...` に変換して実行する。scaffold 自体は CLI が生成する。
+
+view の config / structure 表示は `shosei explain --json`、toolchain 表示は `shosei doctor --json` を使っており、required / optional の分類も含めて VS Code 側で config merge や依存検出を再実装しない。
+
+Extension Development Host 側でこの source tree の CLI を使うときは、workspace settings を次のようにする。
+
+```json
+{
+  "shosei.cli.command": "cargo",
+  "shosei.cli.args": [
+    "run",
+    "--manifest-path",
+    "/path/to/cb-tools/crates/shosei-cli/Cargo.toml",
+    "--bin",
+    "shosei",
+    "--"
+  ]
+}
+```
 
 構文チェック:
 

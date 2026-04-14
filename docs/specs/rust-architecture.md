@@ -174,12 +174,14 @@ repo root 探索と context 判定。
 
 対象例:
 
-- `pandoc`
-- `epubcheck`
-- PDF engine
 - `git`
+- `pandoc`
+- `typst`
+- `epubcheck`
 - `git-lfs`
 - Kindle Previewer
+
+v0.1 の prose print backend は `typst` を正式対象にし、他の PDF engine 候補は将来拡張で扱う。
 
 ### 4.8 `diagnostics/`
 
