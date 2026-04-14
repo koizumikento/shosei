@@ -858,13 +858,33 @@ mod tests {
         ToolchainReport {
             tools: vec![
                 ToolRecord {
+                    key: "pandoc",
+                    display_name: "pandoc",
+                    status: ToolStatus::Available,
+                    detected_as: Some("pandoc".to_string()),
+                    resolved_path: None,
+                    version: None,
+                    install_hint: "Install pandoc and ensure it is available on PATH.".to_string(),
+                },
+                ToolRecord {
                     key: "epubcheck",
                     display_name: "epubcheck",
                     status: epubcheck,
                     detected_as: Some("epubcheck".to_string()),
                     resolved_path: None,
                     version: None,
-                    install_hint: "Install epubcheck and ensure the launcher is available on PATH.",
+                    install_hint: "Install epubcheck and ensure the launcher is available on PATH."
+                        .to_string(),
+                },
+                ToolRecord {
+                    key: "weasyprint",
+                    display_name: "weasyprint",
+                    status: ToolStatus::Available,
+                    detected_as: Some("weasyprint".to_string()),
+                    resolved_path: None,
+                    version: None,
+                    install_hint: "Install weasyprint and ensure the launcher is on PATH."
+                        .to_string(),
                 },
                 ToolRecord {
                     key: "pdf-engine",
@@ -873,7 +893,9 @@ mod tests {
                     detected_as: Some("weasyprint".to_string()),
                     resolved_path: None,
                     version: None,
-                    install_hint: "Install one supported PDF engine such as weasyprint, typst, or lualatex.",
+                    install_hint:
+                        "Install one supported PDF engine such as weasyprint, typst, or lualatex."
+                            .to_string(),
                 },
             ],
         }
@@ -1320,6 +1342,52 @@ manga:
         let report = fs::read_to_string(result.report_path).unwrap();
         assert!(report.contains("project.type is not manga but a manga section is present"));
         assert!(report.contains("print output is enabled but no print section is defined"));
+    }
+
+    #[test]
+    fn validate_reports_missing_configured_pdf_engine() {
+        let root = temp_dir("missing-configured-pdf-engine");
+        fs::create_dir_all(root.join("manuscript")).unwrap();
+        fs::write(root.join("manuscript/01.md"), "# Chapter 1\n").unwrap();
+        fs::write(
+            root.join("book.yml"),
+            r#"
+project:
+  type: novel
+  vcs: git
+book:
+  title: "Sample"
+  authors:
+    - "Author"
+  reading_direction: rtl
+layout:
+  binding: right
+manuscript:
+  chapters:
+    - manuscript/01.md
+outputs:
+  print:
+    enabled: true
+    target: print-jp-pdfx1a
+pdf:
+  engine: typst
+validation:
+  strict: true
+git:
+  lfs: true
+"#,
+        )
+        .unwrap();
+
+        let result = validate_book_with_toolchain(
+            &CommandContext::new(&root, None, None),
+            &fake_toolchain(ToolStatus::Missing),
+        )
+        .unwrap();
+
+        assert!(result.has_errors);
+        let report = fs::read_to_string(result.report_path).unwrap();
+        assert!(report.contains("required validation tool is missing: typst"));
     }
 
     #[test]

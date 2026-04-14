@@ -178,18 +178,19 @@ project/
 - Git リポジトリ初期化補助
 - 依存チェック案内
 
-質問項目:
+v0.1 の現行質問項目:
 
 1. 作品カテゴリ: `business | novel | light-novel | manga`
-2. 本文方向: `horizontal-ltr | vertical-rl`
-3. 出力先: `kindle | print | both`
-4. 判型: `A5 | B6 | bunko | custom`
-5. PDF profile: `pdfx1a | pdfx4`
-6. タイトル
-7. 著者名
-8. 言語
-9. サンプルファイル生成有無
-10. Git 初期化有無
+2. リポジトリ管理単位: `single-book | series`
+3. タイトル
+4. 著者名
+5. 言語
+6. 出力先: `kindle | print | both`
+
+補足:
+
+- `--non-interactive --config-template <template>` を使うと既定値で scaffold を生成できる
+- 実行後に `doctor` を流すかどうかは v0.1 でも確認対象に含めてよい
 
 ### 7.2 `shosei build`
 
@@ -231,6 +232,7 @@ v0.1 の最小要件:
 - 人間向け summary と機械可読レポートを両方出せる
 
 - 共通 lint
+- build に必要なツールの事前確認
 - EPUB 検証
 - Kindle 想定検証
 - 印刷想定検証
@@ -359,7 +361,18 @@ v0.1 の最小要件:
 - `dist/reports/<book-id>-page-check.json` を出力する
 - page order と spread candidate を text summary でも示せる
 
-### 7.10 `shosei story scaffold`
+### 7.10 `shosei series sync`
+
+`series.yml` を正として巻一覧と派生 metadata を同期する。
+
+v0.1 の最小要件:
+
+- `shared/metadata/series-catalog.yml` を生成する
+- `shared/metadata/series-catalog.md` を生成する
+- prose book では `shared/metadata/series-catalog.md` を `manuscript.backmatter` に同期する
+- 手書き本文 Markdown を直接 rewrite しない
+
+### 7.11 `shosei story scaffold`
 
 repo-native な物語補助 workspace を生成する。
 
@@ -387,7 +400,7 @@ v0.1 の最小要件:
 - `single-book` / `series` の repo discovery ルールに従う
 - shared canon と巻固有 story workspace を混同しない
 
-### 7.11 `shosei story map`
+### 7.12 `shosei story map`
 
 book-scoped な `scenes.yml` を読み、scene 一覧と report を出力する。
 
@@ -414,7 +427,7 @@ v0.1 の最小要件:
 - `file` は repo-relative path として解釈する
 - text summary と JSON report を返す
 
-### 7.12 `shosei story check`
+### 7.13 `shosei story check`
 
 book-scoped な `scenes.yml` を読み、軽い整合チェック結果を report として出力する。
 
@@ -447,7 +460,7 @@ v0.1 の最小要件:
 - scene frontmatter の未解決 entity 参照は warning とする
 - invalid scene/entity frontmatter は error とする
 
-### 7.13 `shosei story drift`
+### 7.14 `shosei story drift`
 
 `series` における shared canon と巻固有 story data の衝突を report として出力する。
 
@@ -474,7 +487,7 @@ v0.1 の最小要件:
 - report path と issue 数を summary で返す
 - error issue がある場合は non-zero exit で返せる
 
-### 7.14 `shosei story sync`
+### 7.15 `shosei story sync`
 
 `series` で shared canon と巻固有 story workspace の間を明示コピーする。単体 sync と `story drift` report を使う batch sync の両方を扱う。
 
@@ -508,11 +521,10 @@ v0.1 の最小要件:
 - report mode では `--report` を必須にし、`--kind` / `--id` は受け付けない
 - report mode は `--force` を必須にする
 
-### 7.15 将来候補
+### 7.16 将来候補
 
 - `shosei release`: handoff + tag 前提の成果物固定化
 - `shosei page add`
-- `shosei series sync`: `series.yml` から巻一覧、既刊案内、派生 metadata を同期
 - `shosei migrate --to series --book-id <id>`
 
 ## 8. 設定ファイル仕様
@@ -1013,11 +1025,13 @@ v0.1 の既定:
 
 ### 推奨
 
+- `explain`
 - `preview`
 - `preview --watch`
 - `validate` の preflight report
 - `handoff`
 - `handoff proof`
+- `series sync`
 - `page check`
 - manga のページマニフェスト
 - Git LFS 案内
@@ -1025,8 +1039,6 @@ v0.1 の既定:
 
 ### 将来
 
-- `shosei explain`
-- `shosei series sync`
 - fixed-layout EPUB の詳細制御
 - Kindle Previewer の深い統合
 - 漫画の guided view/panel metadata

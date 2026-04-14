@@ -7,7 +7,7 @@ use anyhow::Result;
 use clap::Parser;
 use shosei_core::{app, cli_api::CommandContext};
 
-use crate::args::{ChapterCommands, Cli, Commands, PageCommands, StoryCommands};
+use crate::args::{ChapterCommands, Cli, Commands, PageCommands, SeriesCommands, StoryCommands};
 
 fn main() {
     let code = match run() {
@@ -32,13 +32,38 @@ fn run() -> Result<i32> {
         } => {
             output::print_line(prompts::init_mode_banner());
             let target = path.unwrap_or(std::env::current_dir()?);
+            let wizard_answers = if non_interactive || config_template.is_some() {
+                None
+            } else {
+                Some(prompts::prompt_init_wizard()?)
+            };
             let result = app::init_project(app::InitProjectOptions {
                 root: target,
                 non_interactive,
                 force,
-                config_template,
+                config_template: wizard_answers
+                    .as_ref()
+                    .map(|answers| answers.config_template.clone())
+                    .or(config_template),
+                repo_mode: wizard_answers
+                    .as_ref()
+                    .map(|answers| answers.repo_mode.clone()),
+                title: wizard_answers.as_ref().map(|answers| answers.title.clone()),
+                author: wizard_answers
+                    .as_ref()
+                    .map(|answers| answers.author.clone()),
+                language: wizard_answers
+                    .as_ref()
+                    .map(|answers| answers.language.clone()),
+                output_preset: wizard_answers
+                    .as_ref()
+                    .map(|answers| answers.output_preset.clone()),
             })?;
             output::print_line(&result.summary);
+            if wizard_answers.as_ref().map(|answers| answers.run_doctor) == Some(true) {
+                let doctor = app::doctor();
+                output::print_line(&doctor.summary);
+            }
             Ok(exit_code::OK)
         }
         Commands::Explain { book, path } => {
@@ -216,6 +241,13 @@ fn run() -> Result<i32> {
                     &CommandContext::new(path, book, None),
                     app::StoryScaffoldOptions { shared, force },
                 )?;
+                output::print_line(&result.summary);
+                Ok(exit_code::OK)
+            }
+        },
+        Commands::Series { command } => match command {
+            SeriesCommands::Sync { path } => {
+                let result = app::series_sync(&CommandContext::new(path, None, None))?;
                 output::print_line(&result.summary);
                 Ok(exit_code::OK)
             }

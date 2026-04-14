@@ -61,6 +61,10 @@ pub enum Commands {
         #[command(subcommand)]
         command: StoryCommands,
     },
+    Series {
+        #[command(subcommand)]
+        command: SeriesCommands,
+    },
     Page {
         #[command(subcommand)]
         command: PageCommands,
@@ -187,13 +191,21 @@ pub enum PageCommands {
     },
 }
 
+#[derive(Debug, Subcommand)]
+pub enum SeriesCommands {
+    Sync {
+        #[arg(long, value_name = "PATH", default_value = ".")]
+        path: PathBuf,
+    },
+}
+
 #[cfg(test)]
 mod tests {
     use std::path::PathBuf;
 
     use clap::Parser;
 
-    use super::{ChapterCommands, Cli, Commands, StoryCommands};
+    use super::{ChapterCommands, Cli, Commands, SeriesCommands, StoryCommands};
 
     #[test]
     fn parses_chapter_add_command() {
@@ -511,6 +523,20 @@ mod tests {
                 );
                 assert!(force);
                 assert_eq!(path, PathBuf::from("."));
+            }
+            other => panic!("unexpected command: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_series_sync_command() {
+        let cli = Cli::parse_from(["shosei", "series", "sync", "--path", "repo"]);
+
+        match cli.command {
+            Commands::Series {
+                command: SeriesCommands::Sync { path },
+            } => {
+                assert_eq!(path, PathBuf::from("repo"));
             }
             other => panic!("unexpected command: {other:?}"),
         }

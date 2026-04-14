@@ -9,8 +9,7 @@
 基本の流れは、初期化して、解決済み設定を確認し、build と validate を回すこと。
 
 ```bash
-shosei init ./my-book --config-template novel
-cd my-book
+shosei init
 shosei explain
 shosei build
 shosei validate
@@ -27,6 +26,7 @@ shosei validate
 | `shosei preview` | one-shot / watch preview を生成する | 利用可能 |
 | `shosei chapter <subcommand>` | prose の `manuscript.chapters` を更新する | 利用可能 |
 | `shosei story <subcommand>` | story workspace と scene map を扱う | 利用可能 |
+| `shosei series sync` | series metadata と prose backmatter を同期する | 利用可能 |
 | `shosei page check` | manga のページ順と見開き候補を検査する | 利用可能 |
 | `shosei doctor` | 依存解決結果と導入ヒントを表示する | 利用可能 |
 | `shosei handoff <destination>` | handoff package を生成する | 利用可能 |
@@ -49,6 +49,13 @@ shosei validate --book vol-01
 shosei build --target print
 shosei validate --target kindle
 shosei preview --target print
+```
+
+`series sync` は `series.yml` を正として shared metadata を更新し、prose book では生成 backmatter を同期する。
+
+```bash
+shosei series sync
+shosei series sync --path ./my-series
 ```
 
 `page check` は manga project 向けで、ページ順や見開き候補を確認する。
@@ -171,6 +178,8 @@ scenes:
 
 現在の `validate` は、JSON レポートを出しつつ、次のような preflight を行う。
 
+- build で必要になる `pandoc` の有無
+- print build に設定された PDF engine の有無
 - 欠落した manuscript / cover / manga page の検出
 - prose 原稿のリンク切れと画像参照切れ
 - prose 原稿の alt 欠落
@@ -222,7 +231,9 @@ pdf:
 
 ## Generated scaffold
 
-`init` はテンプレートに応じて、次のような土台を生成する。
+`init` は標準では短い対話式で、作品カテゴリ、repo mode、タイトル、著者名、言語、出力先を確認してから scaffold を生成する。`--non-interactive --config-template <template>` を使うと既定値で生成できる。
+
+テンプレートに応じて、次のような土台を生成する。
 
 - `book.yml` または `series.yml`
 - `manuscript/` または `manga/`
@@ -251,11 +262,14 @@ shosei preview --watch --target print
 - 見開き候補と `manga.spread_policy_for_kindle` の整合
 - `manga.front_color_pages` と `manga.body_mode` の整合
 
-`doctor` は次の依存について、PATH 解決結果、バージョン、導入ヒントを表示する。
+`doctor` は利用可能 / 不足 / pending を分けて表示し、次の依存について PATH 解決結果、バージョン、導入ヒントを返す。
 
 - `pandoc`
 - `epubcheck`
 - `git`
 - `git-lfs`
-- `weasyprint` / `typst` / `lualatex` のいずれか
+- `weasyprint`
+- `typst`
+- `lualatex`
+- 代表 PDF engine
 - Kindle Previewer

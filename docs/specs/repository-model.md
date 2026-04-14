@@ -219,7 +219,7 @@ shosei validate --book vol-02
 shosei handoff --book vol-03
 ```
 
-将来:
+series 運用では、現在次の補助コマンドを持つ:
 
 ```bash
 shosei build --all
@@ -231,6 +231,7 @@ shosei series sync
 
 - `series.yml` を正として巻一覧、巻番号、既刊案内を同期する
 - 手書き原稿本文を直接 rewrite するのではなく、派生 metadata や backmatter 生成を優先する
+- v0.1 では `shared/metadata/series-catalog.yml` と `shared/metadata/series-catalog.md` を生成し、prose book では `manuscript.backmatter` に generated catalog を同期する
 - 巻固有 `book.yml` の明示 override は保持する
 
 ## 10. `init` の扱い

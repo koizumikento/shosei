@@ -32,6 +32,13 @@ Add a deeper `AGENTS.md` only when a subdirectory needs rules that differ from t
 - Do not invent implementation details that conflict with `docs/specs/`.
 - Prefer updating specs before scaffolding code when the behavior is still being decided.
 
+## Delegation Rules
+
+- When a task is read-heavy, delegate the reading pass to a sub-agent first.
+- Treat a task as read-heavy when it mainly requires scanning multiple files, specs, ADRs, logs, or diffs before any concrete edit can be made.
+- Use the sub-agent for repository exploration, context gathering, and summary preparation; keep final synthesis, decisions, and file edits in the main agent unless the user asks otherwise.
+- Skip delegation only for small, targeted reads where spawning a sub-agent would add more overhead than value.
+
 ## Implementation Rules
 
 - Implementation language is Rust.
@@ -41,9 +48,11 @@ Add a deeper `AGENTS.md` only when a subdirectory needs rules that differ from t
 - Preserve the repository model:
   - `single-book`: root `book.yml`
   - `series`: root `series.yml` plus `books/<book-id>/book.yml`
-- The current CLI surface wired in `crates/shosei-cli` is `init`, `explain`, `build`, `validate`, `preview`, `doctor`, and `handoff`.
+- The current CLI surface wired in `crates/shosei-cli` is `init`, `explain`, `build`, `validate`, `preview`, `chapter`, `page`, `doctor`, and `handoff`.
 - For `series` repos, current repo discovery requires either `--book <book-id>` or running the command from inside `books/<book-id>/...`.
 - For current user flows, prefer examples in the order `init` -> `explain` -> `build` / `validate`; `explain` is the supported way to inspect resolved config and origin data before running output commands.
+- `shosei chapter <subcommand>` is for prose books only and updates `manuscript.chapters`; it does not manage manga page order.
+- `shosei page check` is for manga books only and inspects page order / spread-related issues without mutating prose chapter config.
 
 ## Editing Rules
 
@@ -70,6 +79,7 @@ Use these exact commands when validating Rust changes:
 - linting: `cargo clippy --workspace --all-targets -- -D warnings`
 - tests: `cargo test --workspace`
 - focused repo discovery checks: `cargo test -p shosei-core --test repo_discovery`
+- focused chapter workflow checks: `cargo test -p shosei-core --test chapter_commands` and `cargo test -p shosei-core --test chapter_renumber`
 - smoke checks: `cargo run -p shosei-cli --bin shosei -- --help`
 
 ## Generated Files
