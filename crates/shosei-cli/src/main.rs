@@ -29,6 +29,7 @@ fn run() -> Result<i32> {
             non_interactive,
             force,
             config_template,
+            config_profile,
             repo_mode,
         } => {
             output::print_line(prompts::init_mode_banner());
@@ -46,6 +47,10 @@ fn run() -> Result<i32> {
                     .as_ref()
                     .map(|answers| answers.config_template.clone())
                     .or(config_template),
+                config_profile: wizard_answers
+                    .as_ref()
+                    .and_then(|answers| answers.config_profile.clone())
+                    .or(config_profile),
                 repo_mode: repo_mode.or_else(|| {
                     wizard_answers
                         .as_ref()

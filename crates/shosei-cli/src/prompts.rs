@@ -3,6 +3,7 @@ use std::io::{self, Write};
 #[derive(Debug, Clone)]
 pub struct InitWizardAnswers {
     pub config_template: String,
+    pub config_profile: Option<String>,
     pub repo_mode: String,
     pub title: String,
     pub author: String,
@@ -16,8 +17,18 @@ pub fn init_mode_banner() -> &'static str {
 }
 
 pub fn prompt_init_wizard() -> io::Result<InitWizardAnswers> {
-    let config_template =
-        prompt_with_default("作品カテゴリ [business|novel|light-novel|manga]", "novel")?;
+    let config_template = prompt_with_default(
+        "作品カテゴリ [business|paper|novel|light-novel|manga]",
+        "novel",
+    )?;
+    let config_profile = if config_template == "paper" {
+        Some(prompt_with_default(
+            "paper profile [paper|conference-preprint]",
+            "paper",
+        )?)
+    } else {
+        None
+    };
     let default_repo_mode = if config_template == "manga" {
         "series"
     } else {
@@ -25,8 +36,13 @@ pub fn prompt_init_wizard() -> io::Result<InitWizardAnswers> {
     };
     let repo_mode =
         prompt_with_default("リポジトリ管理単位 [single-book|series]", default_repo_mode)?;
-    let default_title = match config_template.as_str() {
+    let default_title = match config_profile
+        .as_deref()
+        .unwrap_or(config_template.as_str())
+    {
         "business" => "Untitled Business Book",
+        "paper" => "Untitled Paper",
+        "conference-preprint" => "Untitled Conference Preprint",
         "light-novel" => "Untitled Light Novel",
         "manga" => "Untitled Manga Volume",
         _ => "Untitled Novel",
@@ -34,11 +50,19 @@ pub fn prompt_init_wizard() -> io::Result<InitWizardAnswers> {
     let title = prompt_with_default("タイトル", default_title)?;
     let author = prompt_with_default("著者名", "Author Name")?;
     let language = prompt_with_default("言語コード", "ja")?;
-    let output_preset = prompt_with_default("出力先 [kindle|print|both]", "kindle")?;
+    let output_preset = prompt_with_default(
+        "出力先 [kindle|print|both]",
+        if config_template == "paper" {
+            "print"
+        } else {
+            "kindle"
+        },
+    )?;
     let run_doctor = prompt_yes_no("生成後に shosei doctor を実行しますか", false)?;
 
     Ok(InitWizardAnswers {
         config_template,
+        config_profile,
         repo_mode,
         title,
         author,

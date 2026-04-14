@@ -20,6 +20,8 @@ pub enum Commands {
         force: bool,
         #[arg(long, value_name = "TEMPLATE")]
         config_template: Option<String>,
+        #[arg(long, value_name = "PROFILE", value_parser = ["paper", "conference-preprint"])]
+        config_profile: Option<String>,
         #[arg(long, value_name = "MODE", value_parser = ["single-book", "series"])]
         repo_mode: Option<String>,
     },
@@ -273,7 +275,9 @@ mod tests {
             "init",
             "./my-series",
             "--config-template",
-            "business",
+            "paper",
+            "--config-profile",
+            "conference-preprint",
             "--repo-mode",
             "series",
         ]);
@@ -282,11 +286,13 @@ mod tests {
             Commands::Init {
                 path,
                 config_template,
+                config_profile,
                 repo_mode,
                 ..
             } => {
                 assert_eq!(path, Some(PathBuf::from("./my-series")));
-                assert_eq!(config_template.as_deref(), Some("business"));
+                assert_eq!(config_template.as_deref(), Some("paper"));
+                assert_eq!(config_profile.as_deref(), Some("conference-preprint"));
                 assert_eq!(repo_mode.as_deref(), Some("series"));
             }
             other => panic!("unexpected command: {other:?}"),

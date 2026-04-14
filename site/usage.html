@@ -45,6 +45,12 @@ cd my-series
 shosei explain --book vol-01
 shosei build --book vol-01
 shosei validate --book vol-01</code></pre>
+          <p>論文や発表前刷りは <code>paper</code> を使い、前刷り preset は <code>--config-profile conference-preprint</code> で選びます。</p>
+          <pre><code>shosei init ./preprint --config-template paper --config-profile conference-preprint --non-interactive
+cd preprint
+shosei explain
+shosei validate --target print
+shosei build --target print</code></pre>
         </section>
 
         <section>
@@ -248,6 +254,7 @@ shosei chapter add books/vol-01/manuscript/02.md --book vol-01 --title "Chapter 
             <li>heading hierarchy の飛び級</li>
             <li>prose project の editorial sidecar に基づく表記ゆれ、claim / figure / freshness の検査</li>
             <li>Kindle / print / manga 向けの target 別警告</li>
+            <li><code>conference-preprint</code> profile の A4 / 2 段 / print preset 逸脱 warning</li>
           </ul>
           <p>severity は <code>validation.accessibility</code>, <code>validation.missing_image</code>, <code>validation.missing_alt</code>, <code>validation.broken_link</code> の設定で調整できます。</p>
           <p>issue の <code>location</code> は、特定できる場合は file path に加えて line 番号も持ちます。</p>
@@ -274,6 +281,15 @@ shosei explain --book vol-01</code></pre>
             <li><code>pdf.toc</code></li>
             <li><code>pdf.page_number</code></li>
             <li><code>pdf.running_header</code></li>
+            <li><code>pdf.column_count</code></li>
+            <li><code>pdf.column_gap</code></li>
+            <li><code>pdf.base_font_size</code></li>
+            <li><code>pdf.line_height</code></li>
+            <li><code>print.trim_size</code></li>
+            <li><code>print.page_margin</code></li>
+            <li><code>print.sides</code></li>
+            <li><code>print.max_pages</code></li>
+            <li><code>print.pdf_standard</code></li>
           </ul>
           <p>editorial sidecar が設定されている場合、<code>explain</code> は rule / claim / figure / freshness item の件数も summary に出します。</p>
         </section>
@@ -308,13 +324,14 @@ pdf:
   toc: true
   page_number: true
   running_header: auto</code></pre>
-          <p>既定では <code>pdf.toc: true</code> です。</p>
+          <p>既定では <code>pdf.toc: true</code> です。ただし <code>paper</code> / <code>conference-preprint</code> の scaffold では <code>pdf.toc: false</code> を書きます。</p>
           <p><code>pdf.toc: false</code> にすると、print build では Pandoc の <code>--toc</code> を付けずに実行します。</p>
+          <p><code>weasyprint</code> を使う print build では <code>styles/base.css</code>, <code>styles/print.css</code> と、<code>pdf</code> / <code>print</code> 設定から生成した layout stylesheet を合わせて渡します。<code>conference-preprint</code> では A4、余白、2 段組、本文サイズがこの generated stylesheet に反映されます。<code>typst</code> では <code>columns</code>, <code>papersize</code>, <code>margin</code>, <code>fontsize</code>, <code>linestretch</code> の変数として渡します。</p>
         </section>
 
         <section>
           <h2>Generated scaffold</h2>
-          <p><code>init</code> は標準では短い対話式で、作品カテゴリ、repo mode、タイトル、著者名、言語、出力先を確認してから scaffold を生成します。<code>--non-interactive --config-template &lt;template&gt;</code> を使うと既定値で生成できます。</p>
+          <p><code>init</code> は標準では短い対話式で、作品カテゴリ、repo mode、タイトル、著者名、言語、出力先を確認してから scaffold を生成します。<code>--non-interactive --config-template &lt;template&gt;</code> を使うと既定値で生成できます。<code>paper</code> では追加で <code>--config-profile paper|conference-preprint</code> を受け付けます。</p>
           <p>テンプレートに応じて、次のような土台を生成します。</p>
           <ul>
             <li>`book.yml` または `series.yml`</li>
@@ -323,10 +340,10 @@ pdf:
             <li>`.agents/skills/shosei-project/SKILL.md`</li>
             <li>`single-book` では `assets/cover/`, `assets/images/`, `assets/fonts/`, `styles/`</li>
             <li>`series` では `shared/assets/`, `shared/styles/`, `shared/fonts/`, `shared/metadata/`, `books/&lt;book-id&gt;/assets/`</li>
-            <li>prose 系では `single-book` に `manuscript/01-chapter-1.md` と `editorial/*.yml`、`series` に `books/&lt;book-id&gt;/manuscript/01-chapter-1.md` と `books/&lt;book-id&gt;/editorial/*.yml`</li>
+            <li>prose 系では `single-book` に原稿ファイルと `editorial/*.yml`、`series` に `books/&lt;book-id&gt;/manuscript/` と `books/&lt;book-id&gt;/editorial/*.yml`</li>
             <li>manga 系では `single-book` に `manga/`、`series` に `books/&lt;book-id&gt;/manga/`</li>
           </ul>
-          <p>prose 系テンプレートでは、最初の章ファイルとして <code>single-book</code> では <code>manuscript/01-chapter-1.md</code>、<code>series</code> では <code>books/&lt;book-id&gt;/manuscript/01-chapter-1.md</code> を生成します。この <code>01-</code> prefix は初期命名の慣例で、章順の source of truth ではありません。</p>
+          <p>prose 系テンプレートでは、最初の原稿ファイルとして <code>paper</code> / <code>conference-preprint</code> は <code>single-book</code> で <code>manuscript/01-main.md</code>、<code>series</code> で <code>books/&lt;book-id&gt;/manuscript/01-main.md</code> を生成します。その他の prose は <code>01-chapter-1.md</code> を生成します。この <code>01-</code> prefix は初期命名の慣例で、章順の source of truth ではありません。</p>
           <p>また、prose 系では空の <code>editorial/style.yml</code>, <code>editorial/claims.yml</code>, <code>editorial/figures.yml</code>, <code>editorial/freshness.yml</code> を生成し、<code>single-book</code> では <code>book.yml</code>、<code>series</code> では <code>books/&lt;book-id&gt;/book.yml</code> から参照します。style 側は <code>single-book</code> では <code>styles/base.css</code>, <code>styles/epub.css</code>, <code>styles/print.css</code>、<code>series</code> では <code>shared/styles/base.css</code> を生成します。</p>
         </section>
 

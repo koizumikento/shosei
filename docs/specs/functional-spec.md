@@ -28,6 +28,7 @@
 ### 対象カテゴリ
 
 - ビジネス書
+- 論文
 - 小説
 - ライトノベル
 - 漫画
@@ -63,7 +64,7 @@ CLI バイナリ名は `shosei` とする。
 
 ### 4.1 文章書籍
 
-`business`, `novel`, `light-novel` は Pandoc を中核変換エンジンとして扱う。
+`business`, `paper`, `novel`, `light-novel` は Pandoc を中核変換エンジンとして扱う。
 
 - EPUB: Pandoc EPUB3 writer を利用
 - PDF: Pandoc + PDF engine を利用
@@ -113,6 +114,7 @@ CLI バイナリ名は `shosei` とする。
 ## 5. 想定ユーザー
 
 - 技術書・ビジネス書の著者
+- 論文・前刷りを作る学生、研究者、発表者
 - 小説・ライトノベルの制作者
 - 漫画制作者、同人制作者、小規模出版社
 - 入稿担当、組版担当、外注先とのやりとりを行う人
@@ -185,7 +187,7 @@ project/
 
 v0.1 の現行質問項目:
 
-1. 作品カテゴリ: `business | novel | light-novel | manga`
+1. 作品カテゴリ: `business | paper | novel | light-novel | manga`
 2. リポジトリ管理単位: `single-book | series`
 3. タイトル
 4. 著者名
@@ -196,6 +198,7 @@ v0.1 の現行質問項目:
 補足:
 
 - `--non-interactive --config-template <template>` を使うと既定値で scaffold を生成できる
+- `paper` を選んだ場合は prose 系のまま扱い、`paper` または `conference-preprint` の profile を後続質問で選べるようにする
 - prose project では `editorial/style.yml`, `claims.yml`, `figures.yml`, `freshness.yml` も scaffold に含める
 
 ### 7.2 `shosei build`
@@ -634,6 +637,7 @@ git:
 対象:
 
 - business
+- paper
 - novel
 - light-novel
 
@@ -695,6 +699,7 @@ git:
 ### 11.2 対象カテゴリ別の考え方
 
 - `business`: 図表・スクリーンショット中心
+- `paper`: 図表・表・引用中心
 - `novel`: 章扉・挿絵中心
 - `light-novel`: 口絵・挿絵・見開き重視
 - `manga`: ページ画像と見開きが中心
@@ -765,6 +770,10 @@ profile ごとの既定:
 
 - `business`
   - chapter と section の両方を navigation に使うことを優先する
+- `paper`
+  - chapter よりも section 中心の navigation を優先し、図表・引用・文献を含む本文を扱いやすくする
+- `conference-preprint`
+  - `paper` の派生 profile として扱い、1 枚配布の短い本文を前提に section 中心の navigation を使う
 - `novel`
   - chapter 中心の navigation を既定とし、section は任意扱いにしやすくする
 - `light-novel`
@@ -812,6 +821,13 @@ v0.1 では次を未対応とする。
 - `business`
   - 既定: `horizontal-ltr`
   - 図表中心
+- `paper`
+  - 既定: `horizontal-ltr`
+  - 引用、図表、参考文献中心
+- `conference-preprint`
+  - `project.type = paper` のときだけ選べる prose profile
+  - 既定: `horizontal-ltr`
+  - A4、2 段組、短い配布物向けの print preset を優先
 - `novel`
   - 既定: `vertical-rl`
   - 挿絵少なめ
@@ -899,6 +915,10 @@ v0.1 の既定:
 - trim size
 - bleed
 - crop marks
+- page margins
+- column count / column gap
+- simplex / duplex
+- page limit
 - font embed
 - PDF standard
 - 画像解像度
@@ -1012,6 +1032,7 @@ v0.1 の既定:
 - 必要に応じて表紙 PDF
 - 仕様 summary
   - 判型
+  - 面指定
   - ページ数
   - PDF standard
   - bleed

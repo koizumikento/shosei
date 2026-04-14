@@ -25,6 +25,16 @@ shosei build --book vol-01
 shosei validate --book vol-01
 ```
 
+論文や発表前刷りは `paper` を使い、前刷り preset は `--config-profile conference-preprint` で選ぶ。
+
+```bash
+shosei init ./preprint --config-template paper --config-profile conference-preprint --non-interactive
+cd preprint
+shosei explain
+shosei validate --target print
+shosei build --target print
+```
+
 ## Commands
 
 | Command | Purpose | Status |
@@ -197,6 +207,7 @@ scenes:
 - heading hierarchy の飛び級
 - prose project の editorial sidecar に基づく表記ゆれ、claim / figure / freshness の検査
 - Kindle / print / manga 向けの target 別警告
+- `conference-preprint` profile の A4 / 2 段 / print preset 逸脱 warning
 
 severity は `validation.accessibility`, `validation.missing_image`, `validation.missing_alt`, `validation.broken_link` の設定で調整できる。
 
@@ -225,6 +236,15 @@ shosei explain --book vol-01
 - `pdf.toc`
 - `pdf.page_number`
 - `pdf.running_header`
+- `pdf.column_count`
+- `pdf.column_gap`
+- `pdf.base_font_size`
+- `pdf.line_height`
+- `print.trim_size`
+- `print.page_margin`
+- `print.sides`
+- `print.max_pages`
+- `print.pdf_standard`
 
 editorial sidecar が設定されている場合、`explain` は rule / claim / figure / freshness item の件数も summary に出す。
 
@@ -264,13 +284,15 @@ pdf:
   running_header: auto
 ```
 
-既定では `pdf.toc: true`。
+既定では `pdf.toc: true`。ただし `paper` / `conference-preprint` の scaffold では `pdf.toc: false` を書く。
 
 `pdf.toc: false` にすると、print build では Pandoc の `--toc` を付けずに実行する。
 
+`weasyprint` を使う print build では `styles/base.css`, `styles/print.css` と、`pdf` / `print` 設定から生成した layout stylesheet を合わせて渡す。`conference-preprint` では A4、余白、2 段組、本文サイズがこの generated stylesheet に反映される。`typst` では `columns`, `papersize`, `margin`, `fontsize`, `linestretch` の変数として渡す。
+
 ## Generated scaffold
 
-`init` は標準では短い対話式で、作品カテゴリ、repo mode、タイトル、著者名、言語、出力先を確認してから scaffold を生成する。`--non-interactive --config-template <template>` を使うと既定値で生成できる。
+`init` は標準では短い対話式で、作品カテゴリ、repo mode、タイトル、著者名、言語、出力先を確認してから scaffold を生成する。`--non-interactive --config-template <template>` を使うと既定値で生成できる。`paper` では追加で `--config-profile paper|conference-preprint` を受け付ける。
 
 テンプレートに応じて、次のような土台を生成する。
 
@@ -280,10 +302,10 @@ pdf:
 - `.agents/skills/shosei-project/SKILL.md`
 - `single-book` では `assets/cover/`, `assets/images/`, `assets/fonts/`, `styles/`
 - `series` では `shared/assets/`, `shared/styles/`, `shared/fonts/`, `shared/metadata/`, `books/<book-id>/assets/`
-- prose 系では `single-book` に `manuscript/01-chapter-1.md` と `editorial/*.yml`、`series` に `books/<book-id>/manuscript/01-chapter-1.md` と `books/<book-id>/editorial/*.yml`
+- prose 系では `single-book` に原稿ファイルと `editorial/*.yml`、`series` に `books/<book-id>/manuscript/` と `books/<book-id>/editorial/*.yml`
 - manga 系では `single-book` に `manga/`、`series` に `books/<book-id>/manga/`
 
-prose 系テンプレートでは、最初の章ファイルとして `single-book` では `manuscript/01-chapter-1.md`、`series` では `books/<book-id>/manuscript/01-chapter-1.md` を生成する。この `01-` prefix は初期命名の慣例で、章順の source of truth ではない。
+prose 系テンプレートでは、最初の原稿ファイルとして `paper` / `conference-preprint` は `single-book` で `manuscript/01-main.md`、`series` で `books/<book-id>/manuscript/01-main.md` を生成する。その他の prose は `01-chapter-1.md` を生成する。この `01-` prefix は初期命名の慣例で、章順の source of truth ではない。
 
 また、prose 系では空の `editorial/style.yml`, `editorial/claims.yml`, `editorial/figures.yml`, `editorial/freshness.yml` を生成し、`single-book` では `book.yml`、`series` では `books/<book-id>/book.yml` から参照する。style 側は `single-book` では `styles/base.css`, `styles/epub.css`, `styles/print.css`、`series` では `shared/styles/base.css` を生成する。
 
