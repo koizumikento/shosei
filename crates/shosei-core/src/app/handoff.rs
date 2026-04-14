@@ -750,7 +750,7 @@ mod tests {
                     detected_as: Some("pandoc".to_string()),
                     resolved_path: pandoc_path,
                     version: None,
-                    install_hint: "Install pandoc and ensure it is available on PATH.",
+                    install_hint: "Install pandoc and ensure it is available on PATH.".to_string(),
                 },
                 ToolRecord {
                     key: "epubcheck",
@@ -759,7 +759,8 @@ mod tests {
                     detected_as: Some("epubcheck".to_string()),
                     resolved_path: None,
                     version: None,
-                    install_hint: "Install epubcheck and ensure the launcher is available on PATH.",
+                    install_hint: "Install epubcheck and ensure the launcher is available on PATH."
+                        .to_string(),
                 },
                 ToolRecord {
                     key: "pdf-engine",
@@ -768,7 +769,9 @@ mod tests {
                     detected_as: Some("weasyprint".to_string()),
                     resolved_path: None,
                     version: None,
-                    install_hint: "Install one supported PDF engine such as weasyprint, typst, or lualatex.",
+                    install_hint:
+                        "Install one supported PDF engine such as weasyprint, typst, or lualatex."
+                            .to_string(),
                 },
             ],
         }

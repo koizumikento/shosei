@@ -9,8 +9,7 @@
 基本の流れは、初期化して、解決済み設定を確認し、build と validate を回すこと。
 
 ```bash
-shosei init ./my-book --config-template novel
-cd my-book
+shosei init
 shosei explain
 shosei build
 shosei validate
@@ -36,6 +35,7 @@ shosei validate --book vol-01
 | `shosei validate` | config / preflight を検証する | 利用可能 |
 | `shosei preview` | one-shot / watch preview を生成する | 利用可能 |
 | `shosei chapter <subcommand>` | prose の `manuscript.chapters` を更新する | 利用可能 |
+| `shosei series sync` | series metadata と prose backmatter を同期する | 利用可能 |
 | `shosei page check` | manga のページ順と見開き候補を検査する | 利用可能 |
 | `shosei doctor` | 依存解決結果と導入ヒントを表示する | 利用可能 |
 | `shosei handoff <destination>` | handoff package を生成する | 利用可能 |
@@ -60,6 +60,13 @@ shosei validate --target kindle
 shosei preview --target print
 ```
 
+`series sync` は `series.yml` を正として shared metadata を更新し、prose book では生成 backmatter を同期する。
+
+```bash
+shosei series sync
+shosei series sync --path ./my-series
+```
+
 `page check` は manga project 向けで、ページ順や見開き候補を確認する。
 
 ```bash
@@ -77,15 +84,20 @@ shosei page check --book vol-01
 shosei chapter add manuscript/03.md --title "Chapter 3"
 shosei chapter move manuscript/03.md --before manuscript/02.md
 shosei chapter remove manuscript/03.md
+shosei chapter renumber
 shosei chapter add books/vol-01/manuscript/02.md --book vol-01 --title "Chapter 2"
 ```
 
 `page check` とは別系統で、`manga/pages/` や manga metadata には触れない。
 
+`renumber` は章順を変えずに filename prefix だけを整える。`book.yml` の `manuscript.chapters` と対応する `sections.file` は更新するが、Markdown 本文中の link destination は自動 rewrite しない。
+
 ## Validate checks
 
 現在の `validate` は、JSON レポートを出しつつ、次のような preflight を行う。
 
+- build で必要になる `pandoc` の有無
+- print build に設定された PDF engine の有無
 - 欠落した manuscript / cover / manga page の検出
 - prose 原稿のリンク切れと画像参照切れ
 - prose 原稿の alt 欠落
@@ -166,7 +178,9 @@ pdf:
 
 ## Generated scaffold
 
-`init` はテンプレートに応じて、次のような土台を生成する。
+`init` は標準では短い対話式で、作品カテゴリ、repo mode、タイトル、著者名、言語、出力先を確認してから scaffold を生成する。`--non-interactive --config-template <template>` を使うと既定値で生成できる。
+
+テンプレートに応じて、次のような土台を生成する。
 
 - `book.yml` または `series.yml`
 - `manuscript/` または `manga/`
@@ -202,13 +216,16 @@ summary には page order と spread candidates も出る。
 
 CLI では summary の後に、先頭最大 5 件の issue を `原因 / 発生箇所 / 修正例` の形で続けて表示する。
 
-`doctor` は次の依存について、PATH 解決結果、バージョン、導入ヒントを表示する。
+`doctor` は利用可能 / 不足 / pending を分けて表示し、次の依存について PATH 解決結果、バージョン、導入ヒントを返す。
 
 - `pandoc`
 - `epubcheck`
 - `git`
 - `git-lfs`
-- `weasyprint` / `typst` / `lualatex` のいずれか
+- `weasyprint`
+- `typst`
+- `lualatex`
+- `PDF engine`
 - Kindle Previewer
 
 `handoff proof` は validate report に加えて、`review-notes.md`、`reports/review-packet.json`、editorial sidecar のコピーも package に含める。`manifest.json` には review packet の path と editorial summary 件数も入る。

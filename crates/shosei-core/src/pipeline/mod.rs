@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use thiserror::Error;
 
 use crate::{
-    config::ResolvedBookConfig,
+    config::{PdfEngine, ResolvedBookConfig},
     diagnostics::Diagnostic,
     domain::RepoContext,
     fs::join_repo_path,
@@ -146,6 +146,15 @@ pub fn prose_validate_plan_with_toolchain(
         && resolved.effective.outputs.kindle.is_some()
     {
         checks.push(ValidationCheck {
+            name: "pandoc-build-tool",
+            target: "kindle",
+            tool: Some("pandoc"),
+            tool_status: toolchain
+                .tool("pandoc")
+                .map(|tool| tool.status)
+                .unwrap_or(ToolStatus::Missing),
+        });
+        checks.push(ValidationCheck {
             name: "kindle-target-check",
             target: "kindle",
             tool: None,
@@ -173,6 +182,22 @@ pub fn prose_validate_plan_with_toolchain(
         && resolved.effective.outputs.print.is_some()
     {
         checks.push(ValidationCheck {
+            name: "pandoc-build-tool",
+            target: "print",
+            tool: Some("pandoc"),
+            tool_status: toolchain
+                .tool("pandoc")
+                .map(|tool| tool.status)
+                .unwrap_or(ToolStatus::Missing),
+        });
+        let configured_pdf_engine = resolved
+            .effective
+            .pdf
+            .as_ref()
+            .map(|pdf| pdf.engine)
+            .unwrap_or(PdfEngine::Weasyprint);
+        let pdf_engine_tool = configured_pdf_engine.as_str();
+        checks.push(ValidationCheck {
             name: "print-target-check",
             target: "print",
             tool: None,
@@ -181,9 +206,9 @@ pub fn prose_validate_plan_with_toolchain(
         checks.push(ValidationCheck {
             name: "pdf-engine",
             target: "print",
-            tool: Some("pdf-engine"),
+            tool: Some(pdf_engine_tool),
             tool_status: toolchain
-                .tool("pdf-engine")
+                .tool(pdf_engine_tool)
                 .map(|tool| tool.status)
                 .unwrap_or(ToolStatus::Missing),
         });
@@ -512,11 +537,21 @@ git:
         let plan = prose_validate_plan(context, &resolved).unwrap();
 
         assert_eq!(plan.checks[0].name, "common-lint");
+        assert!(
+            plan.checks
+                .iter()
+                .any(|check| check.name == "pandoc-build-tool" && check.target == "kindle")
+        );
         assert!(plan.checks.iter().any(|check| check.name == "epubcheck"));
         assert!(
             plan.checks
                 .iter()
                 .any(|check| check.name == "print-target-check")
+        );
+        assert!(
+            plan.checks
+                .iter()
+                .any(|check| check.name == "pdf-engine" && check.tool == Some("weasyprint"))
         );
     }
 }

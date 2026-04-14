@@ -38,12 +38,14 @@ repo mode は対象 `book.yml` の解決方法を決める。
 - filename prefix は見た目や既存 scaffold との互換のための命名慣例であり、順序の根拠にはしない
 - `move` は既定で file rename や renumber を行わない
 - `remove` は既定で config から外すだけに留め、物理削除は明示 opt-in にする
+- filename prefix を整えたい場合は、順序変更とは別責務の明示 `renumber` コマンドとして扱う
 - `manga` の page order、chapter / episode metadata、`manga/pages/` の操作は `chapter` コマンドの責務に含めない
 
 ## Consequences
 
 - `series` 対応は repo discovery の問題として閉じ、prose / manga の構造差と混同しにくくなる
 - 章順の変更は YAML 配列の再配置だけで成立し、filename prefix の renumber を強制しない
+- prefix 整形は opt-in の別操作として追加でき、順序変更と file rename を分離できる
 - scaffold が生成する `01-chapter-1.md` 形式は維持できるが、順序の source of truth は config に一本化される
 - `manga` 側は page-based model をそのまま維持できる
 - 将来、見た目の prefix を整える `renumber` 系コマンドを別責務として追加しやすくなる

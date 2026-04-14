@@ -6,6 +6,37 @@ use std::{
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HostOs {
+    Macos,
+    Windows,
+    Linux,
+    Other,
+}
+
+impl HostOs {
+    pub fn detect() -> Self {
+        if cfg!(target_os = "macos") {
+            Self::Macos
+        } else if cfg!(target_os = "windows") {
+            Self::Windows
+        } else if cfg!(target_os = "linux") {
+            Self::Linux
+        } else {
+            Self::Other
+        }
+    }
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Macos => "macOS",
+            Self::Windows => "Windows",
+            Self::Linux => "Linux",
+            Self::Other => "other",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ToolStatus {
     Planned,
     Available,
@@ -32,7 +63,7 @@ pub struct ToolRecord {
     pub detected_as: Option<String>,
     pub resolved_path: Option<PathBuf>,
     pub version: Option<String>,
-    pub install_hint: &'static str,
+    pub install_hint: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -58,7 +89,7 @@ struct ToolSpec {
     display_name: &'static str,
     candidates: &'static [&'static str],
     version_args: &'static [&'static str],
-    install_hint: &'static str,
+    install_hint: fn(HostOs) -> String,
 }
 
 const TOOL_SPECS: &[ToolSpec] = &[
@@ -67,35 +98,56 @@ const TOOL_SPECS: &[ToolSpec] = &[
         display_name: "pandoc",
         candidates: &["pandoc"],
         version_args: &["--version"],
-        install_hint: "Install pandoc and ensure it is available on PATH.",
+        install_hint: pandoc_install_hint,
     },
     ToolSpec {
         key: "epubcheck",
         display_name: "epubcheck",
         candidates: &["epubcheck", "epubcheck.cmd", "epubcheck.bat"],
         version_args: &["--version"],
-        install_hint: "Install epubcheck and ensure the launcher is available on PATH.",
+        install_hint: epubcheck_install_hint,
     },
     ToolSpec {
         key: "git",
         display_name: "git",
         candidates: &["git"],
         version_args: &["--version"],
-        install_hint: "Install Git and ensure `git` is available on PATH.",
+        install_hint: git_install_hint,
     },
     ToolSpec {
         key: "git-lfs",
         display_name: "git-lfs",
         candidates: &["git-lfs"],
         version_args: &["version"],
-        install_hint: "Install Git LFS and run `git lfs install` once for the current user.",
+        install_hint: git_lfs_install_hint,
+    },
+    ToolSpec {
+        key: "weasyprint",
+        display_name: "weasyprint",
+        candidates: &["weasyprint"],
+        version_args: &["--version"],
+        install_hint: weasyprint_install_hint,
+    },
+    ToolSpec {
+        key: "typst",
+        display_name: "typst",
+        candidates: &["typst"],
+        version_args: &["--version"],
+        install_hint: typst_install_hint,
+    },
+    ToolSpec {
+        key: "lualatex",
+        display_name: "lualatex",
+        candidates: &["lualatex"],
+        version_args: &["--version"],
+        install_hint: lualatex_install_hint,
     },
     ToolSpec {
         key: "pdf-engine",
         display_name: "PDF engine",
-        candidates: &["weasyprint", "typst", "lualatex"],
-        version_args: &["--version"],
-        install_hint: "Install one supported PDF engine such as weasyprint, typst, or lualatex.",
+        candidates: &[],
+        version_args: &[],
+        install_hint: pdf_engine_install_hint,
     },
     ToolSpec {
         key: "kindle-previewer",
@@ -107,7 +159,7 @@ const TOOL_SPECS: &[ToolSpec] = &[
             "kindlepreviewer",
         ],
         version_args: &["--version"],
-        install_hint: "Install Kindle Previewer if you want device-oriented Kindle checks.",
+        install_hint: kindle_previewer_install_hint,
     },
 ];
 
@@ -177,18 +229,29 @@ fn inspect_toolchain_with_env(
     path_var: Option<OsString>,
     pathext: Option<OsString>,
 ) -> ToolchainReport {
-    ToolchainReport {
-        tools: TOOL_SPECS
-            .iter()
-            .map(|spec| inspect_tool(spec, path_var.as_ref(), pathext.as_ref()))
-            .collect(),
+    let host_os = HostOs::detect();
+    let mut tools = Vec::new();
+    for spec in TOOL_SPECS {
+        if spec.key == "pdf-engine" {
+            continue;
+        }
+        tools.push(inspect_tool(
+            spec,
+            path_var.as_ref(),
+            pathext.as_ref(),
+            host_os,
+        ));
     }
+    tools.push(pdf_engine_record(&tools, host_os));
+
+    ToolchainReport { tools }
 }
 
 fn inspect_tool(
     spec: &ToolSpec,
     path_var: Option<&OsString>,
     pathext: Option<&OsString>,
+    host_os: HostOs,
 ) -> ToolRecord {
     let resolved = spec.candidates.iter().find_map(|candidate| {
         find_in_path(candidate, path_var, pathext).map(|path| ((*candidate).to_string(), path))
@@ -212,7 +275,135 @@ fn inspect_tool(
         detected_as,
         resolved_path,
         version,
-        install_hint: spec.install_hint,
+        install_hint: (spec.install_hint)(host_os),
+    }
+}
+
+fn pdf_engine_record(tools: &[ToolRecord], host_os: HostOs) -> ToolRecord {
+    let detected = tools
+        .iter()
+        .filter(|tool| matches!(tool.key, "weasyprint" | "typst" | "lualatex"))
+        .find(|tool| tool.status == ToolStatus::Available);
+    ToolRecord {
+        key: "pdf-engine",
+        display_name: "PDF engine",
+        status: if detected.is_some() {
+            ToolStatus::Available
+        } else {
+            ToolStatus::Missing
+        },
+        detected_as: detected.and_then(|tool| tool.detected_as.clone()),
+        resolved_path: detected.and_then(|tool| tool.resolved_path.clone()),
+        version: detected.and_then(|tool| tool.version.clone()),
+        install_hint: pdf_engine_install_hint(host_os),
+    }
+}
+
+fn pandoc_install_hint(host_os: HostOs) -> String {
+    match host_os {
+        HostOs::Macos => "Install pandoc via Homebrew or the official pkg, then ensure `pandoc` is on PATH.".to_string(),
+        HostOs::Windows => "Install pandoc with winget/chocolatey or the official installer, then reopen the shell.".to_string(),
+        HostOs::Linux => "Install pandoc with your distribution package manager and ensure `pandoc` is on PATH.".to_string(),
+        HostOs::Other => "Install pandoc and ensure it is available on PATH.".to_string(),
+    }
+}
+
+fn epubcheck_install_hint(host_os: HostOs) -> String {
+    match host_os {
+        HostOs::Macos => "Install epubcheck with Homebrew or the official archive and expose the launcher on PATH.".to_string(),
+        HostOs::Windows => "Install epubcheck from the official archive or a package manager and expose the launcher on PATH.".to_string(),
+        HostOs::Linux => "Install epubcheck from the official archive or your package manager and expose the launcher on PATH.".to_string(),
+        HostOs::Other => "Install epubcheck and ensure the launcher is available on PATH.".to_string(),
+    }
+}
+
+fn git_install_hint(host_os: HostOs) -> String {
+    match host_os {
+        HostOs::Macos => {
+            "Install Git from Xcode Command Line Tools or Homebrew and ensure `git` is on PATH."
+                .to_string()
+        }
+        HostOs::Windows => {
+            "Install Git for Windows or winget/chocolatey and ensure `git` is on PATH.".to_string()
+        }
+        HostOs::Linux => {
+            "Install Git with your distribution package manager and ensure `git` is on PATH."
+                .to_string()
+        }
+        HostOs::Other => "Install Git and ensure `git` is on PATH.".to_string(),
+    }
+}
+
+fn git_lfs_install_hint(host_os: HostOs) -> String {
+    match host_os {
+        HostOs::Macos => "Install Git LFS via Homebrew or the official package, then run `git lfs install` once.".to_string(),
+        HostOs::Windows => "Install Git LFS via winget/chocolatey or the official installer, then run `git lfs install` once.".to_string(),
+        HostOs::Linux => "Install Git LFS with your distribution package manager or the official repository, then run `git lfs install` once.".to_string(),
+        HostOs::Other => "Install Git LFS and run `git lfs install` once for the current user.".to_string(),
+    }
+}
+
+fn weasyprint_install_hint(host_os: HostOs) -> String {
+    match host_os {
+        HostOs::Macos => "Install weasyprint with pipx/pip or Homebrew and make sure shared libraries are available.".to_string(),
+        HostOs::Windows => "Install weasyprint with pipx/pip and verify the launcher is on PATH.".to_string(),
+        HostOs::Linux => "Install weasyprint with pipx/pip or your package manager and ensure required shared libraries are present.".to_string(),
+        HostOs::Other => "Install weasyprint and ensure the launcher is on PATH.".to_string(),
+    }
+}
+
+fn typst_install_hint(host_os: HostOs) -> String {
+    match host_os {
+        HostOs::Macos => "Install typst via Homebrew or the official release and ensure `typst` is on PATH.".to_string(),
+        HostOs::Windows => "Install typst via winget or the official release and ensure `typst` is on PATH.".to_string(),
+        HostOs::Linux => "Install typst via your package manager or the official release and ensure `typst` is on PATH.".to_string(),
+        HostOs::Other => "Install typst and ensure `typst` is on PATH.".to_string(),
+    }
+}
+
+fn lualatex_install_hint(host_os: HostOs) -> String {
+    match host_os {
+        HostOs::Macos => {
+            "Install a TeX distribution that provides `lualatex` and ensure it is on PATH."
+                .to_string()
+        }
+        HostOs::Windows => {
+            "Install TeX Live or MiKTeX with `lualatex` support and ensure it is on PATH."
+                .to_string()
+        }
+        HostOs::Linux => {
+            "Install TeX Live with `lualatex` support and ensure it is on PATH.".to_string()
+        }
+        HostOs::Other => {
+            "Install a TeX distribution that provides `lualatex` and ensure it is on PATH."
+                .to_string()
+        }
+    }
+}
+
+fn pdf_engine_install_hint(host_os: HostOs) -> String {
+    match host_os {
+        HostOs::Macos => {
+            "Install one supported PDF engine: weasyprint, typst, or lualatex.".to_string()
+        }
+        HostOs::Windows => {
+            "Install one supported PDF engine: weasyprint, typst, or lualatex.".to_string()
+        }
+        HostOs::Linux => {
+            "Install one supported PDF engine: weasyprint, typst, or lualatex.".to_string()
+        }
+        HostOs::Other => {
+            "Install one supported PDF engine such as weasyprint, typst, or lualatex.".to_string()
+        }
+    }
+}
+
+fn kindle_previewer_install_hint(host_os: HostOs) -> String {
+    match host_os {
+        HostOs::Macos => "Install Kindle Previewer from Amazon if you need device-oriented Kindle checks.".to_string(),
+        HostOs::Windows => "Install Kindle Previewer from Amazon if you need device-oriented Kindle checks.".to_string(),
+        HostOs::Linux => "Kindle Previewer is usually unavailable on Linux; use another host OS for device-oriented Kindle checks.".to_string(),
+        HostOs::Other => "Install Kindle Previewer if you want device-oriented Kindle checks.".to_string(),
     }
 }
 
@@ -303,6 +494,10 @@ mod tests {
 
         assert_eq!(report.tool("pandoc").unwrap().status, ToolStatus::Missing);
         assert_eq!(
+            report.tool("weasyprint").unwrap().status,
+            ToolStatus::Missing
+        );
+        assert_eq!(
             report.tool("pdf-engine").unwrap().status,
             ToolStatus::Missing
         );
@@ -333,5 +528,32 @@ mod tests {
         let pandoc = report.tool("pandoc").unwrap();
         assert_eq!(pandoc.status, ToolStatus::Available);
         assert_eq!(pandoc.resolved_path.as_ref(), Some(&tool_path));
+    }
+
+    #[test]
+    fn pdf_engine_prefers_first_available_specific_tool() {
+        let dir = temp_dir("find-pdf-engine");
+        let tool_path = if cfg!(windows) {
+            dir.join("typst.exe")
+        } else {
+            dir.join("typst")
+        };
+        fs::write(&tool_path, "").unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mut permissions = fs::metadata(&tool_path).unwrap().permissions();
+            permissions.set_mode(0o755);
+            fs::set_permissions(&tool_path, permissions).unwrap();
+        }
+
+        let report = inspect_toolchain_with_env(
+            Some(OsString::from(dir.as_os_str())),
+            Some(OsString::from(".EXE;.BAT;.CMD")),
+        );
+
+        let pdf_engine = report.tool("pdf-engine").unwrap();
+        assert_eq!(pdf_engine.status, ToolStatus::Available);
+        assert_eq!(pdf_engine.detected_as.as_deref(), Some("typst"));
     }
 }

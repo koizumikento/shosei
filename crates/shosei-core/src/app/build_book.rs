@@ -403,7 +403,7 @@ mod tests {
                 detected_as: Some("pandoc".to_string()),
                 resolved_path: pandoc_path,
                 version: None,
-                install_hint: "Install pandoc and ensure it is available on PATH.",
+                install_hint: "Install pandoc and ensure it is available on PATH.".to_string(),
             }],
         }
     }

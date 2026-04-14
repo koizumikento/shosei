@@ -183,19 +183,20 @@ project/
 - Git リポジトリ初期化補助
 - 依存チェック案内
 
-質問項目:
+v0.1 の現行質問項目:
 
 1. 作品カテゴリ: `business | novel | light-novel | manga`
 2. リポジトリ管理単位: `single-book | series`
-3. 本文方向: `horizontal-ltr | vertical-rl`
-4. 出力先: `kindle | print | both`
-5. 判型: `A5 | B6 | bunko | custom`
-6. PDF profile: `pdfx1a | pdfx4`
-7. タイトル
-8. 著者名
-9. 言語
-10. サンプルファイル生成有無
-11. Git 初期化有無
+3. タイトル
+4. 著者名
+5. 言語
+6. 出力先: `kindle | print | both`
+7. 実行後に `doctor` を流すか
+
+補足:
+
+- `--non-interactive --config-template <template>` を使うと既定値で scaffold を生成できる
+- prose project では `editorial/style.yml`, `claims.yml`, `figures.yml`, `freshness.yml` も scaffold に含める
 
 ### 7.2 `shosei build`
 
@@ -238,6 +239,8 @@ v0.1 の最小要件:
 - 人間向け summary と機械可読レポートを両方出せる
 
 - 共通 lint
+- prose editorial lint
+- build に必要なツールの事前確認
 - prose editorial lint
 - EPUB 検証
 - Kindle 想定検証
@@ -329,6 +332,7 @@ prose project の source structure を更新する。
 - `shosei chapter add <path>`
 - `shosei chapter move <path>`
 - `shosei chapter remove <path>`
+- `shosei chapter renumber`
 
 主な責務:
 
@@ -336,6 +340,7 @@ prose project の source structure を更新する。
 - `series` では既存の repo discovery に従って対象 book を解決する
 - 章ファイルの追加時に必要なら Markdown stub を生成する
 - 削除対象ファイルに対応する `sections` entry があれば整合のために除去する
+- 明示 opt-in のときだけ章ファイルの filename prefix を整える
 
 非責務:
 
@@ -343,6 +348,8 @@ prose project の source structure を更新する。
 - manga の chapter / episode metadata 管理
 - filename prefix を正として章順を決めること
 - 既存章ファイルの rename や renumber を既定動作にすること
+- `renumber` 実行時を除き chapter file path を rename すること
+- Markdown 本文中の link destination を自動 rewrite すること
 
 v0.1 の最小要件:
 
@@ -350,6 +357,7 @@ v0.1 の最小要件:
 - 章順は `manuscript.chapters` の配列順を正とする
 - `move` は `book.yml` を更新するだけで、既定では file rename を行わない
 - `remove` は既定では config から外すだけとし、物理削除は明示 opt-in に限る
+- `renumber` は `manuscript.chapters` の順序を保ったまま chapter file path と対応する `sections.file` を更新する
 
 ### 7.9 `shosei page check`
 
@@ -370,11 +378,21 @@ v0.1 の最小要件:
 - `dist/reports/<book-id>-page-check.json` を出力する
 - page order と spread candidate を text summary でも示せる
 
-### 7.10 将来候補
+### 7.10 `shosei series sync`
+
+`series.yml` を正として巻一覧と派生 metadata を同期する。
+
+v0.1 の最小要件:
+
+- `shared/metadata/series-catalog.yml` を生成する
+- `shared/metadata/series-catalog.md` を生成する
+- prose book では `shared/metadata/series-catalog.md` を `manuscript.backmatter` に同期する
+- 手書き本文 Markdown を直接 rewrite しない
+
+### 7.11 将来候補
 
 - `shosei release`: handoff + tag 前提の成果物固定化
 - `shosei page add`
-- `shosei series sync`: `series.yml` から巻一覧、既刊案内、派生 metadata を同期
 - `shosei migrate --to series --book-id <id>`
 
 ## 8. 設定ファイル仕様
@@ -885,11 +903,13 @@ v0.1 の既定:
 
 ### 推奨
 
+- `explain`
 - `preview`
 - `preview --watch`
 - `validate` の preflight report
 - `handoff`
 - `handoff proof`
+- `series sync`
 - `page check`
 - manga のページマニフェスト
 - Git LFS 案内
@@ -897,8 +917,6 @@ v0.1 の既定:
 
 ### 将来
 
-- `shosei explain`
-- `shosei series sync`
 - fixed-layout EPUB の詳細制御
 - Kindle Previewer の深い統合
 - 漫画の guided view/panel metadata
