@@ -53,6 +53,7 @@ Use these exact commands when validating Rust changes:
 - formatting: `cargo fmt`
 - linting: `cargo clippy --workspace --all-targets -- -D warnings`
 - tests: `cargo test --workspace`
+- CLI smoke tests: `cargo test -p shosei-cli --test cli_smoke`
 - focused repo discovery checks: `cargo test -p shosei-core --test repo_discovery`
 - focused chapter workflow checks:
   - `cargo test -p shosei-core --test chapter_commands`

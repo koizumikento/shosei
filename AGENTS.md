@@ -59,6 +59,8 @@ If a surface cannot be justified, do not change it.
 
 ## Cross-surface Sync
 
+- Do not describe commands or features as available unless the current code path actually implements them.
+- Prefer examples that reflect currently supported config fields and output behavior. Remove or rewrite stale examples instead of leaving them partially correct.
 - Keep `docs/usage.md` and `site/usage.html` in sync.
 - Keep command status labels aligned across `README.md`, `docs/usage.md`, and `site/usage.html`.
 - Keep `docs/specs/vscode-extension.md` and `editors/vscode/README.md` aligned when extension flow, scope, or ownership changes.

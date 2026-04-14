@@ -36,3 +36,4 @@ When changing the extension, use these checks as appropriate:
 - `node --check src/core.js`
 - `node --check src/view.js`
 - `node --test test/core.test.js`
+- `node --test test/extension.test.js`
