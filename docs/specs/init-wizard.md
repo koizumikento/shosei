@@ -42,6 +42,7 @@ v0.1 の現行実装は、このフローのうち次を先に満たす。
 
 - 作品カテゴリ
 - repo mode
+- paper profile
 - タイトル
 - 著者名
 - 言語
@@ -119,6 +120,16 @@ v0.1 で残す引数:
 - 既定 profile は `business`
 - サンプルは本文 + 図表ダミー画像
 
+### `project.type = paper`
+
+- 既定 `writing_mode = horizontal-ltr`
+- 既定 `binding = left`
+- 既定 profile は `paper`
+- 追加質問:
+  - `paper`
+  - `conference-preprint`
+- `conference-preprint` では print を既定出力に寄せ、A4 / 2 段組 / 両面の preset を提示する
+
 ### `project.type = novel`
 
 - 既定 `writing_mode = vertical-rl`
@@ -164,8 +175,10 @@ v0.1 で残す引数:
   - `print-jp-pdfx1a`
   - `print-jp-pdfx4`
 - trim size
+- page margins
 - bleed
 - crop marks
+- `project.type = paper` かつ `conference-preprint` の場合は column layout, duplex, max pages
 
 ### `both`
 
@@ -178,6 +191,7 @@ v0.1 で残す引数:
 - Prompt: `作品カテゴリを選んでください`
 - Choices:
   - `business`
+  - `paper`
   - `novel`
   - `light-novel`
   - `manga`
@@ -190,6 +204,7 @@ v0.1 で残す引数:
   - `series`
 - Default:
   - `business`: `single-book`
+  - `paper`: `single-book`
   - `novel`: `single-book`
   - `light-novel`: `single-book`
   - `manga`: `series`
@@ -215,6 +230,7 @@ v0.1 で残す引数:
   - `vertical-rl`
 - Default:
   - `business`: `horizontal-ltr`
+  - `paper`: `horizontal-ltr`
   - それ以外: `vertical-rl`
 
 ### 8.5 綴じ方向
@@ -231,12 +247,23 @@ v0.1 で残す引数:
 
 - Prompt: `判型を選んでください`
 - Choices:
+  - `A4`
   - `A5`
   - `B6`
   - `bunko`
   - `custom`
 
-### 8.7 Kindle 見開きポリシー
+### 8.7 paper profile
+
+`project.type = paper` のときのみ質問する。
+
+- Prompt: `論文 profile を選んでください`
+- Choices:
+  - `paper`
+  - `conference-preprint`
+- Default: `paper`
+
+### 8.8 Kindle 見開きポリシー
 
 `project.type = light-novel | manga` のかつ `kindle` 有効時のみ質問する。
 
@@ -247,7 +274,7 @@ v0.1 で残す引数:
   - `skip`
 - Default: `split`
 
-### 8.8 カラーページ
+### 8.9 カラーページ
 
 `project.type = manga` のときのみ質問する。
 
@@ -256,7 +283,7 @@ v0.1 で残す引数:
 - Validation:
   - 0 以上の整数
 
-### 8.9 Git LFS
+### 8.10 Git LFS
 
 - Prompt: `画像や作画データを Git LFS 対象として設定しますか`
 - Default:
@@ -283,6 +310,7 @@ v0.1 で残す引数:
 - `series` では `books/<book-id>/manuscript/01-chapter-1.md`
 - `series` では `books/<book-id>/editorial/style.yml`, `books/<book-id>/editorial/claims.yml`, `books/<book-id>/editorial/figures.yml`, `books/<book-id>/editorial/freshness.yml`
 - `series` では `shared/styles/base.css`
+- `conference-preprint` では `book.yml` に A4 / 2 段組 / 両面 preset を出力する
 
 ### manga
 

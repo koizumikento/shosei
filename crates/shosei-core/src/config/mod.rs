@@ -73,6 +73,7 @@ pub struct EffectiveBookConfig {
     pub layout: LayoutSettings,
     pub cover: CoverSettings,
     pub pdf: Option<PdfSettings>,
+    pub print: Option<PrintSettings>,
     pub outputs: OutputSettings,
     pub editorial: EditorialSettings,
     pub manga: Option<MangaSettings>,
@@ -171,6 +172,10 @@ pub struct PdfSettings {
     pub toc: bool,
     pub page_number: bool,
     pub running_header: PdfRunningHeader,
+    pub column_count: u64,
+    pub column_gap: String,
+    pub base_font_size: String,
+    pub line_height: String,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -224,6 +229,132 @@ impl PdfRunningHeader {
             Self::None => "none",
             Self::Title => "title",
             Self::Chapter => "chapter",
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PrintSettings {
+    pub trim_size: PrintTrimSize,
+    pub bleed: String,
+    pub crop_marks: bool,
+    pub page_margin: Option<PageMarginSettings>,
+    pub sides: PrintSides,
+    pub max_pages: Option<u64>,
+    pub body_pdf: bool,
+    pub cover_pdf: bool,
+    pub pdf_standard: PrintPdfStandard,
+    pub body_mode: PrintBodyMode,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PageMarginSettings {
+    pub top: String,
+    pub bottom: String,
+    pub left: String,
+    pub right: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PrintTrimSize {
+    A4,
+    A5,
+    B6,
+    Bunko,
+    Custom,
+}
+
+impl PrintTrimSize {
+    fn parse(value: &str) -> Option<Self> {
+        match value {
+            "A4" => Some(Self::A4),
+            "A5" => Some(Self::A5),
+            "B6" => Some(Self::B6),
+            "bunko" => Some(Self::Bunko),
+            "custom" => Some(Self::Custom),
+            _ => None,
+        }
+    }
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::A4 => "A4",
+            Self::A5 => "A5",
+            Self::B6 => "B6",
+            Self::Bunko => "bunko",
+            Self::Custom => "custom",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PrintSides {
+    Simplex,
+    Duplex,
+}
+
+impl PrintSides {
+    fn parse(value: &str) -> Option<Self> {
+        match value {
+            "simplex" => Some(Self::Simplex),
+            "duplex" => Some(Self::Duplex),
+            _ => None,
+        }
+    }
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Simplex => "simplex",
+            Self::Duplex => "duplex",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PrintPdfStandard {
+    Pdfx1a,
+    Pdfx4,
+}
+
+impl PrintPdfStandard {
+    fn parse(value: &str) -> Option<Self> {
+        match value {
+            "pdfx1a" => Some(Self::Pdfx1a),
+            "pdfx4" => Some(Self::Pdfx4),
+            _ => None,
+        }
+    }
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Pdfx1a => "pdfx1a",
+            Self::Pdfx4 => "pdfx4",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PrintBodyMode {
+    Auto,
+    Monochrome,
+    Color,
+}
+
+impl PrintBodyMode {
+    fn parse(value: &str) -> Option<Self> {
+        match value {
+            "auto" => Some(Self::Auto),
+            "monochrome" => Some(Self::Monochrome),
+            "color" => Some(Self::Color),
+            _ => None,
+        }
+    }
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Auto => "auto",
+            Self::Monochrome => "monochrome",
+            Self::Color => "color",
         }
     }
 }
@@ -645,6 +776,47 @@ pub fn explain_book_config(context: &RepoContext) -> Result<ExplainedConfig, Con
             origin(&["pdf", "running_header"]),
             "n/a",
         ),
+        explained_optional(
+            "pdf.column_count",
+            resolved
+                .effective
+                .pdf
+                .as_ref()
+                .map(|pdf| pdf.column_count.to_string())
+                .as_deref(),
+            origin(&["pdf", "column_count"]),
+            "n/a",
+        ),
+        explained_optional(
+            "pdf.column_gap",
+            resolved
+                .effective
+                .pdf
+                .as_ref()
+                .map(|pdf| pdf.column_gap.as_str()),
+            origin(&["pdf", "column_gap"]),
+            "n/a",
+        ),
+        explained_optional(
+            "pdf.base_font_size",
+            resolved
+                .effective
+                .pdf
+                .as_ref()
+                .map(|pdf| pdf.base_font_size.as_str()),
+            origin(&["pdf", "base_font_size"]),
+            "n/a",
+        ),
+        explained_optional(
+            "pdf.line_height",
+            resolved
+                .effective
+                .pdf
+                .as_ref()
+                .map(|pdf| pdf.line_height.as_str()),
+            origin(&["pdf", "line_height"]),
+            "n/a",
+        ),
         explained_output_target(
             "outputs.kindle.target",
             resolved.effective.outputs.kindle.as_deref(),
@@ -654,6 +826,109 @@ pub fn explain_book_config(context: &RepoContext) -> Result<ExplainedConfig, Con
             "outputs.print.target",
             resolved.effective.outputs.print.as_deref(),
             output_origin(&book_config.raw, series_defaults.as_ref(), "print"),
+        ),
+        explained_optional(
+            "print.trim_size",
+            resolved
+                .effective
+                .print
+                .as_ref()
+                .map(|print| print.trim_size.as_str()),
+            origin(&["print", "trim_size"]),
+            "n/a",
+        ),
+        explained_optional(
+            "print.bleed",
+            resolved
+                .effective
+                .print
+                .as_ref()
+                .map(|print| print.bleed.as_str()),
+            origin(&["print", "bleed"]),
+            "n/a",
+        ),
+        explained_optional(
+            "print.crop_marks",
+            resolved
+                .effective
+                .print
+                .as_ref()
+                .map(|print| if print.crop_marks { "true" } else { "false" }),
+            origin(&["print", "crop_marks"]),
+            "n/a",
+        ),
+        explained_optional(
+            "print.page_margin",
+            resolved
+                .effective
+                .print
+                .as_ref()
+                .and_then(|print| print.page_margin.as_ref())
+                .map(format_page_margin)
+                .as_deref(),
+            origin(&["print", "page_margin"]),
+            "none",
+        ),
+        explained_optional(
+            "print.sides",
+            resolved
+                .effective
+                .print
+                .as_ref()
+                .map(|print| print.sides.as_str()),
+            origin(&["print", "sides"]),
+            "n/a",
+        ),
+        explained_optional(
+            "print.max_pages",
+            resolved
+                .effective
+                .print
+                .as_ref()
+                .and_then(|print| print.max_pages.map(|value| value.to_string()))
+                .as_deref(),
+            origin(&["print", "max_pages"]),
+            "none",
+        ),
+        explained_optional(
+            "print.body_pdf",
+            resolved
+                .effective
+                .print
+                .as_ref()
+                .map(|print| if print.body_pdf { "true" } else { "false" }),
+            origin(&["print", "body_pdf"]),
+            "n/a",
+        ),
+        explained_optional(
+            "print.cover_pdf",
+            resolved
+                .effective
+                .print
+                .as_ref()
+                .map(|print| if print.cover_pdf { "true" } else { "false" }),
+            origin(&["print", "cover_pdf"]),
+            "n/a",
+        ),
+        explained_optional(
+            "print.pdf_standard",
+            resolved
+                .effective
+                .print
+                .as_ref()
+                .map(|print| print.pdf_standard.as_str()),
+            origin(&["print", "pdf_standard"]),
+            "n/a",
+        ),
+        explained_optional(
+            "print.body_mode",
+            resolved
+                .effective
+                .print
+                .as_ref()
+                .map(|print| print.body_mode.as_str()),
+            origin(&["print", "body_mode"]),
+            "n/a",
         ),
         explained_optional_repo_path(
             "editorial.style",
@@ -903,6 +1178,7 @@ fn parse_effective_book_config(
         },
         cover: parse_cover(raw, config_path)?,
         pdf: parse_pdf(raw, config_path, project_type)?,
+        print: parse_print(raw, config_path, outputs.print.as_deref())?,
         outputs,
         editorial: parse_editorial(raw, config_path)?,
         manga,
@@ -960,7 +1236,7 @@ fn parse_project_type(raw: &Value, config_path: &Path) -> Result<ProjectType, Co
             config_path,
             "project.type",
             value,
-            "must be one of business, novel, light-novel, manga",
+            "must be one of business, paper, novel, light-novel, manga",
         )
     })
 }
@@ -1003,6 +1279,34 @@ fn parse_pdf(
         toc: optional_bool_at(raw, &["pdf", "toc"], config_path)?.unwrap_or(true),
         page_number: optional_bool_at(raw, &["pdf", "page_number"], config_path)?.unwrap_or(true),
         running_header: parse_pdf_running_header(raw, config_path)?,
+        column_count: parse_positive_u64_field(
+            raw,
+            config_path,
+            "pdf.column_count",
+            &["pdf", "column_count"],
+        )?
+        .unwrap_or(1),
+        column_gap: parse_length_or_auto(
+            raw,
+            config_path,
+            "pdf.column_gap",
+            &["pdf", "column_gap"],
+        )?
+        .unwrap_or_else(|| "auto".to_string()),
+        base_font_size: parse_length_or_auto(
+            raw,
+            config_path,
+            "pdf.base_font_size",
+            &["pdf", "base_font_size"],
+        )?
+        .unwrap_or_else(|| "auto".to_string()),
+        line_height: parse_length_or_auto(
+            raw,
+            config_path,
+            "pdf.line_height",
+            &["pdf", "line_height"],
+        )?
+        .unwrap_or_else(|| "auto".to_string()),
     }))
 }
 
@@ -1016,7 +1320,7 @@ fn parse_pdf_engine(raw: &Value, config_path: &Path) -> Result<PdfEngine, Config
                 "must be weasyprint, typst, or lualatex",
             )
         }),
-        None => Ok(PdfEngine::Typst),
+        None => Ok(PdfEngine::Weasyprint),
     }
 }
 
@@ -1044,13 +1348,20 @@ fn parse_profile(
 ) -> Result<String, ConfigError> {
     let profile = optional_string_at(raw, &["book", "profile"], config_path)?
         .unwrap_or_else(|| project_type.as_str().to_string());
-    let allowed = ["business", "novel", "light-novel", "manga"];
+    let allowed = [
+        "business",
+        "paper",
+        "conference-preprint",
+        "novel",
+        "light-novel",
+        "manga",
+    ];
     if !allowed.contains(&profile.as_str()) {
         return Err(invalid_value(
             config_path,
             "book.profile",
             profile,
-            "must be one of business, novel, light-novel, manga",
+            "must be one of business, paper, conference-preprint, novel, light-novel, manga",
         ));
     }
     if profile == "manga" && project_type != ProjectType::Manga {
@@ -1059,6 +1370,14 @@ fn parse_profile(
             "book.profile",
             profile,
             "profile manga is only allowed when project.type is manga",
+        ));
+    }
+    if profile == "conference-preprint" && project_type != ProjectType::Paper {
+        return Err(invalid_value(
+            config_path,
+            "book.profile",
+            profile,
+            "profile conference-preprint is only allowed when project.type is paper",
         ));
     }
     Ok(profile)
@@ -1078,7 +1397,7 @@ fn parse_writing_mode(
     config_path: &Path,
     project_type: ProjectType,
 ) -> Result<WritingMode, ConfigError> {
-    let default = if matches!(project_type, ProjectType::Business) {
+    let default = if matches!(project_type, ProjectType::Business | ProjectType::Paper) {
         WritingMode::HorizontalLtr
     } else {
         WritingMode::VerticalRl
@@ -1095,6 +1414,45 @@ fn parse_writing_mode(
         }),
         None => Ok(default),
     }
+}
+
+fn parse_print(
+    raw: &Value,
+    config_path: &Path,
+    print_target: Option<&str>,
+) -> Result<Option<PrintSettings>, ConfigError> {
+    let print_section = lookup(raw, &["print"]);
+    if print_target.is_none() && print_section.is_none() {
+        return Ok(None);
+    }
+
+    if matches!(print_section, Some(value) if !matches!(value, Value::Mapping(_))) {
+        return Err(invalid_type(config_path, "print".to_string(), "a mapping"));
+    }
+
+    let default_pdf_standard = match print_target {
+        Some("print-jp-pdfx4") => PrintPdfStandard::Pdfx4,
+        _ => PrintPdfStandard::Pdfx1a,
+    };
+
+    Ok(Some(PrintSettings {
+        trim_size: parse_print_trim_size(raw, config_path)?,
+        bleed: parse_length(raw, config_path, "print.bleed", &["print", "bleed"])?
+            .unwrap_or_else(|| "3mm".to_string()),
+        crop_marks: optional_bool_at(raw, &["print", "crop_marks"], config_path)?.unwrap_or(true),
+        page_margin: parse_page_margin(raw, config_path)?,
+        sides: parse_print_sides(raw, config_path)?,
+        max_pages: parse_positive_u64_field(
+            raw,
+            config_path,
+            "print.max_pages",
+            &["print", "max_pages"],
+        )?,
+        body_pdf: optional_bool_at(raw, &["print", "body_pdf"], config_path)?.unwrap_or(true),
+        cover_pdf: optional_bool_at(raw, &["print", "cover_pdf"], config_path)?.unwrap_or(false),
+        pdf_standard: parse_print_pdf_standard(raw, config_path)?.unwrap_or(default_pdf_standard),
+        body_mode: parse_print_body_mode(raw, config_path)?,
+    }))
 }
 
 fn parse_reading_direction(
@@ -1423,6 +1781,127 @@ fn parse_length_or_auto(
     }
 }
 
+fn parse_length(
+    raw: &Value,
+    config_path: &Path,
+    field: &str,
+    path: &[&str],
+) -> Result<Option<String>, ConfigError> {
+    match optional_string_at(raw, path, config_path)? {
+        Some(value) if !value.trim().is_empty() => Ok(Some(value)),
+        Some(value) => Err(invalid_value(
+            config_path,
+            field,
+            value,
+            "must be a non-empty CSS length string",
+        )),
+        None => Ok(None),
+    }
+}
+
+fn parse_positive_u64_field(
+    raw: &Value,
+    config_path: &Path,
+    field: &str,
+    path: &[&str],
+) -> Result<Option<u64>, ConfigError> {
+    let Some(value) = optional_u64_at(raw, path, config_path)? else {
+        return Ok(None);
+    };
+    if value == 0 {
+        return Err(invalid_value(
+            config_path,
+            field,
+            value.to_string(),
+            "must be greater than 0",
+        ));
+    }
+    Ok(Some(value))
+}
+
+fn parse_print_trim_size(raw: &Value, config_path: &Path) -> Result<PrintTrimSize, ConfigError> {
+    match optional_string_at(raw, &["print", "trim_size"], config_path)? {
+        Some(value) => PrintTrimSize::parse(&value).ok_or_else(|| {
+            invalid_value(
+                config_path,
+                "print.trim_size",
+                value,
+                "must be A4, A5, B6, bunko, or custom",
+            )
+        }),
+        None => Ok(PrintTrimSize::A5),
+    }
+}
+
+fn parse_print_sides(raw: &Value, config_path: &Path) -> Result<PrintSides, ConfigError> {
+    match optional_string_at(raw, &["print", "sides"], config_path)? {
+        Some(value) => PrintSides::parse(&value).ok_or_else(|| {
+            invalid_value(
+                config_path,
+                "print.sides",
+                value,
+                "must be simplex or duplex",
+            )
+        }),
+        None => Ok(PrintSides::Simplex),
+    }
+}
+
+fn parse_print_pdf_standard(
+    raw: &Value,
+    config_path: &Path,
+) -> Result<Option<PrintPdfStandard>, ConfigError> {
+    match optional_string_at(raw, &["print", "pdf_standard"], config_path)? {
+        Some(value) => PrintPdfStandard::parse(&value).map(Some).ok_or_else(|| {
+            invalid_value(
+                config_path,
+                "print.pdf_standard",
+                value,
+                "must be pdfx1a or pdfx4",
+            )
+        }),
+        None => Ok(None),
+    }
+}
+
+fn parse_print_body_mode(raw: &Value, config_path: &Path) -> Result<PrintBodyMode, ConfigError> {
+    match optional_string_at(raw, &["print", "body_mode"], config_path)? {
+        Some(value) => PrintBodyMode::parse(&value).ok_or_else(|| {
+            invalid_value(
+                config_path,
+                "print.body_mode",
+                value,
+                "must be auto, monochrome, or color",
+            )
+        }),
+        None => Ok(PrintBodyMode::Auto),
+    }
+}
+
+fn parse_page_margin(
+    raw: &Value,
+    config_path: &Path,
+) -> Result<Option<PageMarginSettings>, ConfigError> {
+    match lookup(raw, &["print", "page_margin"]) {
+        Some(Value::Mapping(_)) => Ok(Some(PageMarginSettings {
+            top: required_string_at(raw, &["print", "page_margin", "top"], config_path)?
+                .ok_or_else(|| missing_field(config_path, "print.page_margin.top"))?,
+            bottom: required_string_at(raw, &["print", "page_margin", "bottom"], config_path)?
+                .ok_or_else(|| missing_field(config_path, "print.page_margin.bottom"))?,
+            left: required_string_at(raw, &["print", "page_margin", "left"], config_path)?
+                .ok_or_else(|| missing_field(config_path, "print.page_margin.left"))?,
+            right: required_string_at(raw, &["print", "page_margin", "right"], config_path)?
+                .ok_or_else(|| missing_field(config_path, "print.page_margin.right"))?,
+        })),
+        Some(_) => Err(invalid_type(
+            config_path,
+            "print.page_margin".to_string(),
+            "a mapping",
+        )),
+        None => Ok(None),
+    }
+}
+
 fn validate_markdown_paths(
     paths: &[RepoPath],
     config_path: &Path,
@@ -1605,6 +2084,13 @@ fn format_repo_paths(values: &[RepoPath]) -> String {
         .map(RepoPath::as_str)
         .collect::<Vec<_>>()
         .join(", ")
+}
+
+fn format_page_margin(margin: &PageMarginSettings) -> String {
+    format!(
+        "top={}, bottom={}, left={}, right={}",
+        margin.top, margin.bottom, margin.left, margin.right
+    )
 }
 
 fn has_allowed_cover_extension(path: &RepoPath) -> bool {
@@ -1992,7 +2478,7 @@ git:
         let resolved = resolve_book_config(&context).unwrap();
         let pdf = resolved.effective.pdf.as_ref().unwrap();
 
-        assert_eq!(pdf.engine, PdfEngine::Typst);
+        assert_eq!(pdf.engine, PdfEngine::Weasyprint);
         assert!(pdf.toc);
         assert!(pdf.page_number);
         assert_eq!(pdf.running_header, PdfRunningHeader::Auto);
@@ -2041,6 +2527,111 @@ git:
         assert!(!pdf.toc);
         assert!(!pdf.page_number);
         assert_eq!(pdf.running_header, PdfRunningHeader::Chapter);
+    }
+
+    #[test]
+    fn resolves_conference_preprint_pdf_and_print_settings() {
+        let root = temp_dir("conference-preprint");
+        fs::write(
+            root.join("book.yml"),
+            r#"
+project:
+  type: paper
+  vcs: git
+book:
+  title: "Sample Preprint"
+  authors:
+    - "Author"
+  profile: conference-preprint
+manuscript:
+  chapters:
+    - manuscript/01-main.md
+outputs:
+  print:
+    enabled: true
+    target: print-jp-pdfx4
+pdf:
+  toc: false
+  page_number: false
+  running_header: none
+  column_count: 2
+  column_gap: 10mm
+  base_font_size: 9pt
+  line_height: 14pt
+print:
+  trim_size: A4
+  bleed: 0mm
+  crop_marks: false
+  page_margin:
+    top: 20mm
+    bottom: 20mm
+    left: 15mm
+    right: 15mm
+  sides: duplex
+  max_pages: 2
+  pdf_standard: pdfx4
+validation:
+  strict: true
+git:
+  lfs: true
+"#,
+        )
+        .unwrap();
+
+        let context = repo::discover(&root, None).unwrap();
+        let resolved = resolve_book_config(&context).unwrap();
+        let pdf = resolved.effective.pdf.as_ref().unwrap();
+        let print = resolved.effective.print.as_ref().unwrap();
+
+        assert_eq!(resolved.effective.project.project_type, ProjectType::Paper);
+        assert_eq!(resolved.effective.book.profile, "conference-preprint");
+        assert_eq!(pdf.column_count, 2);
+        assert_eq!(pdf.column_gap, "10mm");
+        assert_eq!(pdf.base_font_size, "9pt");
+        assert_eq!(pdf.line_height, "14pt");
+        assert_eq!(print.trim_size, PrintTrimSize::A4);
+        assert_eq!(print.sides, PrintSides::Duplex);
+        assert_eq!(print.max_pages, Some(2));
+        assert_eq!(print.pdf_standard, PrintPdfStandard::Pdfx4);
+        assert_eq!(print.page_margin.as_ref().unwrap().top, "20mm");
+    }
+
+    #[test]
+    fn rejects_conference_preprint_profile_for_non_paper_project() {
+        let root = temp_dir("bad-conference-preprint-profile");
+        fs::write(
+            root.join("book.yml"),
+            r#"
+project:
+  type: novel
+  vcs: git
+book:
+  title: "Sample"
+  authors:
+    - "Author"
+  profile: conference-preprint
+manuscript:
+  chapters:
+    - manuscript/01.md
+outputs:
+  print:
+    enabled: true
+    target: print-jp-pdfx1a
+validation:
+  strict: true
+git:
+  lfs: true
+"#,
+        )
+        .unwrap();
+
+        let context = repo::discover(&root, None).unwrap();
+        let error = resolve_book_config(&context).unwrap_err();
+
+        assert!(matches!(
+            error,
+            ConfigError::InvalidFieldValue { field, .. } if field == "book.profile"
+        ));
     }
 
     #[test]

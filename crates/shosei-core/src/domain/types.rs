@@ -3,6 +3,7 @@ use std::path::PathBuf;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ProjectType {
     Business,
+    Paper,
     Novel,
     LightNovel,
     Manga,
@@ -12,6 +13,7 @@ impl ProjectType {
     pub fn parse(value: &str) -> Option<Self> {
         match value {
             "business" => Some(Self::Business),
+            "paper" => Some(Self::Paper),
             "novel" => Some(Self::Novel),
             "light-novel" => Some(Self::LightNovel),
             "manga" => Some(Self::Manga),
@@ -22,6 +24,7 @@ impl ProjectType {
     pub fn as_str(self) -> &'static str {
         match self {
             Self::Business => "business",
+            Self::Paper => "paper",
             Self::Novel => "novel",
             Self::LightNovel => "light-novel",
             Self::Manga => "manga",

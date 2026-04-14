@@ -41,7 +41,7 @@ series:
 | `id` | string | yes | none | slug |
 | `title` | string | yes | none | non-empty |
 | `language` | string | no | `ja` | BCP 47 compatible string |
-| `type` | string | yes | none | `business`, `novel`, `light-novel`, `manga` |
+| `type` | string | yes | none | `business`, `paper`, `novel`, `light-novel`, `manga` |
 
 ## 5. `shared`
 

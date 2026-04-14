@@ -1,4 +1,4 @@
-# ADR-0025: prose print の v0.1 PDF backend は typst を正式採用する
+# ADR-0026: prose print の v0.1 PDF backend は weasyprint を正式採用する
 
 - Status: Accepted
 - Date: 2026-04-14
@@ -17,18 +17,18 @@ Pandoc 自体は変換の中核だが、print PDF を実際に出力するには
 
 ## Decision
 
-v0.1 の prose print PDF backend は `typst` を正式採用する。
+v0.1 の prose print PDF backend は `weasyprint` を正式採用する。
 
 具体的には次の方針とする。
 
-- `pdf.engine` の既定値は `typst`
-- prose print build では Pandoc 実行時に `--pdf-engine typst` を明示する
-- `doctor` の required tool は `git`, `pandoc`, `typst`
+- `pdf.engine` の既定値は `weasyprint`
+- prose print build では Pandoc 実行時に `--pdf-engine weasyprint` を明示し、`styles/base.css`, `styles/print.css` と generated layout stylesheet を渡す
+- `doctor` の required tool は `git`, `pandoc`, `weasyprint`
 - `doctor` の optional tool は `epubcheck`, `git-lfs`, Kindle Previewer
-- `weasyprint`, `lualatex` は config 値としては受け付けるが、v0.1 の doctor / CI の必須サポート対象には含めない
+- `typst`, `lualatex` は config 値としては受け付けるが、v0.1 の doctor / CI の必須サポート対象には含めない
 
 ## Consequences
 
-- `init` scaffold、usage、VS Code extension 表示、preflight の説明を `typst` 既定に揃える必要がある
+- `init` scaffold、usage、VS Code extension 表示、preflight の説明を `weasyprint` 既定に揃える必要がある
 - `doctor --json` は required / optional の分類を返し、editor はその区分をそのまま表示できる
-- `weasyprint`, `lualatex` を v0.1 の正式 backend に昇格させる場合は、別 ADR で support matrix と導入方針を更新する
+- `typst`, `lualatex` を v0.1 の正式 backend に昇格させる場合は、別 ADR で support matrix と導入方針を更新する

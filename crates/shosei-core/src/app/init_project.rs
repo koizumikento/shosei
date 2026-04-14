@@ -13,6 +13,7 @@ pub struct InitProjectOptions {
     pub non_interactive: bool,
     pub force: bool,
     pub config_template: Option<String>,
+    pub config_profile: Option<String>,
     pub repo_mode: Option<String>,
     pub title: Option<String>,
     pub author: Option<String>,
@@ -30,6 +31,8 @@ pub struct InitProjectResult {
 pub enum InitProjectError {
     #[error("unsupported config template `{template}`")]
     UnsupportedTemplate { template: String },
+    #[error("unsupported config profile `{profile}`")]
+    UnsupportedProfile { profile: String },
     #[error("unsupported repo mode `{mode}`")]
     UnsupportedRepoMode { mode: String },
     #[error("refusing to initialize {path}: existing shosei config found")]
@@ -51,6 +54,17 @@ pub enum InitProjectError {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum ProjectTemplate {
     Business,
+    Paper,
+    Novel,
+    LightNovel,
+    Manga,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ProjectProfile {
+    Business,
+    Paper,
+    ConferencePreprint,
     Novel,
     LightNovel,
     Manga,
@@ -72,6 +86,7 @@ enum OutputPreset {
 #[derive(Debug, Clone)]
 struct InitScaffoldConfig {
     template: ProjectTemplate,
+    profile: ProjectProfile,
     title: String,
     author: String,
     language: String,
@@ -80,15 +95,15 @@ struct InitScaffoldConfig {
 
 pub fn init_project(options: InitProjectOptions) -> Result<InitProjectResult, InitProjectError> {
     let template = ProjectTemplate::from_cli(options.config_template.as_deref())?;
+    let profile = ProjectProfile::from_cli(options.config_profile.as_deref(), template)?;
     let repo_mode = RepoTemplate::from_cli(options.repo_mode.as_deref(), template)?;
     let scaffold = InitScaffoldConfig {
         template,
-        title: options
-            .title
-            .unwrap_or_else(|| template.title().to_string()),
+        profile,
+        title: options.title.unwrap_or_else(|| profile.title().to_string()),
         author: options.author.unwrap_or_else(|| "Author Name".to_string()),
         language: options.language.unwrap_or_else(|| "ja".to_string()),
-        output_preset: OutputPreset::from_cli(options.output_preset.as_deref())?,
+        output_preset: OutputPreset::from_cli(options.output_preset.as_deref(), profile)?,
     };
     let root = options.root;
 
@@ -113,7 +128,7 @@ pub fn init_project(options: InitProjectOptions) -> Result<InitProjectResult, In
     Ok(InitProjectResult {
         summary: format!(
             "initialized {mode_label} scaffold for {} at {}{}",
-            template.as_str(),
+            profile.as_str(),
             root.display(),
             if options.non_interactive {
                 " (non-interactive defaults)"
@@ -141,8 +156,8 @@ impl RepoTemplate {
 }
 
 impl OutputPreset {
-    fn from_cli(value: Option<&str>) -> Result<Self, InitProjectError> {
-        match value.unwrap_or("kindle") {
+    fn from_cli(value: Option<&str>, profile: ProjectProfile) -> Result<Self, InitProjectError> {
+        match value.unwrap_or(profile.default_output_preset()) {
             "kindle" => Ok(Self::Kindle),
             "print" => Ok(Self::Print),
             "both" => Ok(Self::Both),
@@ -157,6 +172,7 @@ impl ProjectTemplate {
     fn from_cli(value: Option<&str>) -> Result<Self, InitProjectError> {
         match value.unwrap_or("novel") {
             "business" => Ok(Self::Business),
+            "paper" => Ok(Self::Paper),
             "novel" => Ok(Self::Novel),
             "light-novel" => Ok(Self::LightNovel),
             "manga" => Ok(Self::Manga),
@@ -169,28 +185,16 @@ impl ProjectTemplate {
     fn as_str(self) -> &'static str {
         match self {
             Self::Business => "business",
+            Self::Paper => "paper",
             Self::Novel => "novel",
             Self::LightNovel => "light-novel",
             Self::Manga => "manga",
         }
     }
 
-    fn title(self) -> &'static str {
-        match self {
-            Self::Business => "Untitled Business Book",
-            Self::Novel => "Untitled Novel",
-            Self::LightNovel => "Untitled Light Novel",
-            Self::Manga => "Untitled Manga Volume",
-        }
-    }
-
-    fn profile(self) -> &'static str {
-        self.as_str()
-    }
-
     fn writing_mode(self) -> &'static str {
         match self {
-            Self::Business => "horizontal-ltr",
+            Self::Business | Self::Paper => "horizontal-ltr",
             Self::Novel | Self::LightNovel | Self::Manga => "vertical-rl",
         }
     }
@@ -212,7 +216,95 @@ impl ProjectTemplate {
     fn default_repo_mode(self) -> RepoTemplate {
         match self {
             Self::Manga => RepoTemplate::Series,
-            Self::Business | Self::Novel | Self::LightNovel => RepoTemplate::SingleBook,
+            Self::Business | Self::Paper | Self::Novel | Self::LightNovel => {
+                RepoTemplate::SingleBook
+            }
+        }
+    }
+}
+
+impl ProjectProfile {
+    fn from_cli(value: Option<&str>, template: ProjectTemplate) -> Result<Self, InitProjectError> {
+        match value {
+            Some("business") if template == ProjectTemplate::Business => Ok(Self::Business),
+            Some("paper") if template == ProjectTemplate::Paper => Ok(Self::Paper),
+            Some("conference-preprint") if template == ProjectTemplate::Paper => {
+                Ok(Self::ConferencePreprint)
+            }
+            Some("novel") if template == ProjectTemplate::Novel => Ok(Self::Novel),
+            Some("light-novel") if template == ProjectTemplate::LightNovel => Ok(Self::LightNovel),
+            Some("manga") if template == ProjectTemplate::Manga => Ok(Self::Manga),
+            Some(other) => Err(InitProjectError::UnsupportedProfile {
+                profile: other.to_string(),
+            }),
+            None => Ok(Self::default_for_template(template)),
+        }
+    }
+
+    fn default_for_template(template: ProjectTemplate) -> Self {
+        match template {
+            ProjectTemplate::Business => Self::Business,
+            ProjectTemplate::Paper => Self::Paper,
+            ProjectTemplate::Novel => Self::Novel,
+            ProjectTemplate::LightNovel => Self::LightNovel,
+            ProjectTemplate::Manga => Self::Manga,
+        }
+    }
+
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Business => "business",
+            Self::Paper => "paper",
+            Self::ConferencePreprint => "conference-preprint",
+            Self::Novel => "novel",
+            Self::LightNovel => "light-novel",
+            Self::Manga => "manga",
+        }
+    }
+
+    fn title(self) -> &'static str {
+        match self {
+            Self::Business => "Untitled Business Book",
+            Self::Paper => "Untitled Paper",
+            Self::ConferencePreprint => "Untitled Conference Preprint",
+            Self::Novel => "Untitled Novel",
+            Self::LightNovel => "Untitled Light Novel",
+            Self::Manga => "Untitled Manga Volume",
+        }
+    }
+
+    fn default_output_preset(self) -> &'static str {
+        match self {
+            Self::Business | Self::Novel | Self::LightNovel | Self::Manga => "kindle",
+            Self::Paper | Self::ConferencePreprint => "print",
+        }
+    }
+
+    fn chapter_start_page(self) -> &'static str {
+        match self {
+            Self::Paper | Self::ConferencePreprint => "any",
+            _ => "odd",
+        }
+    }
+
+    fn allow_blank_pages(self) -> &'static str {
+        match self {
+            Self::Paper | Self::ConferencePreprint => "false",
+            _ => "true",
+        }
+    }
+
+    fn manuscript_file(self) -> &'static str {
+        match self {
+            Self::Paper | Self::ConferencePreprint => "01-main.md",
+            _ => "01-chapter-1.md",
+        }
+    }
+
+    fn manuscript_heading(self) -> &'static str {
+        match self {
+            Self::Paper | Self::ConferencePreprint => "# Main\n\nWrite here.\n",
+            _ => "# Chapter 1\n\nWrite here.\n",
         }
     }
 }
@@ -229,8 +321,8 @@ fn init_single_book(root: &Path, scaffold: &InitScaffoldConfig) -> Result<(), In
     } else {
         ensure_dir(&root.join("manuscript"))?;
         write_file(
-            &root.join("manuscript/01-chapter-1.md"),
-            "# Chapter 1\n\nWrite here.\n",
+            &root.join(format!("manuscript/{}", scaffold.profile.manuscript_file())),
+            scaffold.profile.manuscript_heading(),
         )?;
         write_editorial_scaffold(&root.join("editorial"))?;
     }
@@ -263,8 +355,11 @@ fn init_series(root: &Path, scaffold: &InitScaffoldConfig) -> Result<(), InitPro
     if template != ProjectTemplate::Manga {
         write_editorial_scaffold(&root.join("books/vol-01/editorial"))?;
         write_file(
-            &root.join("books/vol-01/manuscript/01-chapter-1.md"),
-            "# Chapter 1\n\nWrite here.\n",
+            &root.join(format!(
+                "books/vol-01/manuscript/{}",
+                scaffold.profile.manuscript_file()
+            )),
+            scaffold.profile.manuscript_heading(),
         )?;
     }
 
@@ -285,42 +380,47 @@ fn book_yml(scaffold: &InitScaffoldConfig) -> String {
     let manuscript_block = if template == ProjectTemplate::Manga {
         format!(
             "{}validation:\n  strict: true\n  epubcheck: false\n  accessibility: warn\ngit:\n  lfs: true\nmanga:\n  reading_direction: rtl\n  default_page_side: right\n  spread_policy_for_kindle: split\n  front_color_pages: 0\n  body_mode: monochrome\n",
-            outputs_block(template, scaffold.output_preset)
+            outputs_block(scaffold)
         )
     } else {
         format!(
-            "manuscript:\n  chapters:\n    - manuscript/01-chapter-1.md\n{}validation:\n  strict: true\n  epubcheck: true\n  accessibility: warn\ngit:\n  lfs: true\neditorial:\n  style: editorial/style.yml\n  claims: editorial/claims.yml\n  figures: editorial/figures.yml\n  freshness: editorial/freshness.yml\n",
-            outputs_block(template, scaffold.output_preset)
+            "manuscript:\n  chapters:\n    - manuscript/{}\n{}validation:\n  strict: true\n  epubcheck: true\n  accessibility: warn\ngit:\n  lfs: true\neditorial:\n  style: editorial/style.yml\n  claims: editorial/claims.yml\n  figures: editorial/figures.yml\n  freshness: editorial/freshness.yml\n",
+            scaffold.profile.manuscript_file(),
+            outputs_block(scaffold)
         )
     };
 
     format!(
-        "project:\n  type: {}\n  vcs: git\n  version: 1\nbook:\n  title: \"{}\"\n  authors:\n    - \"{}\"\n  language: {}\n  profile: {}\n  writing_mode: {}\n  reading_direction: {}\nlayout:\n  binding: {}\n  chapter_start_page: odd\n  allow_blank_pages: true\n{}",
+        "project:\n  type: {}\n  vcs: git\n  version: 1\nbook:\n  title: \"{}\"\n  authors:\n    - \"{}\"\n  language: {}\n  profile: {}\n  writing_mode: {}\n  reading_direction: {}\nlayout:\n  binding: {}\n  chapter_start_page: {}\n  allow_blank_pages: {}\n{}",
         template.as_str(),
         scaffold.title,
         scaffold.author,
         scaffold.language,
-        template.profile(),
+        scaffold.profile.as_str(),
         template.writing_mode(),
         template.reading_direction(),
         template.binding(),
+        scaffold.profile.chapter_start_page(),
+        scaffold.profile.allow_blank_pages(),
         manuscript_block
     )
 }
 
 fn series_yml(scaffold: &InitScaffoldConfig) -> String {
     let template = scaffold.template;
-    let outputs = indent_block(&outputs_block(template, scaffold.output_preset), 2);
+    let outputs = indent_block(&outputs_block(scaffold), 2);
 
     format!(
-        "series:\n  id: sample-series\n  title: \"{}\"\n  language: {}\n  type: {}\nshared:\n  assets:\n    - shared/assets\n  styles:\n    - shared/styles\n  fonts:\n    - shared/fonts\n  metadata:\n    - shared/metadata\ndefaults:\n  book:\n    profile: {}\n    writing_mode: {}\n    reading_direction: {}\n  layout:\n    binding: {}\n    chapter_start_page: odd\n    allow_blank_pages: true\n{}validation:\n  strict: true\n  epubcheck: {}\n  accessibility: warn\ngit:\n  lfs: true\n  require_clean_worktree_for_handoff: true\nbooks:\n  - id: vol-01\n    path: books/vol-01\n    number: 1\n    title: \"Volume 1\"\n",
+        "series:\n  id: sample-series\n  title: \"{}\"\n  language: {}\n  type: {}\nshared:\n  assets:\n    - shared/assets\n  styles:\n    - shared/styles\n  fonts:\n    - shared/fonts\n  metadata:\n    - shared/metadata\ndefaults:\n  book:\n    profile: {}\n    writing_mode: {}\n    reading_direction: {}\n  layout:\n    binding: {}\n    chapter_start_page: {}\n    allow_blank_pages: {}\n{}validation:\n  strict: true\n  epubcheck: {}\n  accessibility: warn\ngit:\n  lfs: true\n  require_clean_worktree_for_handoff: true\nbooks:\n  - id: vol-01\n    path: books/vol-01\n    number: 1\n    title: \"Volume 1\"\n",
         scaffold.title,
         scaffold.language,
         template.as_str(),
-        template.profile(),
+        scaffold.profile.as_str(),
         template.writing_mode(),
         template.reading_direction(),
         template.binding(),
+        scaffold.profile.chapter_start_page(),
+        scaffold.profile.allow_blank_pages(),
         outputs,
         if template == ProjectTemplate::Manga {
             "false"
@@ -343,17 +443,23 @@ fn series_book_yml(scaffold: &InitScaffoldConfig) -> String {
         )
     } else {
         format!(
-            "project:\n  type: {}\n  vcs: git\n  version: 1\nbook:\n  title: \"{}\"\n  authors:\n    - \"{}\"\n  language: {}\nlayout:\n  binding: {}\n  chapter_start_page: odd\n  allow_blank_pages: true\nmanuscript:\n  chapters:\n    - books/vol-01/manuscript/01-chapter-1.md\neditorial:\n  style: books/vol-01/editorial/style.yml\n  claims: books/vol-01/editorial/claims.yml\n  figures: books/vol-01/editorial/figures.yml\n  freshness: books/vol-01/editorial/freshness.yml\n",
+            "project:\n  type: {}\n  vcs: git\n  version: 1\nbook:\n  title: \"{}\"\n  authors:\n    - \"{}\"\n  language: {}\nlayout:\n  binding: {}\n  chapter_start_page: {}\n  allow_blank_pages: {}\nmanuscript:\n  chapters:\n    - books/vol-01/manuscript/{}\neditorial:\n  style: books/vol-01/editorial/style.yml\n  claims: books/vol-01/editorial/claims.yml\n  figures: books/vol-01/editorial/figures.yml\n  freshness: books/vol-01/editorial/freshness.yml\n",
             template.as_str(),
             scaffold.title,
             scaffold.author,
             scaffold.language,
             template.binding(),
+            scaffold.profile.chapter_start_page(),
+            scaffold.profile.allow_blank_pages(),
+            scaffold.profile.manuscript_file(),
         )
     }
 }
 
-fn outputs_block(template: ProjectTemplate, preset: OutputPreset) -> String {
+fn outputs_block(scaffold: &InitScaffoldConfig) -> String {
+    let template = scaffold.template;
+    let profile = scaffold.profile;
+    let preset = scaffold.output_preset;
     let mut lines = vec!["outputs:".to_string()];
     if matches!(preset, OutputPreset::Kindle | OutputPreset::Both) {
         let kindle_target = if template == ProjectTemplate::Manga {
@@ -368,6 +474,8 @@ fn outputs_block(template: ProjectTemplate, preset: OutputPreset) -> String {
     if matches!(preset, OutputPreset::Print | OutputPreset::Both) {
         let print_target = if template == ProjectTemplate::Manga {
             "print-manga"
+        } else if template == ProjectTemplate::Paper {
+            "print-jp-pdfx4"
         } else {
             "print-jp-pdfx1a"
         };
@@ -379,17 +487,63 @@ fn outputs_block(template: ProjectTemplate, preset: OutputPreset) -> String {
         && matches!(preset, OutputPreset::Print | OutputPreset::Both)
     {
         lines.push("pdf:".to_string());
-        lines.push("  engine: typst".to_string());
-        lines.push("  toc: true".to_string());
-        lines.push("  page_number: true".to_string());
-        lines.push("  running_header: auto".to_string());
+        lines.push("  engine: weasyprint".to_string());
+        match profile {
+            ProjectProfile::Paper => {
+                lines.push("  toc: false".to_string());
+                lines.push("  page_number: true".to_string());
+                lines.push("  running_header: none".to_string());
+            }
+            ProjectProfile::ConferencePreprint => {
+                lines.push("  toc: false".to_string());
+                lines.push("  page_number: false".to_string());
+                lines.push("  running_header: none".to_string());
+                lines.push("  column_count: 2".to_string());
+                lines.push("  column_gap: 10mm".to_string());
+                lines.push("  base_font_size: 9pt".to_string());
+                lines.push("  line_height: 14pt".to_string());
+            }
+            _ => {
+                lines.push("  toc: true".to_string());
+                lines.push("  page_number: true".to_string());
+                lines.push("  running_header: auto".to_string());
+            }
+        }
         lines.push("print:".to_string());
-        lines.push("  trim_size: bunko".to_string());
-        lines.push("  bleed: 3mm".to_string());
-        lines.push("  crop_marks: true".to_string());
+        match profile {
+            ProjectProfile::Paper => {
+                lines.push("  trim_size: A4".to_string());
+                lines.push("  bleed: 0mm".to_string());
+                lines.push("  crop_marks: false".to_string());
+            }
+            ProjectProfile::ConferencePreprint => {
+                lines.push("  trim_size: A4".to_string());
+                lines.push("  bleed: 0mm".to_string());
+                lines.push("  crop_marks: false".to_string());
+                lines.push("  page_margin:".to_string());
+                lines.push("    top: 20mm".to_string());
+                lines.push("    bottom: 20mm".to_string());
+                lines.push("    left: 15mm".to_string());
+                lines.push("    right: 15mm".to_string());
+                lines.push("  sides: duplex".to_string());
+                lines.push("  max_pages: 2".to_string());
+            }
+            _ => {
+                lines.push("  trim_size: bunko".to_string());
+                lines.push("  bleed: 3mm".to_string());
+                lines.push("  crop_marks: true".to_string());
+            }
+        }
         lines.push("  body_pdf: true".to_string());
         lines.push("  cover_pdf: false".to_string());
-        lines.push("  pdf_standard: pdfx1a".to_string());
+        lines.push(format!(
+            "  pdf_standard: {}",
+            if template == ProjectTemplate::Paper {
+                "pdfx4"
+            } else {
+                "pdfx1a"
+            }
+        ));
     }
     format!("{}\n", lines.join("\n"))
 }
@@ -617,6 +771,7 @@ mod tests {
             non_interactive: true,
             force: false,
             config_template: Some("novel".to_string()),
+            config_profile: None,
             repo_mode: None,
             title: None,
             author: None,
@@ -653,6 +808,7 @@ mod tests {
             non_interactive: true,
             force: false,
             config_template: Some("manga".to_string()),
+            config_profile: None,
             repo_mode: None,
             title: None,
             author: None,
@@ -691,6 +847,7 @@ mod tests {
             non_interactive: true,
             force: false,
             config_template: None,
+            config_profile: None,
             repo_mode: None,
             title: None,
             author: None,
@@ -713,6 +870,7 @@ mod tests {
             non_interactive: true,
             force: true,
             config_template: Some("business".to_string()),
+            config_profile: None,
             repo_mode: None,
             title: None,
             author: None,
@@ -733,6 +891,7 @@ mod tests {
             non_interactive: true,
             force: false,
             config_template: Some("poetry".to_string()),
+            config_profile: None,
             repo_mode: None,
             title: None,
             author: None,
@@ -755,6 +914,7 @@ mod tests {
             non_interactive: true,
             force: false,
             config_template: Some("business".to_string()),
+            config_profile: None,
             repo_mode: Some("series".to_string()),
             title: None,
             author: None,
@@ -789,6 +949,7 @@ mod tests {
             non_interactive: false,
             force: false,
             config_template: Some("novel".to_string()),
+            config_profile: None,
             repo_mode: Some("series".to_string()),
             title: Some("Custom Series".to_string()),
             author: Some("Ken".to_string()),
@@ -804,5 +965,33 @@ mod tests {
         assert!(series.contains("target: print-jp-pdfx1a"));
         let book = fs::read_to_string(root.join("books/vol-01/book.yml")).unwrap();
         assert!(book.contains("- \"Ken\""));
+    }
+
+    #[test]
+    fn initializes_conference_preprint_scaffold() {
+        let root = temp_dir("conference-preprint");
+        let result = init_project(InitProjectOptions {
+            root: root.clone(),
+            non_interactive: true,
+            force: false,
+            config_template: Some("paper".to_string()),
+            config_profile: Some("conference-preprint".to_string()),
+            repo_mode: None,
+            title: None,
+            author: None,
+            language: None,
+            output_preset: None,
+        })
+        .unwrap();
+
+        assert!(root.join("manuscript/01-main.md").is_file());
+        let book = fs::read_to_string(root.join("book.yml")).unwrap();
+        assert!(book.contains("type: paper"));
+        assert!(book.contains("profile: conference-preprint"));
+        assert!(book.contains("target: print-jp-pdfx4"));
+        assert!(book.contains("column_count: 2"));
+        assert!(book.contains("trim_size: A4"));
+        assert!(book.contains("sides: duplex"));
+        assert!(result.summary.contains("conference-preprint"));
     }
 }

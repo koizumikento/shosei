@@ -83,7 +83,7 @@ project:
 
 | Field | Type | Required | Default | Allowed |
 |---|---|---|---|---|
-| `type` | string | yes | none | `business`, `novel`, `light-novel`, `manga` |
+| `type` | string | yes | none | `business`, `paper`, `novel`, `light-novel`, `manga` |
 | `vcs` | string | yes | `git` | `git` |
 | `version` | integer | no | `1` | positive integer |
 
@@ -115,7 +115,7 @@ book:
 | `subtitle` | string or null | no | `null` | any |
 | `authors` | array<string> | yes | none | at least 1 item |
 | `language` | string | yes | `ja` | BCP 47 compatible string |
-| `profile` | string | yes | derived from `project.type` | `business`, `novel`, `light-novel`, `manga` |
+| `profile` | string | yes | derived from `project.type` | `business`, `paper`, `conference-preprint`, `novel`, `light-novel`, `manga` |
 | `writing_mode` | string | yes | profile-based | `horizontal-ltr`, `vertical-rl` |
 | `reading_direction` | string | yes | derived from `writing_mode` | `ltr`, `rtl` |
 | `identifier` | string | no | `auto` | any or `auto` |
@@ -125,6 +125,7 @@ book:
 制約:
 
 - `profile: manga` は `project.type: manga` のときのみ許可
+- `profile: conference-preprint` は `project.type: paper` のときのみ許可
 - `writing_mode: vertical-rl` のとき、`reading_direction: rtl` を推奨
 
 ## 6. `layout`
@@ -264,34 +265,50 @@ outputs:
 
 ```yaml
 pdf:
-  engine: typst
+  engine: weasyprint
   toc: true
   page_number: true
   running_header: auto
+  column_count: 1
+  column_gap: auto
+  base_font_size: auto
+  line_height: auto
 ```
 
 | Field | Type | Required | Default | Allowed |
 |---|---|---|---|---|
-| `engine` | string | conditional | `typst` | `weasyprint`, `typst`, `lualatex` |
+| `engine` | string | conditional | `weasyprint` | `weasyprint`, `typst`, `lualatex` |
 | `toc` | boolean | no | `true` | `true`, `false` |
 | `page_number` | boolean | no | `true` | `true`, `false` |
 | `running_header` | string | no | `auto` | `auto`, `none`, `title`, `chapter` |
+| `column_count` | integer | no | `1` | positive integer |
+| `column_gap` | string | no | `auto` | CSS length string or `auto` |
+| `base_font_size` | string | no | `auto` | CSS length string or `auto` |
+| `line_height` | string | no | `auto` | CSS length string or `auto` |
 
 補足:
 
-- v0.1 の prose print backend は `typst` を正式既定とする
-- `weasyprint`, `lualatex` は将来拡張・検証候補として値は受け付けるが、v0.1 の doctor / CI の必須サポート対象には含めない
+- v0.1 の prose print backend は `weasyprint` を正式既定とする
+- `typst`, `lualatex` は将来拡張・検証候補として値は受け付けるが、v0.1 の doctor / CI の必須サポート対象には含めない
 - `toc: true` は prose の導出済み navigation structure から目次を生成する
 - `running_header: chapter` は prose 本文の chapter title を参照する
 - `running_header: auto` は profile ごとの既定を使い、必要に応じて chapter title を参照する
+- `book.profile: conference-preprint` では `toc: false`, `page_number: false`, `running_header: none`, `column_count: 2`, `column_gap: 10mm`, `base_font_size: 9pt`, `line_height: 14pt` を既定候補とする
 
 ## 12. `print`
 
 ```yaml
 print:
-  trim_size: bunko
-  bleed: 3mm
-  crop_marks: true
+  trim_size: A4
+  bleed: 0mm
+  crop_marks: false
+  page_margin:
+    top: 20mm
+    bottom: 20mm
+    left: 15mm
+    right: 15mm
+  sides: duplex
+  max_pages: 2
   body_pdf: true
   cover_pdf: false
   pdf_standard: pdfx1a
@@ -299,9 +316,12 @@ print:
 
 | Field | Type | Required | Default | Allowed |
 |---|---|---|---|---|
-| `trim_size` | string | conditional | `A5` | `A5`, `B6`, `bunko`, `custom` |
+| `trim_size` | string | conditional | `A5` | `A4`, `A5`, `B6`, `bunko`, `custom` |
 | `bleed` | string | no | `3mm` | CSS length string |
 | `crop_marks` | boolean | no | `true` | `true`, `false` |
+| `page_margin` | object | no | profile-based | `top`, `bottom`, `left`, `right` を持つ margin object |
+| `sides` | string | no | `simplex` | `simplex`, `duplex` |
+| `max_pages` | integer | no | none | positive integer |
 | `body_pdf` | boolean | no | `true` | `true`, `false` |
 | `cover_pdf` | boolean | no | `false` | `true`, `false` |
 | `pdf_standard` | string | no | derived from target | `pdfx1a`, `pdfx4` |
@@ -311,6 +331,8 @@ print:
 
 - `trim_size: custom` の場合は将来 `custom_trim_size` の追加が必要
 - `cover_pdf: true` は v0.1 では metadata だけ先に定義し、実装は将来に回してもよい
+- `page_margin` を指定する場合は `top`, `bottom`, `left`, `right` の 4 辺を揃えて指定する
+- `book.profile: conference-preprint` では `trim_size: A4`, `bleed: 0mm`, `crop_marks: false`, `page_margin.top/bottom: 20mm`, `page_margin.left/right: 15mm`, `sides: duplex`, `max_pages: 2` を既定候補とする
 
 ## 13. `images`
 
@@ -560,7 +582,110 @@ editorial:
   freshness: editorial/freshness.yml
 ```
 
-## 20. manga の最小例
+## 20. paper の最小例
+
+```yaml
+project:
+  type: paper
+  vcs: git
+
+book:
+  title: "サンプル論文"
+  authors: ["著者名"]
+  language: ja
+  profile: paper
+  writing_mode: horizontal-ltr
+  reading_direction: ltr
+
+layout:
+  binding: left
+  chapter_start_page: any
+  allow_blank_pages: false
+
+manuscript:
+  chapters:
+    - manuscript/01-main.md
+
+outputs:
+  print:
+    enabled: true
+    target: print-jp-pdfx4
+
+pdf:
+  engine: weasyprint
+  toc: false
+  page_number: true
+  running_header: none
+
+validation:
+  strict: true
+
+git:
+  lfs: true
+```
+
+## 21. conference-preprint の最小例
+
+```yaml
+project:
+  type: paper
+  vcs: git
+
+book:
+  title: "サンプル前刷り"
+  authors: ["著者名"]
+  language: ja
+  profile: conference-preprint
+  writing_mode: horizontal-ltr
+  reading_direction: ltr
+
+layout:
+  binding: left
+  chapter_start_page: any
+  allow_blank_pages: false
+
+manuscript:
+  chapters:
+    - manuscript/01-main.md
+
+outputs:
+  print:
+    enabled: true
+    target: print-jp-pdfx4
+
+pdf:
+  engine: weasyprint
+  toc: false
+  page_number: false
+  running_header: none
+  column_count: 2
+  column_gap: 10mm
+  base_font_size: 9pt
+  line_height: 14pt
+
+print:
+  trim_size: A4
+  bleed: 0mm
+  crop_marks: false
+  page_margin:
+    top: 20mm
+    bottom: 20mm
+    left: 15mm
+    right: 15mm
+  sides: duplex
+  max_pages: 2
+  body_pdf: true
+  cover_pdf: false
+  pdf_standard: pdfx4
+
+validation:
+  strict: true
+
+git:
+  lfs: true
+```
+
+## 22. manga の最小例
 
 ```yaml
 project:
@@ -609,7 +734,7 @@ git:
   lfs: true
 ```
 
-## 21. schema バリデーションルール
+## 23. schema バリデーションルール
 
 - unknown key は v0.1 では warning
 - enum 不一致は error
@@ -619,10 +744,14 @@ git:
 - `outputs.print.enabled: true` なのに `print` セクションがない場合は warning
 - `outputs.kindle.enabled: true` なのに `book.reading_direction` が未指定なら error
 - `editorial.*` がある場合、参照先 path の形式不正は error
+- `book.profile: conference-preprint` なのに `outputs.print.enabled` が `true` でない場合は warning
+- `book.profile: conference-preprint` なのに `pdf.column_count != 2` の場合は warning
+- `book.profile: conference-preprint` なのに `print.trim_size != A4` の場合は warning
+- `book.profile: conference-preprint` なのに `print.max_pages > 2` の場合は warning
 - `manga.front_color_pages` が resolved page count を超える場合は error
 - `manga.body_mode: monochrome` で `front_color_pages` を超えた本文ページに color 画像がある場合は error
 
-## 22. 将来拡張の余地
+## 24. 将来拡張の余地
 
 - JSON Schema 生成
 - `custom_trim_size`

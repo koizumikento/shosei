@@ -29,6 +29,7 @@ fn run() -> Result<i32> {
             non_interactive,
             force,
             config_template,
+            config_profile,
             repo_mode,
             title,
             author,
@@ -50,6 +51,11 @@ fn run() -> Result<i32> {
                     wizard_answers
                         .as_ref()
                         .map(|answers| answers.config_template.clone())
+                }),
+                config_profile: config_profile.or_else(|| {
+                    wizard_answers
+                        .as_ref()
+                        .and_then(|answers| answers.config_profile.clone())
                 }),
                 repo_mode: repo_mode.or_else(|| {
                     wizard_answers

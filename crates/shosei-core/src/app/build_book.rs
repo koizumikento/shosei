@@ -1,14 +1,18 @@
-use std::{fs, path::PathBuf};
+use std::{
+    fs,
+    path::{Path, PathBuf},
+};
 
 use crate::{
     cli_api::CommandContext,
-    config::{self, PdfEngine},
+    config::{self},
     domain::ProjectType,
     fs::join_repo_path,
     manga, pipeline,
     repo::{self, RepoError},
     toolchain::{self, ToolStatus},
 };
+use serde_json::json;
 use thiserror::Error;
 
 #[derive(Debug, Clone)]
@@ -36,6 +40,12 @@ pub enum BuildBookError {
     UnsupportedProjectType { project_type: ProjectType },
     #[error("requested target `{target}` is not enabled for this book")]
     TargetNotEnabled { target: String },
+    #[error("failed to write generated print stylesheet to {path}: {source}")]
+    WriteGeneratedStylesheet {
+        path: PathBuf,
+        #[source]
+        source: std::io::Error,
+    },
 }
 
 pub fn build_book(command: &CommandContext) -> Result<BuildBookResult, BuildBookError> {
@@ -124,12 +134,6 @@ fn execute_build_outputs(
         .book
         .as_ref()
         .expect("book context must exist for build");
-    let pdf_engine = resolved
-        .effective
-        .pdf
-        .as_ref()
-        .map(|pdf| pdf.engine.as_str())
-        .unwrap_or(PdfEngine::Typst.as_str());
 
     for output in &plan.outputs {
         match output.channel {
@@ -178,19 +182,14 @@ fn execute_build_outputs(
                     &book.id,
                     &output.target,
                 )?;
+                let pdf_options = build_pandoc_pdf_options(resolved, output)?;
                 let run_output = toolchain::run_pandoc_pdf(
                     pandoc,
                     &plan.manuscript_files,
                     &output.artifact_path,
                     &resolved.effective.book.title,
                     &resolved.effective.book.language,
-                    pdf_engine,
-                    resolved
-                        .effective
-                        .pdf
-                        .as_ref()
-                        .map(|pdf| pdf.toc)
-                        .unwrap_or(true),
+                    &pdf_options,
                 )
                 .map_err(|error| {
                     execution_failed_with_message(
@@ -212,6 +211,329 @@ fn execute_build_outputs(
     }
 
     Ok(artifacts)
+}
+
+fn build_pandoc_pdf_options(
+    resolved: &config::ResolvedBookConfig,
+    output: &pipeline::BuildOutputPlan,
+) -> Result<toolchain::PandocPdfOptions, BuildBookError> {
+    let pdf = resolved
+        .effective
+        .pdf
+        .as_ref()
+        .expect("pdf settings must exist for prose print build");
+    let print = resolved.effective.print.as_ref();
+    let mut options = toolchain::PandocPdfOptions {
+        pdf_engine: pdf.engine,
+        table_of_contents: pdf.toc,
+        stylesheets: Vec::new(),
+        variables: Vec::new(),
+        variable_json: Vec::new(),
+    };
+
+    match pdf.engine {
+        config::PdfEngine::Weasyprint => {
+            options.stylesheets = print_stylesheets(resolved);
+            let generated = generated_print_stylesheet_path(&output.artifact_path);
+            fs::write(
+                &generated,
+                render_generated_print_stylesheet(
+                    &resolved.effective.book.title,
+                    &resolved.effective.book.profile,
+                    pdf,
+                    print,
+                ),
+            )
+            .map_err(|source| BuildBookError::WriteGeneratedStylesheet {
+                path: generated.clone(),
+                source,
+            })?;
+            options.stylesheets.push(generated);
+        }
+        config::PdfEngine::Typst => {
+            apply_typst_print_variables(&mut options, pdf, print);
+        }
+        config::PdfEngine::Lualatex => {
+            apply_lualatex_print_variables(&mut options, pdf, print);
+        }
+    }
+
+    Ok(options)
+}
+
+fn print_stylesheets(resolved: &config::ResolvedBookConfig) -> Vec<PathBuf> {
+    let book = resolved
+        .repo
+        .book
+        .as_ref()
+        .expect("book context must exist for build");
+    let mut stylesheets = Vec::new();
+
+    push_print_stylesheet_candidates(&mut stylesheets, &book.root.join("styles"));
+    for path in &resolved.shared.styles {
+        push_print_stylesheet_candidates(
+            &mut stylesheets,
+            &join_repo_path(&resolved.repo.repo_root, path),
+        );
+    }
+
+    stylesheets
+}
+
+fn push_print_stylesheet_candidates(stylesheets: &mut Vec<PathBuf>, path: &Path) {
+    if path.is_dir() {
+        for name in ["base.css", "print.css"] {
+            let candidate = path.join(name);
+            if candidate.is_file() && !stylesheets.iter().any(|existing| existing == &candidate) {
+                stylesheets.push(candidate);
+            }
+        }
+    } else if path.is_file()
+        && path.extension().and_then(|ext| ext.to_str()) == Some("css")
+        && !stylesheets.iter().any(|existing| existing == path)
+    {
+        stylesheets.push(path.to_path_buf());
+    }
+}
+
+fn generated_print_stylesheet_path(output: &Path) -> PathBuf {
+    output.with_extension("layout.css")
+}
+
+fn render_generated_print_stylesheet(
+    title: &str,
+    profile: &str,
+    pdf: &config::PdfSettings,
+    print: Option<&config::PrintSettings>,
+) -> String {
+    let mut css = Vec::new();
+    css.push("html {".to_string());
+    if pdf.base_font_size != "auto" {
+        css.push(format!("  font-size: {};", pdf.base_font_size));
+    }
+    if pdf.line_height != "auto" {
+        css.push(format!("  line-height: {};", pdf.line_height));
+    }
+    css.push("}".to_string());
+    css.push("body {".to_string());
+    css.push("  margin: 0;".to_string());
+    if pdf.column_count > 1 {
+        css.push(format!("  column-count: {};", pdf.column_count));
+        if pdf.column_gap != "auto" {
+            css.push(format!("  column-gap: {};", pdf.column_gap));
+        }
+        css.push("  column-fill: balance;".to_string());
+    }
+    css.push("}".to_string());
+    css.push("h1, h2, h3 { break-after: avoid; }".to_string());
+    css.push("figure, table, pre, blockquote { break-inside: avoid; }".to_string());
+    css.push("h1 { string-set: shosei-heading content(text); }".to_string());
+
+    let mut page_lines = Vec::new();
+    if let Some(print) = print {
+        if let Some(size) = css_page_size(print.trim_size) {
+            page_lines.push(format!("  size: {};", size));
+        }
+        if let Some(margin) = print.page_margin.as_ref() {
+            page_lines.push(format!(
+                "  margin: {} {} {} {};",
+                margin.top, margin.right, margin.bottom, margin.left
+            ));
+        }
+        page_lines.push(format!("  bleed: {};", print.bleed));
+        if print.crop_marks {
+            page_lines.push("  marks: crop;".to_string());
+        }
+    }
+    if pdf.page_number {
+        page_lines.push("  @bottom-center { content: counter(page); }".to_string());
+    }
+    match pdf.running_header {
+        config::PdfRunningHeader::None => {}
+        config::PdfRunningHeader::Title => page_lines.push(format!(
+            "  @top-center {{ content: \"{}\"; }}",
+            escape_css_string(title)
+        )),
+        config::PdfRunningHeader::Chapter | config::PdfRunningHeader::Auto => {
+            page_lines.push("  @top-center { content: string(shosei-heading); }".to_string())
+        }
+    }
+    if !page_lines.is_empty() {
+        css.push("@page {".to_string());
+        css.extend(page_lines);
+        css.push("}".to_string());
+    }
+
+    if profile == "conference-preprint" && pdf.column_count > 1 {
+        css.push(".abstract, .title, .subtitle { column-span: all; }".to_string());
+    }
+
+    css.join("\n") + "\n"
+}
+
+fn css_page_size(trim_size: config::PrintTrimSize) -> Option<&'static str> {
+    match trim_size {
+        config::PrintTrimSize::A4 => Some("210mm 297mm"),
+        config::PrintTrimSize::A5 => Some("148mm 210mm"),
+        config::PrintTrimSize::B6 => Some("128mm 182mm"),
+        config::PrintTrimSize::Bunko => Some("105mm 148mm"),
+        config::PrintTrimSize::Custom => None,
+    }
+}
+
+fn escape_css_string(value: &str) -> String {
+    value
+        .replace('\\', "\\\\")
+        .replace('"', "\\\"")
+        .replace('\n', "\\A ")
+}
+
+fn apply_typst_print_variables(
+    options: &mut toolchain::PandocPdfOptions,
+    pdf: &config::PdfSettings,
+    print: Option<&config::PrintSettings>,
+) {
+    if let Some(print) = print {
+        if let Some(papersize) = typst_papersize(print.trim_size) {
+            options
+                .variables
+                .push(("papersize".to_string(), papersize.to_string()));
+        }
+        if let Some(margin) = print.page_margin.as_ref() {
+            options.variable_json.push((
+                "margin".to_string(),
+                json!({
+                    "top": margin.top,
+                    "bottom": margin.bottom,
+                    "left": margin.left,
+                    "right": margin.right
+                })
+                .to_string(),
+            ));
+        }
+    }
+    if pdf.column_count > 1 {
+        options
+            .variables
+            .push(("columns".to_string(), pdf.column_count.to_string()));
+    }
+    if pdf.base_font_size != "auto" {
+        options
+            .variables
+            .push(("fontsize".to_string(), pdf.base_font_size.clone()));
+    }
+    if let Some(linestretch) = line_stretch_ratio(pdf) {
+        options
+            .variables
+            .push(("linestretch".to_string(), linestretch));
+    }
+    if !pdf.page_number {
+        options
+            .variables
+            .push(("page-numbering".to_string(), String::new()));
+    }
+}
+
+fn typst_papersize(trim_size: config::PrintTrimSize) -> Option<&'static str> {
+    match trim_size {
+        config::PrintTrimSize::A4 => Some("a4"),
+        config::PrintTrimSize::A5 => Some("a5"),
+        config::PrintTrimSize::B6 => Some("b6"),
+        config::PrintTrimSize::Bunko | config::PrintTrimSize::Custom => None,
+    }
+}
+
+fn apply_lualatex_print_variables(
+    options: &mut toolchain::PandocPdfOptions,
+    pdf: &config::PdfSettings,
+    print: Option<&config::PrintSettings>,
+) {
+    if pdf.column_count > 1 {
+        options
+            .variables
+            .push(("classoption".to_string(), "twocolumn".to_string()));
+    }
+    if let Some(print) = print {
+        match print.trim_size {
+            config::PrintTrimSize::A4 => options
+                .variables
+                .push(("papersize".to_string(), "a4".to_string())),
+            config::PrintTrimSize::A5 => options
+                .variables
+                .push(("papersize".to_string(), "a5".to_string())),
+            _ => {}
+        }
+        if let Some((width, height)) = latex_paper_dimensions(print.trim_size) {
+            options
+                .variables
+                .push(("geometry".to_string(), format!("paperwidth={width}")));
+            options
+                .variables
+                .push(("geometry".to_string(), format!("paperheight={height}")));
+        }
+        if let Some(margin) = print.page_margin.as_ref() {
+            for (side, value) in [
+                ("top", &margin.top),
+                ("bottom", &margin.bottom),
+                ("left", &margin.left),
+                ("right", &margin.right),
+            ] {
+                options
+                    .variables
+                    .push(("geometry".to_string(), format!("{side}={value}")));
+            }
+        }
+    }
+    if matches!(pdf.base_font_size.as_str(), "10pt" | "11pt" | "12pt") {
+        options
+            .variables
+            .push(("fontsize".to_string(), pdf.base_font_size.clone()));
+    }
+    if let Some(linestretch) = line_stretch_ratio(pdf) {
+        options
+            .variables
+            .push(("linestretch".to_string(), linestretch));
+    }
+    if !pdf.page_number && pdf.running_header == config::PdfRunningHeader::None {
+        options
+            .variables
+            .push(("pagestyle".to_string(), "empty".to_string()));
+    }
+}
+
+fn latex_paper_dimensions(
+    trim_size: config::PrintTrimSize,
+) -> Option<(&'static str, &'static str)> {
+    match trim_size {
+        config::PrintTrimSize::A4 => Some(("210mm", "297mm")),
+        config::PrintTrimSize::A5 => Some(("148mm", "210mm")),
+        config::PrintTrimSize::B6 => Some(("128mm", "182mm")),
+        config::PrintTrimSize::Bunko => Some(("105mm", "148mm")),
+        config::PrintTrimSize::Custom => None,
+    }
+}
+
+fn line_stretch_ratio(pdf: &config::PdfSettings) -> Option<String> {
+    let font = parse_numeric_length(&pdf.base_font_size)?;
+    let line = parse_numeric_length(&pdf.line_height)?;
+    if font.1 != line.1 || font.0 <= 0.0 {
+        return None;
+    }
+    Some(format!("{:.4}", line.0 / font.0))
+}
+
+fn parse_numeric_length(value: &str) -> Option<(f64, &str)> {
+    if value == "auto" {
+        return None;
+    }
+    let boundary = value
+        .find(|char: char| !(char.is_ascii_digit() || char == '.'))
+        .unwrap_or(value.len());
+    let (number, unit) = value.split_at(boundary);
+    if number.is_empty() || unit.is_empty() {
+        return None;
+    }
+    Some((number.parse().ok()?, unit))
 }
 
 fn available_tool_path<'a>(
@@ -499,15 +821,74 @@ git:
     fn write_print_book_without_toc(root: &std::path::Path) {
         write_print_book_with_pdf(
             root,
-            "pdf:\n  engine: typst\n  toc: false\n  page_number: true\n  running_header: auto\n",
+            "pdf:\n  engine: weasyprint\n  toc: false\n  page_number: true\n  running_header: auto\n",
         );
     }
 
     fn write_print_book_with_toc(root: &std::path::Path) {
         write_print_book_with_pdf(
             root,
-            "pdf:\n  engine: typst\n  toc: true\n  page_number: true\n  running_header: auto\n",
+            "pdf:\n  engine: weasyprint\n  toc: true\n  page_number: true\n  running_header: auto\n",
         );
+    }
+
+    fn write_conference_preprint_book(root: &std::path::Path, engine: &str) {
+        fs::create_dir_all(root.join("manuscript")).unwrap();
+        fs::create_dir_all(root.join("styles")).unwrap();
+        fs::write(root.join("manuscript/01-main.md"), "# Main\n\n## Intro\n").unwrap();
+        fs::write(root.join("styles/base.css"), "body { color: black; }\n").unwrap();
+        fs::write(root.join("styles/print.css"), "body { widows: 2; }\n").unwrap();
+        fs::write(
+            root.join("book.yml"),
+            format!(
+                r#"
+project:
+  type: paper
+  vcs: git
+book:
+  title: "Sample Preprint"
+  authors:
+    - "Author"
+  reading_direction: ltr
+  profile: conference-preprint
+layout:
+  binding: left
+manuscript:
+  chapters:
+    - manuscript/01-main.md
+outputs:
+  print:
+    enabled: true
+    target: print-jp-pdfx4
+pdf:
+  engine: {engine}
+  toc: false
+  page_number: false
+  running_header: none
+  column_count: 2
+  column_gap: 10mm
+  base_font_size: 9pt
+  line_height: 14pt
+print:
+  trim_size: A4
+  bleed: 0mm
+  crop_marks: false
+  page_margin:
+    top: 20mm
+    bottom: 20mm
+    left: 15mm
+    right: 15mm
+  sides: duplex
+  max_pages: 2
+  pdf_standard: pdfx4
+validation:
+  strict: true
+git:
+  lfs: true
+"#
+            ),
+        )
+        .unwrap();
     }
 
     fn write_manga_book(root: &std::path::Path, output_block: &str, spread_policy: &str) {
@@ -827,7 +1208,7 @@ printf 'fake pdf' > "$out"
         let args = fs::read_to_string(args_path).unwrap();
         assert!(args.lines().any(|arg| arg == "--toc"));
         assert!(args.lines().any(|arg| arg == "--pdf-engine"));
-        assert!(args.lines().any(|arg| arg == "typst"));
+        assert!(args.lines().any(|arg| arg == "weasyprint"));
     }
 
     #[test]
@@ -878,7 +1259,188 @@ printf 'fake pdf' > "$out"
         let args = fs::read_to_string(args_path).unwrap();
         assert!(!args.lines().any(|arg| arg == "--toc"));
         assert!(args.lines().any(|arg| arg == "--pdf-engine"));
+        assert!(args.lines().any(|arg| arg == "weasyprint"));
+    }
+
+    #[test]
+    fn build_passes_pdf_engine_to_pandoc_pdf() {
+        if !cfg!(unix) {
+            return;
+        }
+
+        let root = temp_dir("fake-pandoc-print-engine");
+        write_print_book_with_pdf(
+            &root,
+            "pdf:\n  engine: typst\n  toc: false\n  page_number: true\n  running_header: auto\n",
+        );
+        let pandoc = root.join("pandoc");
+        let args_path = root.join("pandoc-args.txt");
+        fs::write(
+            &pandoc,
+            format!(
+                r#"#!/bin/sh
+printf '%s\n' "$@" > "{}"
+out=""
+prev=""
+for arg in "$@"; do
+  if [ "$prev" = "--output" ]; then
+    out="$arg"
+  fi
+  prev="$arg"
+done
+mkdir -p "$(dirname "$out")"
+printf 'fake pdf' > "$out"
+"#,
+                args_path.display()
+            ),
+        )
+        .unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mut permissions = fs::metadata(&pandoc).unwrap().permissions();
+            permissions.set_mode(0o755);
+            fs::set_permissions(&pandoc, permissions).unwrap();
+        }
+
+        let result = build_book_with_toolchain(
+            &CommandContext::new(&root, None, None),
+            &fake_toolchain(Some(pandoc)),
+        )
+        .unwrap();
+
+        assert!(result.artifacts[0].is_file());
+        let args = fs::read_to_string(args_path).unwrap();
+        assert!(args.lines().any(|arg| arg == "--pdf-engine"));
         assert!(args.lines().any(|arg| arg == "typst"));
+    }
+
+    #[test]
+    fn build_writes_generated_weasyprint_layout_css_for_preprint() {
+        if !cfg!(unix) {
+            return;
+        }
+
+        let root = temp_dir("preprint-weasyprint-layout");
+        write_conference_preprint_book(&root, "weasyprint");
+        let pandoc = root.join("pandoc");
+        let args_path = root.join("pandoc-args.txt");
+        fs::write(
+            &pandoc,
+            format!(
+                r#"#!/bin/sh
+printf '%s\n' "$@" > "{}"
+out=""
+prev=""
+for arg in "$@"; do
+  if [ "$prev" = "--output" ]; then
+    out="$arg"
+  fi
+  prev="$arg"
+done
+mkdir -p "$(dirname "$out")"
+printf 'fake pdf' > "$out"
+"#,
+                args_path.display()
+            ),
+        )
+        .unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mut permissions = fs::metadata(&pandoc).unwrap().permissions();
+            permissions.set_mode(0o755);
+            fs::set_permissions(&pandoc, permissions).unwrap();
+        }
+
+        let result = build_book_with_toolchain(
+            &CommandContext::new(&root, None, None),
+            &fake_toolchain(Some(pandoc)),
+        )
+        .unwrap();
+
+        assert!(result.artifacts[0].is_file());
+        let args = fs::read_to_string(args_path).unwrap();
+        let css_args = args
+            .lines()
+            .collect::<Vec<_>>()
+            .windows(2)
+            .filter_map(|window| (window[0] == "--css").then_some(window[1]))
+            .collect::<Vec<_>>();
+        assert!(css_args.iter().any(|arg| arg.ends_with("/styles/base.css")));
+        assert!(
+            css_args
+                .iter()
+                .any(|arg| arg.ends_with("/styles/print.css"))
+        );
+        let generated = css_args
+            .iter()
+            .find(|arg| arg.ends_with(".layout.css"))
+            .expect("generated layout stylesheet must be passed");
+        let css = fs::read_to_string(generated).unwrap();
+        assert!(css.contains("size: 210mm 297mm;"));
+        assert!(css.contains("margin: 20mm 15mm 20mm 15mm;"));
+        assert!(css.contains("column-count: 2;"));
+        assert!(css.contains("column-gap: 10mm;"));
+        assert!(css.contains("font-size: 9pt;"));
+        assert!(css.contains("line-height: 14pt;"));
+    }
+
+    #[test]
+    fn build_passes_typst_print_variables_for_preprint() {
+        if !cfg!(unix) {
+            return;
+        }
+
+        let root = temp_dir("preprint-typst-variables");
+        write_conference_preprint_book(&root, "typst");
+        let pandoc = root.join("pandoc");
+        let args_path = root.join("pandoc-args.txt");
+        fs::write(
+            &pandoc,
+            format!(
+                r#"#!/bin/sh
+printf '%s\n' "$@" > "{}"
+out=""
+prev=""
+for arg in "$@"; do
+  if [ "$prev" = "--output" ]; then
+    out="$arg"
+  fi
+  prev="$arg"
+done
+mkdir -p "$(dirname "$out")"
+printf 'fake pdf' > "$out"
+"#,
+                args_path.display()
+            ),
+        )
+        .unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mut permissions = fs::metadata(&pandoc).unwrap().permissions();
+            permissions.set_mode(0o755);
+            fs::set_permissions(&pandoc, permissions).unwrap();
+        }
+
+        let result = build_book_with_toolchain(
+            &CommandContext::new(&root, None, None),
+            &fake_toolchain(Some(pandoc)),
+        )
+        .unwrap();
+
+        assert!(result.artifacts[0].is_file());
+        let args = fs::read_to_string(args_path).unwrap();
+        assert!(args.contains("--variable\ncolumns=2"));
+        assert!(args.contains("--variable\npapersize=a4"));
+        assert!(args.contains("--variable\nfontsize=9pt"));
+        assert!(args.contains("--variable\nlinestretch=1.5556"));
+        assert!(args.contains("--variable-json\nmargin="));
+        assert!(args.contains("\"top\":\"20mm\""));
+        assert!(args.contains("\"bottom\":\"20mm\""));
+        assert!(args.contains("\"left\":\"15mm\""));
+        assert!(args.contains("\"right\":\"15mm\""));
     }
 
     #[test]

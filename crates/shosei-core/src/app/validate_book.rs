@@ -280,7 +280,7 @@ fn schema_warning_issues(resolved: &config::ResolvedBookConfig) -> Vec<Validatio
                 "print output is enabled but no print section is defined".to_string(),
                 "print セクションを追加して trim size や bleed などの印刷設定を明示してください。",
             )
-            .at(config_path),
+            .at(config_path.clone()),
         );
     }
 
@@ -294,16 +294,73 @@ fn schema_warning_issues(resolved: &config::ResolvedBookConfig) -> Vec<Validatio
                 "print output is enabled but no pdf section is defined".to_string(),
                 "pdf セクションを追加して engine や running_header などの PDF 設定を明示してください。",
             )
-            .at(
-                resolved
-                    .repo
-                    .book
-                    .as_ref()
-                    .expect("book context must exist")
-                    .config_path
-                    .clone(),
-            ),
+            .at(config_path.clone()),
         );
+    }
+
+    if resolved.effective.book.profile == "conference-preprint" {
+        if resolved.effective.outputs.print.is_none() {
+            issues.push(
+                ValidationIssue::warning(
+                    "print",
+                    "conference-preprint profile usually expects print output".to_string(),
+                    "conference-preprint では outputs.print.enabled を true にしてください。",
+                )
+                .at(config_path.clone()),
+            );
+        }
+
+        if resolved
+            .effective
+            .pdf
+            .as_ref()
+            .map(|pdf| pdf.column_count != 2)
+            .unwrap_or(true)
+        {
+            issues.push(
+                ValidationIssue::warning(
+                    "print",
+                    "conference-preprint profile usually expects pdf.column_count = 2".to_string(),
+                    "conference-preprint では pdf.column_count を 2 にしてください。",
+                )
+                .at(config_path.clone()),
+            );
+        }
+
+        if resolved
+            .effective
+            .print
+            .as_ref()
+            .map(|print| print.trim_size != config::PrintTrimSize::A4)
+            .unwrap_or(true)
+        {
+            issues.push(
+                ValidationIssue::warning(
+                    "print",
+                    "conference-preprint profile usually expects print.trim_size = A4".to_string(),
+                    "conference-preprint では print.trim_size を A4 にしてください。",
+                )
+                .at(config_path.clone()),
+            );
+        }
+
+        if resolved
+            .effective
+            .print
+            .as_ref()
+            .and_then(|print| print.max_pages)
+            .map(|max_pages| max_pages > 2)
+            .unwrap_or(false)
+        {
+            issues.push(
+                ValidationIssue::warning(
+                    "print",
+                    "conference-preprint profile usually expects print.max_pages <= 2".to_string(),
+                    "conference-preprint では print.max_pages を 2 以下にしてください。",
+                )
+                .at(config_path.clone()),
+            );
+        }
     }
 
     issues
@@ -1456,10 +1513,14 @@ mod tests {
     }
 
     fn fake_toolchain(epubcheck: ToolStatus) -> ToolchainReport {
-        fake_toolchain_with_typst(epubcheck, ToolStatus::Available)
+        fake_toolchain_with_engines(epubcheck, ToolStatus::Available, ToolStatus::Available)
     }
 
-    fn fake_toolchain_with_typst(epubcheck: ToolStatus, typst: ToolStatus) -> ToolchainReport {
+    fn fake_toolchain_with_engines(
+        epubcheck: ToolStatus,
+        weasyprint: ToolStatus,
+        typst: ToolStatus,
+    ) -> ToolchainReport {
         ToolchainReport {
             tools: vec![
                 ToolRecord {
@@ -1482,6 +1543,16 @@ mod tests {
                         .to_string(),
                 },
                 ToolRecord {
+                    key: "weasyprint",
+                    display_name: "weasyprint",
+                    status: weasyprint,
+                    detected_as: Some("weasyprint".to_string()),
+                    resolved_path: None,
+                    version: None,
+                    install_hint: "Install weasyprint and ensure the launcher is on PATH."
+                        .to_string(),
+                },
+                ToolRecord {
                     key: "typst",
                     display_name: "typst",
                     status: typst,
@@ -1494,7 +1565,7 @@ mod tests {
                     key: "pdf-engine",
                     display_name: "PDF engine",
                     status: ToolStatus::Available,
-                    detected_as: Some("typst".to_string()),
+                    detected_as: Some("weasyprint".to_string()),
                     resolved_path: None,
                     version: None,
                     install_hint:
@@ -1843,7 +1914,7 @@ manga:
 
         let result = validate_book_with_toolchain(
             &CommandContext::new(&root, None, None),
-            &fake_toolchain(ToolStatus::Missing),
+            &fake_toolchain(ToolStatus::Available),
         )
         .unwrap();
 
@@ -2036,6 +2107,69 @@ manga:
     }
 
     #[test]
+    fn validate_warns_when_conference_preprint_preset_is_incomplete() {
+        let root = temp_dir("conference-preprint-warnings");
+        fs::create_dir_all(root.join("manuscript")).unwrap();
+        fs::create_dir_all(root.join("assets/cover")).unwrap();
+        fs::write(root.join("manuscript/01-main.md"), "# Main\n").unwrap();
+        fs::write(root.join("assets/cover/front.png"), tiny_png()).unwrap();
+        fs::write(
+            root.join("book.yml"),
+            r#"
+project:
+  type: paper
+  vcs: git
+book:
+  title: "Sample Preprint"
+  authors:
+    - "Author"
+  profile: conference-preprint
+  reading_direction: ltr
+manuscript:
+  chapters:
+    - manuscript/01-main.md
+outputs:
+  kindle:
+    enabled: true
+    target: kindle-ja
+  print:
+    enabled: false
+cover:
+  ebook_image: assets/cover/front.png
+pdf:
+  column_count: 1
+print:
+  trim_size: B6
+  max_pages: 3
+validation:
+  strict: true
+git:
+  lfs: true
+"#,
+        )
+        .unwrap();
+
+        let result = validate_book_with_toolchain(
+            &CommandContext::new(&root, None, None),
+            &fake_toolchain(ToolStatus::Available),
+        )
+        .unwrap();
+
+        let report = fs::read_to_string(result.report_path).unwrap();
+        assert!(!result.has_errors, "{report}");
+        assert!(report.contains("conference-preprint profile usually expects print output"));
+        assert!(
+            report.contains("conference-preprint profile usually expects pdf.column_count = 2")
+        );
+        assert!(
+            report.contains("conference-preprint profile usually expects print.trim_size = A4")
+        );
+        assert!(
+            report.contains("conference-preprint profile usually expects print.max_pages <= 2")
+        );
+    }
+
+    #[test]
     fn validate_reports_missing_configured_pdf_engine() {
         let root = temp_dir("missing-configured-pdf-engine");
         fs::create_dir_all(root.join("manuscript")).unwrap();
@@ -2072,7 +2206,11 @@ git:
 
         let result = validate_book_with_toolchain(
             &CommandContext::new(&root, None, None),
-            &fake_toolchain_with_typst(ToolStatus::Missing, ToolStatus::Missing),
+            &fake_toolchain_with_engines(
+                ToolStatus::Missing,
+                ToolStatus::Available,
+                ToolStatus::Missing,
+            ),
         )
         .unwrap();
 
