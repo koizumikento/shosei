@@ -19,6 +19,7 @@ use crate::{
 pub struct PageCheckResult {
     pub summary: String,
     pub report_path: PathBuf,
+    pub issues: Vec<ValidationIssue>,
     pub issue_count: usize,
     pub has_errors: bool,
 }
@@ -152,17 +153,21 @@ pub fn page_check(command: &CommandContext) -> Result<PageCheckResult, PageCheck
     };
     write_report(&report_path, &report)?;
     let has_errors = issues.iter().any(|issue| issue.severity == Severity::Error);
+    let issue_count = issues.len();
 
     Ok(PageCheckResult {
         summary: format!(
-            "page check completed for {} with {} page(s), issues: {}, report: {}",
+            "page check completed for {} with {} page(s), issues: {}, report: {}\npage order: {}\nspread candidates: {}",
             book.id,
             report.page_count,
-            issues.len(),
-            report_path.display()
+            issue_count,
+            report_path.display(),
+            summarize_file_list(&report.page_order),
+            summarize_file_list(&report.spread_candidates),
         ),
         report_path,
-        issue_count: issues.len(),
+        issues,
+        issue_count,
         has_errors,
     })
 }
@@ -191,6 +196,10 @@ fn report_path(resolved: &config::ResolvedBookConfig) -> PathBuf {
         .join(format!("{book_id}-page-check.json"))
 }
 
+fn manga_pages_dir(book_root: &Path) -> PathBuf {
+    book_root.join("manga").join("pages")
+}
+
 fn write_report(path: &Path, report: &PageCheckReport) -> Result<(), PageCheckError> {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent).map_err(|source| PageCheckError::WriteReport {
@@ -207,6 +216,28 @@ fn write_report(path: &Path, report: &PageCheckReport) -> Result<(), PageCheckEr
         path: path.to_path_buf(),
         source,
     })
+}
+
+fn summarize_file_list(items: &[String]) -> String {
+    const LIMIT: usize = 10;
+
+    if items.is_empty() {
+        return "none".to_string();
+    }
+    if items.len() <= LIMIT {
+        return items.join(", ");
+    }
+
+    format!(
+        "{}, ... ({} total)",
+        items
+            .iter()
+            .take(LIMIT)
+            .cloned()
+            .collect::<Vec<_>>()
+            .join(", "),
+        items.len()
+    )
 }
 
 fn page_order_issues(book_root: &Path, page_files: &[PathBuf]) -> Vec<ValidationIssue> {
@@ -244,7 +275,7 @@ fn page_order_issues(book_root: &Path, page_files: &[PathBuf]) -> Vec<Validation
             "lexicographic page order differs from numeric order".to_string(),
             "ページ順はファイル名の辞書順で決まります。ゼロ埋めした連番へ揃えてください。",
         )
-        .at(book_root.join("manga/pages")),
+        .at(manga_pages_dir(book_root)),
     ]
 }
 
@@ -273,7 +304,7 @@ fn page_size_issues(
                 ),
                 "manga/pages/ の画像を修正し、すべてのページを同じ仕上がりサイズに揃えてください。",
             )
-            .at(book_root.join("manga/pages").join(&page.file_name))
+            .at(manga_pages_dir(book_root).join(&page.file_name))
         })
         .collect()
 }
@@ -300,7 +331,8 @@ fn kindle_spread_policy_issues(
             .as_ref()
             .expect("book context must exist")
             .root
-            .join("manga/pages")
+            .join("manga")
+            .join("pages")
             .join(file_name)
     };
 
@@ -362,7 +394,8 @@ fn manga_color_policy_issues(
             .as_ref()
             .expect("book context must exist")
             .root
-            .join("manga/pages")
+            .join("manga")
+            .join("pages")
             .join(file_name)
     };
 
@@ -435,6 +468,7 @@ mod tests {
     use std::{fs, path::Path};
 
     use image::{DynamicImage, ImageFormat, Rgba, RgbaImage};
+    use serde_json::Value;
 
     use crate::cli_api::CommandContext;
 
@@ -515,9 +549,22 @@ manga:
 
         let result = page_check(&CommandContext::new(&root, None, None)).unwrap();
         let report = fs::read_to_string(result.report_path).unwrap();
+        let json: Value = serde_json::from_str(&report).unwrap();
 
         assert!(!result.has_errors);
         assert!(report.contains("lexicographic page order differs from numeric order"));
+        assert!(result.summary.contains("page order: 1.png, 10.png, 2.png"));
+        assert!(result.summary.contains("spread candidates: none"));
+        assert_eq!(
+            json["page_order"],
+            serde_json::json!(["1.png", "10.png", "2.png"])
+        );
+        assert_eq!(json["spread_candidates"].as_array().unwrap().len(), 0);
+        assert_eq!(
+            json["issues"][0]["location"]["path"],
+            root.join("manga").join("pages").display().to_string()
+        );
+        assert!(json["issues"][0]["location"]["line"].is_null());
     }
 
     #[test]
@@ -532,10 +579,63 @@ manga:
 
         let result = page_check(&CommandContext::new(&root, None, None)).unwrap();
         let report = fs::read_to_string(result.report_path).unwrap();
+        let json: Value = serde_json::from_str(&report).unwrap();
 
         assert!(result.has_errors);
         assert!(
             report.contains("body page is detected as color while manga.body_mode is monochrome")
         );
+        assert!(result.summary.contains("page order: 001.png"));
+        assert!(result.summary.contains("spread candidates: none"));
+        assert_eq!(
+            json["issues"][0]["location"]["path"],
+            root.join("manga")
+                .join("pages")
+                .join("001.png")
+                .display()
+                .to_string()
+        );
+        assert!(json["issues"][0]["location"]["line"].is_null());
+    }
+
+    #[test]
+    fn page_check_reports_spread_candidates_in_summary_and_json() {
+        let root = temp_dir("spread-candidates");
+        write_manga_book(&root, 0, "mixed");
+        fs::write(
+            root.join("manga/pages/001.png"),
+            tiny_png(Rgba([0, 0, 0, 255])),
+        )
+        .unwrap();
+        fs::write(root.join("manga/pages/002.png"), wide_png_like()).unwrap();
+
+        let result = page_check(&CommandContext::new(&root, None, None)).unwrap();
+        let report = fs::read_to_string(result.report_path).unwrap();
+        let json: Value = serde_json::from_str(&report).unwrap();
+
+        assert!(result.summary.contains("page order: 001.png, 002.png"));
+        assert!(result.summary.contains("spread candidates: 002.png"));
+        assert_eq!(json["spread_candidates"], serde_json::json!(["002.png"]));
+    }
+
+    #[test]
+    fn summarize_file_list_truncates_after_ten_items() {
+        let items = (1..=11)
+            .map(|index| format!("{index:03}.png"))
+            .collect::<Vec<_>>();
+
+        assert_eq!(
+            super::summarize_file_list(&items),
+            "001.png, 002.png, 003.png, 004.png, 005.png, 006.png, 007.png, 008.png, 009.png, 010.png, ... (11 total)"
+        );
+    }
+
+    fn wide_png_like() -> Vec<u8> {
+        let mut bytes = Vec::new();
+        let image = DynamicImage::ImageRgba8(RgbaImage::from_pixel(2, 1, Rgba([0, 0, 0, 255])));
+        image
+            .write_to(&mut std::io::Cursor::new(&mut bytes), ImageFormat::Png)
+            .unwrap();
+        bytes
     }
 }

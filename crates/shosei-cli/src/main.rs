@@ -29,6 +29,7 @@ fn run() -> Result<i32> {
             non_interactive,
             force,
             config_template,
+            repo_mode,
         } => {
             output::print_line(prompts::init_mode_banner());
             let target = path.unwrap_or(std::env::current_dir()?);
@@ -45,9 +46,11 @@ fn run() -> Result<i32> {
                     .as_ref()
                     .map(|answers| answers.config_template.clone())
                     .or(config_template),
-                repo_mode: wizard_answers
-                    .as_ref()
-                    .map(|answers| answers.repo_mode.clone()),
+                repo_mode: repo_mode.or_else(|| {
+                    wizard_answers
+                        .as_ref()
+                        .map(|answers| answers.repo_mode.clone())
+                }),
                 title: wizard_answers.as_ref().map(|answers| answers.title.clone()),
                 author: wizard_answers
                     .as_ref()
@@ -79,6 +82,9 @@ fn run() -> Result<i32> {
         Commands::Validate { book, target, path } => {
             let result = app::validate_book(&CommandContext::new(path, book, target))?;
             output::print_line(&result.summary);
+            if let Some(preview) = output::format_issue_preview(&result.issues) {
+                output::print_line(&preview);
+            }
             Ok(if result.has_errors {
                 exit_code::FAILURE
             } else {
@@ -185,6 +191,9 @@ fn run() -> Result<i32> {
             PageCommands::Check { book, path } => {
                 let result = app::page_check(&CommandContext::new(path, book, None))?;
                 output::print_line(&result.summary);
+                if let Some(preview) = output::format_issue_preview(&result.issues) {
+                    output::print_line(&preview);
+                }
                 Ok(if result.has_errors {
                     exit_code::FAILURE
                 } else {

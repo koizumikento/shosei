@@ -76,6 +76,7 @@ v0.1 で残す引数は最小限:
 - `--force`
 - `--path`
 - `--config-template`
+- `--repo-mode`
 
 ## 5. 質問一覧
 

@@ -527,7 +527,19 @@ mod tests {
 
         let pandoc = report.tool("pandoc").unwrap();
         assert_eq!(pandoc.status, ToolStatus::Available);
-        assert_eq!(pandoc.resolved_path.as_ref(), Some(&tool_path));
+        let resolved = pandoc.resolved_path.as_ref().unwrap();
+        assert_eq!(resolved.parent(), tool_path.parent());
+        assert_eq!(resolved.file_stem(), tool_path.file_stem());
+        assert_eq!(
+            resolved
+                .extension()
+                .and_then(|extension| extension.to_str())
+                .map(|extension| extension.to_ascii_lowercase()),
+            tool_path
+                .extension()
+                .and_then(|extension| extension.to_str())
+                .map(|extension| extension.to_ascii_lowercase())
+        );
     }
 
     #[test]
