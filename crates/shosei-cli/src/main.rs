@@ -29,7 +29,12 @@ fn run() -> Result<i32> {
             non_interactive,
             force,
             config_template,
+            config_profile,
             repo_mode,
+            title,
+            author,
+            language,
+            output_preset,
         } => {
             output::print_line(prompts::init_mode_banner());
             let target = path.unwrap_or(std::env::current_dir()?);
@@ -42,25 +47,38 @@ fn run() -> Result<i32> {
                 root: target,
                 non_interactive,
                 force,
-                config_template: wizard_answers
-                    .as_ref()
-                    .map(|answers| answers.config_template.clone())
-                    .or(config_template),
+                config_template: config_template.or_else(|| {
+                    wizard_answers
+                        .as_ref()
+                        .map(|answers| answers.config_template.clone())
+                }),
+                config_profile: config_profile.or_else(|| {
+                    wizard_answers
+                        .as_ref()
+                        .and_then(|answers| answers.config_profile.clone())
+                }),
                 repo_mode: repo_mode.or_else(|| {
                     wizard_answers
                         .as_ref()
                         .map(|answers| answers.repo_mode.clone())
                 }),
-                title: wizard_answers.as_ref().map(|answers| answers.title.clone()),
-                author: wizard_answers
-                    .as_ref()
-                    .map(|answers| answers.author.clone()),
-                language: wizard_answers
-                    .as_ref()
-                    .map(|answers| answers.language.clone()),
-                output_preset: wizard_answers
-                    .as_ref()
-                    .map(|answers| answers.output_preset.clone()),
+                title: title
+                    .or_else(|| wizard_answers.as_ref().map(|answers| answers.title.clone())),
+                author: author.or_else(|| {
+                    wizard_answers
+                        .as_ref()
+                        .map(|answers| answers.author.clone())
+                }),
+                language: language.or_else(|| {
+                    wizard_answers
+                        .as_ref()
+                        .map(|answers| answers.language.clone())
+                }),
+                output_preset: output_preset.or_else(|| {
+                    wizard_answers
+                        .as_ref()
+                        .map(|answers| answers.output_preset.clone())
+                }),
             })?;
             output::print_line(&result.summary);
             if wizard_answers.as_ref().map(|answers| answers.run_doctor) == Some(true) {
@@ -69,9 +87,13 @@ fn run() -> Result<i32> {
             }
             Ok(exit_code::OK)
         }
-        Commands::Explain { book, path } => {
+        Commands::Explain { book, json, path } => {
             let result = app::explain_config(&CommandContext::new(path, book, None))?;
-            output::print_line(&result.summary);
+            if json {
+                output::print_line(&serde_json::to_string_pretty(&result.snapshot)?);
+            } else {
+                output::print_line(&result.summary);
+            }
             Ok(exit_code::OK)
         }
         Commands::Build { book, target, path } => {
@@ -272,9 +294,13 @@ fn run() -> Result<i32> {
                 })
             }
         },
-        Commands::Doctor => {
+        Commands::Doctor { json } => {
             let result = app::doctor();
-            output::print_line(&result.summary);
+            if json {
+                output::print_line(&serde_json::to_string_pretty(&result.snapshot)?);
+            } else {
+                output::print_line(&result.summary);
+            }
             Ok(exit_code::OK)
         }
         Commands::Handoff {

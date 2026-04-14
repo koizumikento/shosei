@@ -32,7 +32,15 @@ repo/
   crates/
     shosei-cli/
     shosei-core/
+  editors/
+    vscode/
 ```
+
+補足:
+
+- editor integration は Cargo workspace の外に置いてよい
+- VS Code extension host では JavaScript を使ってよい
+- ただし editor integration は `shosei` CLI を呼び出す UI adapter に留め、repo discovery、config merge、build / validate planning は Rust 側に残す
 
 ### 3.1 `shosei-cli`
 
@@ -43,6 +51,7 @@ repo/
 - 標準出力/標準エラーへの表示
 - exit code の決定
 - `shosei-core` 呼び出し
+- editor integration から再利用される実行入口
 
 責務に含めないもの:
 
@@ -165,12 +174,14 @@ repo root 探索と context 判定。
 
 対象例:
 
-- `pandoc`
-- `epubcheck`
-- PDF engine
 - `git`
+- `pandoc`
+- `weasyprint`
+- `epubcheck`
 - `git-lfs`
 - Kindle Previewer
+
+v0.1 の prose print backend は `weasyprint` を正式対象にし、他の PDF engine 候補は将来拡張で扱う。
 
 ### 4.8 `diagnostics/`
 

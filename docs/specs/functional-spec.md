@@ -28,6 +28,7 @@
 ### 対象カテゴリ
 
 - ビジネス書
+- 論文
 - 小説
 - ライトノベル
 - 漫画
@@ -63,10 +64,10 @@ CLI バイナリ名は `shosei` とする。
 
 ### 4.1 文章書籍
 
-`business`, `novel`, `light-novel` は Pandoc を中核変換エンジンとして扱う。
+`business`, `paper`, `novel`, `light-novel` は Pandoc を中核変換エンジンとして扱う。
 
 - EPUB: Pandoc EPUB3 writer を利用
-- PDF: Pandoc + PDF engine を利用
+- PDF: Pandoc + `weasyprint` を v0.1 の既定 backend として利用する
 - ツール本体の責務:
   - プロジェクト構成管理
   - profile 解決
@@ -110,9 +111,20 @@ CLI バイナリ名は `shosei` とする。
 - パス区切りの違いを内部で吸収すること
 - UTF-8 を含むファイル名を扱えること
 
+### 4.4 Editor integration
+
+VS Code 拡張のような editor integration は追加してよいが、build / validate / explain などの実処理は `shosei` CLI に委譲する。
+
+方針:
+
+- editor 側で repo discovery、config merge、pipeline planning を複製しない
+- `validate` / `page check` の既存 report を diagnostics 連携に使ってよい
+- editor integration の詳細は [VS Code 拡張仕様](vscode-extension.md) を参照する
+
 ## 5. 想定ユーザー
 
 - 技術書・ビジネス書の著者
+- 論文・前刷りを作る学生、研究者、発表者
 - 小説・ライトノベルの制作者
 - 漫画制作者、同人制作者、小規模出版社
 - 入稿担当、組版担当、外注先とのやりとりを行う人
@@ -185,7 +197,7 @@ project/
 
 v0.1 の現行質問項目:
 
-1. 作品カテゴリ: `business | novel | light-novel | manga`
+1. 作品カテゴリ: `business | paper | novel | light-novel | manga`
 2. リポジトリ管理単位: `single-book | series`
 3. タイトル
 4. 著者名
@@ -196,6 +208,8 @@ v0.1 の現行質問項目:
 補足:
 
 - `--non-interactive --config-template <template>` を使うと既定値で scaffold を生成できる
+- `--title`, `--author`, `--language`, `--output-preset`, `--repo-mode` を付けると対話で決める値を明示 override できる
+- `paper` を選んだ場合は prose 系のまま扱い、`paper` または `conference-preprint` の profile を後続質問で選べるようにする
 - prose project では `editorial/style.yml`, `claims.yml`, `figures.yml`, `freshness.yml` も scaffold に含める
 
 ### 7.2 `shosei build`
@@ -219,10 +233,12 @@ v0.1 の現行質問項目:
 - 各値が `book.yml`、`series.yml` の `defaults`、または built-in default のどれで決まったかの表示
 - `series` の `shared.*` 探索パスの表示
 - editorial sidecar の参照先と件数の表示
+- editor integration 向けに `--json` で機械可読 snapshot を返せること
 
 v0.1 の最小要件:
 
 - text 出力でよい
+- `--json` で title / type / outputs / origins / structure を返せる
 - `single-book` / `series` の両方に対応する
 - prose / manga の差分設定を表示する
 
@@ -241,7 +257,6 @@ v0.1 の最小要件:
 - 共通 lint
 - prose editorial lint
 - build に必要なツールの事前確認
-- prose editorial lint
 - EPUB 検証
 - Kindle 想定検証
 - 印刷想定検証
@@ -290,11 +305,11 @@ v0.1 の最小要件:
 
 対象例:
 
-- `pandoc`
-- `epubcheck`
-- PDF engine
-- Kindle Previewer
 - `git`
+- `pandoc`
+- `weasyprint`
+- `epubcheck`
+- Kindle Previewer
 - `git-lfs`
 
 追加要件:
@@ -305,8 +320,12 @@ v0.1 の最小要件:
 
 v0.1 の最小要件:
 
-- `pandoc`, `epubcheck`, `git`, `git-lfs`, PDF engine, Kindle Previewer を確認対象に含める
+- required tool と optional tool を分けて返せる
+- required tool は `git`, `pandoc`, `weasyprint` とする
+- optional tool は `epubcheck`, `git-lfs`, Kindle Previewer とする
+- `typst`, `lualatex` は将来拡張候補として config 値では受け付けても、v0.1 の doctor の必須確認対象には含めない
 - PATH 解決結果、バージョン、導入ヒントを text 出力で返せる
+- editor integration 向けに machine-readable な `--json` 出力を返せる
 - OS 別の詳細導入案内は将来拡張でよい
 
 ### 7.7 `shosei handoff`
@@ -634,6 +653,7 @@ git:
 対象:
 
 - business
+- paper
 - novel
 - light-novel
 
@@ -695,6 +715,7 @@ git:
 ### 11.2 対象カテゴリ別の考え方
 
 - `business`: 図表・スクリーンショット中心
+- `paper`: 図表・表・引用中心
 - `novel`: 章扉・挿絵中心
 - `light-novel`: 口絵・挿絵・見開き重視
 - `manga`: ページ画像と見開きが中心
@@ -765,6 +786,10 @@ profile ごとの既定:
 
 - `business`
   - chapter と section の両方を navigation に使うことを優先する
+- `paper`
+  - chapter よりも section 中心の navigation を優先し、図表・引用・文献を含む本文を扱いやすくする
+- `conference-preprint`
+  - `paper` の派生 profile として扱い、1 枚配布の短い本文を前提に section 中心の navigation を使う
 - `novel`
   - chapter 中心の navigation を既定とし、section は任意扱いにしやすくする
 - `light-novel`
@@ -812,6 +837,13 @@ v0.1 では次を未対応とする。
 - `business`
   - 既定: `horizontal-ltr`
   - 図表中心
+- `paper`
+  - 既定: `horizontal-ltr`
+  - 引用、図表、参考文献中心
+- `conference-preprint`
+  - `project.type = paper` のときだけ選べる prose profile
+  - 既定: `horizontal-ltr`
+  - A4、2 段組、短い配布物向けの print preset を優先
 - `novel`
   - 既定: `vertical-rl`
   - 挿絵少なめ
@@ -899,6 +931,10 @@ v0.1 の既定:
 - trim size
 - bleed
 - crop marks
+- page margins
+- column count / column gap
+- simplex / duplex
+- page limit
 - font embed
 - PDF standard
 - 画像解像度
@@ -1012,6 +1048,7 @@ v0.1 の既定:
 - 必要に応じて表紙 PDF
 - 仕様 summary
   - 判型
+  - 面指定
   - ページ数
   - PDF standard
   - bleed

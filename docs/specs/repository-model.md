@@ -61,6 +61,11 @@
 - 既定は `single-book`
 - シリーズ教本や継続刊行物で共通資産が強い場合のみ `series`
 
+### `paper`
+
+- 既定は `single-book`
+- 予稿集、年報、研究室単位の共通 template を複数本で共有する場合のみ `series`
+
 ### `novel`
 
 - 単発なら `single-book`

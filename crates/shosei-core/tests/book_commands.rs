@@ -283,6 +283,13 @@ outputs:
             .summary
             .contains("book.language = ja [built-in default]")
     );
+    assert_eq!(result.snapshot.project_type, "novel");
+    assert_eq!(result.snapshot.title, "Sample");
+    assert_eq!(result.snapshot.outputs, vec!["kindle-ja"]);
+    assert_eq!(
+        result.snapshot.manuscript.as_ref().unwrap().chapters,
+        vec!["manuscript/01.md"]
+    );
 }
 
 #[test]

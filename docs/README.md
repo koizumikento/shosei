@@ -8,6 +8,7 @@
 - [series.yml schema](specs/series-schema.md)
 - [設定探索と継承ルール](specs/config-loading.md)
 - [Rust 実装アーキテクチャ](specs/rust-architecture.md)
+- [VS Code 拡張仕様](specs/vscode-extension.md)
 - [init ウィザード仕様](specs/init-wizard.md)
 - [物語補助仕様](specs/story-support.md)
 - [ADR 一覧](adr/README.md)

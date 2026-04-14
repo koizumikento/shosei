@@ -1,0 +1,177 @@
+{
+  "name": "shosei-vscode",
+  "displayName": "shosei",
+  "description": "Run shosei publishing workflows from VS Code using the real shosei CLI.",
+  "version": "0.0.1",
+  "publisher": "koizumikento",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "keywords": [
+    "publishing",
+    "epub",
+    "kindle",
+    "manga",
+    "markdown"
+  ],
+  "extensionKind": [
+    "workspace"
+  ],
+  "main": "./extension.js",
+  "activationEvents": [
+    "onView:shosei.sidebar",
+    "onCommand:shosei.init",
+    "onCommand:shosei.chapterAdd",
+    "onCommand:shosei.chapterMove",
+    "onCommand:shosei.chapterRemove",
+    "onCommand:shosei.chapterRenumber",
+    "onCommand:shosei.explain",
+    "onCommand:shosei.validate",
+    "onCommand:shosei.build",
+    "onCommand:shosei.preview",
+    "onCommand:shosei.previewWatch",
+    "onCommand:shosei.doctor",
+    "onCommand:shosei.pageCheck",
+    "onCommand:shosei.seriesSync",
+    "onCommand:shosei.selectBook",
+    "onCommand:shosei.refreshView"
+  ],
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "shosei",
+          "title": "Shosei",
+          "icon": "media/shosei-view.svg"
+        }
+      ]
+    },
+    "views": {
+      "shosei": [
+        {
+          "id": "shosei.sidebar",
+          "name": "Project"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "shosei.init",
+        "title": "Shosei: Init"
+      },
+      {
+        "command": "shosei.chapterAdd",
+        "title": "Shosei: Chapter Add"
+      },
+      {
+        "command": "shosei.chapterMove",
+        "title": "Shosei: Chapter Move"
+      },
+      {
+        "command": "shosei.chapterRemove",
+        "title": "Shosei: Chapter Remove"
+      },
+      {
+        "command": "shosei.chapterRenumber",
+        "title": "Shosei: Chapter Renumber"
+      },
+      {
+        "command": "shosei.refreshView",
+        "title": "Shosei: Refresh View"
+      },
+      {
+        "command": "shosei.selectBook",
+        "title": "Shosei: Select Book"
+      },
+      {
+        "command": "shosei.explain",
+        "title": "Shosei: Explain"
+      },
+      {
+        "command": "shosei.validate",
+        "title": "Shosei: Validate"
+      },
+      {
+        "command": "shosei.build",
+        "title": "Shosei: Build"
+      },
+      {
+        "command": "shosei.preview",
+        "title": "Shosei: Preview"
+      },
+      {
+        "command": "shosei.previewWatch",
+        "title": "Shosei: Preview (Watch)"
+      },
+      {
+        "command": "shosei.doctor",
+        "title": "Shosei: Doctor"
+      },
+      {
+        "command": "shosei.pageCheck",
+        "title": "Shosei: Page Check"
+      },
+      {
+        "command": "shosei.seriesSync",
+        "title": "Shosei: Series Sync"
+      }
+    ],
+    "configuration": {
+      "title": "shosei",
+      "properties": {
+        "shosei.cli.command": {
+          "type": "string",
+          "default": "shosei",
+          "description": "Executable used to run shosei. Set this to cargo to run the local source checkout."
+        },
+        "shosei.cli.args": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "description": "Extra arguments inserted before shosei subcommands. Example: [\"run\", \"--manifest-path\", \"/path/to/cb-tools/crates/shosei-cli/Cargo.toml\", \"--bin\", \"shosei\", \"--\"]."
+        },
+        "shosei.series.defaultBookId": {
+          "type": "string",
+          "default": "",
+          "description": "Fallback book id used for series repositories when the active file is not under books/<book-id>/."
+        }
+      }
+    },
+    "menus": {
+      "view/title": [
+        {
+          "command": "shosei.refreshView",
+          "when": "view == shosei.sidebar",
+          "group": "navigation"
+        },
+        {
+          "command": "shosei.selectBook",
+          "when": "view == shosei.sidebar",
+          "group": "navigation@1"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "shosei.chapterMove",
+          "when": "view == shosei.sidebar && viewItem == shosei.chapter",
+          "group": "inline"
+        },
+        {
+          "command": "shosei.chapterRemove",
+          "when": "view == shosei.sidebar && viewItem == shosei.chapter",
+          "group": "inline@1"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "check": "node --check extension.js && node --check src/core.js && node --check src/view.js",
+    "test": "node --test ./test/**/*.test.js"
+  }
+}

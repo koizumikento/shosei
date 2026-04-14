@@ -784,6 +784,16 @@ mod tests {
                         .to_string(),
                 },
                 ToolRecord {
+                    key: "weasyprint",
+                    display_name: "weasyprint",
+                    status: ToolStatus::Available,
+                    detected_as: Some("weasyprint".to_string()),
+                    resolved_path: None,
+                    version: None,
+                    install_hint: "Install weasyprint and ensure the launcher is on PATH."
+                        .to_string(),
+                },
+                ToolRecord {
                     key: "pdf-engine",
                     display_name: "PDF engine",
                     status: ToolStatus::Available,

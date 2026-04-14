@@ -5,6 +5,8 @@ use std::{
     process::{Command, ExitStatus},
 };
 
+use crate::config::PdfEngine;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum HostOs {
     Macos,
@@ -82,6 +84,15 @@ pub struct ToolRunOutput {
     pub status: ExitStatus,
     pub stdout: String,
     pub stderr: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PandocPdfOptions {
+    pub pdf_engine: PdfEngine,
+    pub table_of_contents: bool,
+    pub stylesheets: Vec<PathBuf>,
+    pub variables: Vec<(String, String)>,
+    pub variable_json: Vec<(String, String)>,
 }
 
 struct ToolSpec {
@@ -202,18 +213,29 @@ pub fn run_pandoc_pdf(
     output: &Path,
     title: &str,
     language: &str,
-    table_of_contents: bool,
+    options: &PandocPdfOptions,
 ) -> std::io::Result<ToolRunOutput> {
     let mut command = Command::new(executable);
     command
         .arg("--to")
         .arg("pdf")
+        .arg("--pdf-engine")
+        .arg(options.pdf_engine.as_str())
         .arg("--standalone")
         .arg("--metadata")
         .arg(format!("title={title}"))
         .arg("--metadata")
         .arg(format!("lang={language}"));
-    if table_of_contents {
+    for stylesheet in &options.stylesheets {
+        command.arg("--css").arg(stylesheet);
+    }
+    for (key, value) in &options.variables {
+        command.arg("--variable").arg(format!("{key}={value}"));
+    }
+    for (key, value) in &options.variable_json {
+        command.arg("--variable-json").arg(format!("{key}={value}"));
+    }
+    if options.table_of_contents {
         command.arg("--toc");
     }
     let command_output = command.arg("--output").arg(output).args(inputs).output()?;

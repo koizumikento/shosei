@@ -25,6 +25,9 @@ Architecture Decision Record の一覧。
 - [ADR-0021: story sync は explicit な shared-to-book copy から始める](0021-story-sync-starts-as-explicit-shared-to-book-copy.md)
 - [ADR-0022: story sync は explicit のまま 1 entity の双方向 copy を許可する](0022-story-sync-stays-explicit-but-supports-both-directions.md)
 - [ADR-0023: story sync の batch 適用は drift report 駆動で扱う](0023-story-sync-batch-replays-drift-report.md)
+- [ADR-0024: 論文と発表前刷りは prose 系として扱い、発表前刷りは print layout preset で表す](0024-paper-and-preprint-stay-in-prose.md)
+- [ADR-0025: VS Code 拡張は `shosei` CLI を呼び出す薄いアダプタにする](0025-vscode-extension-shells-out-to-cli.md)
+- [ADR-0026: prose print の v0.1 PDF backend は weasyprint を正式採用する](0026-prose-print-uses-weasyprint-in-v0.1.md)
 
 記法:
 
