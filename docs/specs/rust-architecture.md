@@ -84,6 +84,7 @@ shosei-core/src/
   cli_api/
   config/
   domain/
+  editorial/
   repo/
   pipeline/
   toolchain/
@@ -119,7 +120,19 @@ shosei-core/src/
 - defaults merge
 - path normalization
 
-### 4.3 `domain/`
+### 4.3 `editorial/`
+
+prose 向け editorial sidecar の読込と検証。
+
+含むもの:
+
+- style guide loader
+- claim ledger loader
+- figure ledger loader
+- freshness ledger loader
+- editorial diagnostics
+
+### 4.4 `domain/`
 
 ツールの中核型。
 
@@ -133,7 +146,7 @@ shosei-core/src/
 - `TargetProfile`
 - `WritingMode`
 
-### 4.4 `repo/`
+### 4.5 `repo/`
 
 repo root 探索と context 判定。
 
@@ -143,7 +156,7 @@ repo root 探索と context 判定。
 - `single-book` / `series` 判定
 - `--book` 解決
 
-### 4.5 `pipeline/`
+### 4.6 `pipeline/`
 
 コマンドごとの plan を組み立てる。
 
@@ -154,7 +167,7 @@ repo root 探索と context 判定。
 - validation plan
 - handoff plan
 
-### 4.6 `toolchain/`
+### 4.7 `toolchain/`
 
 外部コマンドの adapter。
 
@@ -167,11 +180,11 @@ repo root 探索と context 判定。
 - `git-lfs`
 - Kindle Previewer
 
-### 4.7 `diagnostics/`
+### 4.8 `diagnostics/`
 
 エラー、警告、JSON レポート出力用の構造。
 
-### 4.8 `fs/`
+### 4.9 `fs/`
 
 ファイル入出力、path 変換、一時ディレクトリ管理。
 

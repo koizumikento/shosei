@@ -1,4 +1,4 @@
-# ADR-0018: VS Code 拡張は `shosei` CLI を呼び出す薄いアダプタにする
+# ADR-0019: VS Code 拡張は `shosei` CLI を呼び出す薄いアダプタにする
 
 - Status: Accepted
 - Date: 2026-04-14

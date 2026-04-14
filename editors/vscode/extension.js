@@ -171,15 +171,23 @@ async function runManagedCommand(vscode, output, descriptor) {
     return;
   }
 
+  const outcome = core.classifyCommandResult(result, {
+    acceptedExitCodes: descriptor.acceptedExitCodes || [0],
+    fallbackMessage: `${descriptor.title} completed`
+  });
+  if (outcome.level === "error") {
+    vscode.window.showErrorMessage(outcome.message);
+    return;
+  }
+
   if (typeof descriptor.onComplete === "function") {
     await descriptor.onComplete(result, resolved);
   }
 
-  const message = result.stdout.trim() || `${descriptor.title} completed`;
-  if (descriptor.acceptedExitCodes && descriptor.acceptedExitCodes.includes(1) && result.code === 1) {
-    vscode.window.showWarningMessage(message);
+  if (outcome.level === "warning") {
+    vscode.window.showWarningMessage(outcome.message);
   } else {
-    vscode.window.showInformationMessage(message);
+    vscode.window.showInformationMessage(outcome.message);
   }
 }
 

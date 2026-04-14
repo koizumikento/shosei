@@ -19,7 +19,8 @@ Architecture Decision Record の一覧。
 - [ADR-0015: navigation 構造は source / semantic / navigation で分離する](0015-navigation-structure-separation.md)
 - [ADR-0016: `shosei init` で repo-scoped agent skill template を生成する](0016-init-generates-repo-scoped-agent-skill-template.md)
 - [ADR-0017: `shosei chapter` は prose の source structure だけを更新する](0017-chapter-commands-follow-prose-source-structure.md)
-- [ADR-0018: VS Code 拡張は `shosei` CLI を呼び出す薄いアダプタにする](0018-vscode-extension-shells-out-to-cli.md)
+- [ADR-0018: prose 向け editorial metadata は sidecar file で扱い、`handoff proof` に review packet を含める](0018-editorial-sidecars-and-proof-packets.md)
+- [ADR-0019: VS Code 拡張は `shosei` CLI を呼び出す薄いアダプタにする](0019-vscode-extension-shells-out-to-cli.md)
 
 記法:
 

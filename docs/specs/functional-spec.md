@@ -18,6 +18,7 @@
 - 原稿構成の管理
 - 出力 profile に応じたビルド
 - 検証と品質ゲート
+- editorial metadata に基づく review readiness
 - 納品用成果物の取りまとめ
 - Git 前提の履歴管理
 - macOS / Windows / Linux で動作する単一 CLI の提供
@@ -135,6 +136,11 @@ VS Code 拡張のような editor integration は追加してよいが、build /
 ```text
 project/
   book.yml
+  editorial/
+    style.yml
+    claims.yml
+    figures.yml
+    freshness.yml
   .agents/
     skills/
       shosei-project/
@@ -165,6 +171,7 @@ project/
 
 - `manuscript/` は文章書籍向け
 - `manga/` は漫画向け
+- `editorial/` は prose 系で表記、根拠、図表、鮮度管理を置く
 - `assets/cover/` の画像は外部カバーアセットとし、本文 frontmatter とは分離する
 - 実際に使わないディレクトリは空でもよい
 
@@ -194,11 +201,12 @@ v0.1 の現行質問項目:
 4. 著者名
 5. 言語
 6. 出力先: `kindle | print | both`
+7. 実行後に `doctor` を流すか
 
 補足:
 
 - `--non-interactive --config-template <template>` を使うと既定値で scaffold を生成できる
-- 実行後に `doctor` を流すかどうかは v0.1 でも確認対象に含めてよい
+- prose project では `editorial/style.yml`, `claims.yml`, `figures.yml`, `freshness.yml` も scaffold に含める
 
 ### 7.2 `shosei build`
 

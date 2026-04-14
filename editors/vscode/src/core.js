@@ -31,6 +31,8 @@ function findRepoRoot(startPath) {
     return null;
   }
 
+  let singleBookCandidate = null;
+
   while (true) {
     const seriesConfig = path.join(current, "series.yml");
     if (fileExists(seriesConfig)) {
@@ -38,13 +40,13 @@ function findRepoRoot(startPath) {
     }
 
     const bookConfig = path.join(current, "book.yml");
-    if (fileExists(bookConfig)) {
-      return { repoRoot: current, mode: "single-book" };
+    if (!singleBookCandidate && fileExists(bookConfig)) {
+      singleBookCandidate = { repoRoot: current, mode: "single-book" };
     }
 
     const parent = path.dirname(current);
     if (parent === current) {
-      return null;
+      return singleBookCandidate;
     }
     current = parent;
   }
@@ -142,8 +144,44 @@ function readIssuesFromReport(reportPath) {
   return Array.isArray(parsed.issues) ? parsed.issues : [];
 }
 
+function classifyCommandResult(result, options = {}) {
+  const acceptedExitCodes = Array.isArray(options.acceptedExitCodes)
+    ? options.acceptedExitCodes
+    : [0];
+  const stdout = typeof result?.stdout === "string" ? result.stdout.trim() : "";
+  const stderr = typeof result?.stderr === "string" ? result.stderr.trim() : "";
+  const fallbackMessage = options.fallbackMessage || "command completed";
+
+  if (!acceptedExitCodes.includes(result?.code)) {
+    return {
+      level: "error",
+      message: stderr || stdout || fallbackMessage
+    };
+  }
+
+  if (result?.code !== 0) {
+    if (stderr) {
+      return {
+        level: "error",
+        message: stderr
+      };
+    }
+
+    return {
+      level: "warning",
+      message: stdout || fallbackMessage
+    };
+  }
+
+  return {
+    level: "info",
+    message: stdout || stderr || fallbackMessage
+  };
+}
+
 module.exports = {
   buildCliInvocation,
+  classifyCommandResult,
   extractReportPath,
   findRepoRoot,
   inferSeriesBookId,

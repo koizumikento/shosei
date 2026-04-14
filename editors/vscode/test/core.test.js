@@ -26,6 +26,10 @@ test("findRepoRoot detects series repositories from nested files", () => {
   const nested = path.join(root, "books", "vol-02", "manuscript");
   fs.mkdirSync(nested, { recursive: true });
   fs.writeFileSync(path.join(root, "series.yml"), "series:\n  id: test\n");
+  fs.writeFileSync(
+    path.join(root, "books", "vol-02", "book.yml"),
+    "book:\n  title: Nested Book\n"
+  );
   const file = path.join(nested, "01.md");
   fs.writeFileSync(file, "# Test\n");
 
@@ -76,4 +80,42 @@ test("extractReportPath picks the final report path from command output", () => 
   ].join("\n");
 
   assert.equal(core.extractReportPath(output), "/tmp/b.json");
+});
+
+test("classifyCommandResult treats exit code 1 with stderr as fatal", () => {
+  const outcome = core.classifyCommandResult(
+    {
+      code: 1,
+      stdout: "",
+      stderr: "error: could not find book.yml"
+    },
+    {
+      acceptedExitCodes: [0, 1],
+      fallbackMessage: "validate completed"
+    }
+  );
+
+  assert.deepEqual(outcome, {
+    level: "error",
+    message: "error: could not find book.yml"
+  });
+});
+
+test("classifyCommandResult treats exit code 1 without stderr as warning", () => {
+  const outcome = core.classifyCommandResult(
+    {
+      code: 1,
+      stdout: "validation completed for vol-01 with outputs: kindle, issues: 2",
+      stderr: ""
+    },
+    {
+      acceptedExitCodes: [0, 1],
+      fallbackMessage: "validate completed"
+    }
+  );
+
+  assert.deepEqual(outcome, {
+    level: "warning",
+    message: "validation completed for vol-01 with outputs: kindle, issues: 2"
+  });
 });
