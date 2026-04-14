@@ -1,4 +1,4 @@
-# ADR-0022: story sync の batch 適用は drift report 駆動で扱う
+# ADR-0023: story sync の batch 適用は drift report 駆動で扱う
 
 - Status: Accepted
 - Date: 2026-04-14

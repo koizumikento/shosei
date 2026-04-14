@@ -1,4 +1,4 @@
-# ADR-0018: 物語補助は explicit な repo-native scaffold から始める
+# ADR-0019: 物語補助は explicit な repo-native scaffold から始める
 
 - Status: Accepted
 - Date: 2026-04-13

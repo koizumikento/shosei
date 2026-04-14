@@ -1,4 +1,4 @@
-# ADR-0021: story sync は explicit のまま 1 entity の双方向 copy を許可する
+# ADR-0022: story sync は explicit のまま 1 entity の双方向 copy を許可する
 
 - Status: Accepted
 - Date: 2026-04-14

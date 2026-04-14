@@ -1,4 +1,4 @@
-# ADR-0019: story drift は series 向けの別コマンドとして扱う
+# ADR-0020: story drift は series 向けの別コマンドとして扱う
 
 - Status: Accepted
 - Date: 2026-04-14

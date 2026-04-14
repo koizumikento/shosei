@@ -1,4 +1,4 @@
-# ADR-0020: story sync は explicit な shared-to-book copy から始める
+# ADR-0021: story sync は explicit な shared-to-book copy から始める
 
 - Status: Superseded
 - Date: 2026-04-14
