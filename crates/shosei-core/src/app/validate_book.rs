@@ -1,7 +1,7 @@
 use std::{
     collections::{BTreeMap, BTreeSet},
     fs,
-    path::{Path, PathBuf},
+    path::{Component, Path, PathBuf},
 };
 
 use regex::Regex;
@@ -1062,16 +1062,38 @@ fn resolve_destination_to_repo_path(
         return None;
     }
 
-    let candidate = if base_destination.starts_with('/') {
-        repo_root.join(base_destination.trim_start_matches('/'))
-    } else {
-        source_path
-            .parent()
-            .unwrap_or(repo_root)
-            .join(base_destination)
-    };
-    let relative = candidate.strip_prefix(repo_root).ok()?;
-    Some(relative.display().to_string().replace('\\', "/"))
+    let mut normalized = PathBuf::new();
+
+    if !base_destination.starts_with('/') {
+        let source_parent = source_path.parent().unwrap_or(repo_root);
+        let source_relative = source_parent.strip_prefix(repo_root).ok()?;
+        for component in source_relative.components() {
+            match component {
+                Component::CurDir => {}
+                Component::Normal(part) => normalized.push(part),
+                Component::ParentDir | Component::RootDir | Component::Prefix(_) => return None,
+            }
+        }
+    }
+
+    for component in Path::new(base_destination.trim_start_matches('/')).components() {
+        match component {
+            Component::CurDir => {}
+            Component::Normal(part) => normalized.push(part),
+            Component::ParentDir => {
+                if !normalized.pop() {
+                    return None;
+                }
+            }
+            Component::RootDir | Component::Prefix(_) => return None,
+        }
+    }
+
+    if normalized.as_os_str().is_empty() {
+        return None;
+    }
+
+    Some(normalized.to_string_lossy().replace('\\', "/"))
 }
 
 fn resolved_path_exists(source_path: &Path, repo_root: &Path, destination: &str) -> bool {
@@ -2239,6 +2261,15 @@ manga:
         assert!(report.contains("\"line\": 2"));
         assert!(report.contains("\"line\": 3"));
         assert!(report.contains("\"line\": 6"));
+        assert!(
+            !report.contains("image reference target not found: ../assets/images/architecture.png")
+        );
+        assert!(!report.contains(
+            "figure ledger entry is not referenced from manuscript: assets/images/architecture.png"
+        ));
+        assert!(!report.contains(
+            "manuscript image is not tracked in figure ledger: assets/images/architecture.png"
+        ));
 
         let style_issue = result
             .issues
