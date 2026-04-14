@@ -134,7 +134,7 @@ shosei chapter add books/vol-01/manuscript/02.md --book vol-01 --title "Chapter 
 
 - `single-book`: `story/scenes.yml`
 - `series`: `books/<book-id>/story/scenes.yml`
-- report: `dist/reports/<book-id>-story-map.json`
+- report: `single-book` は `dist/reports/default-story-map.json`、`series` は `dist/reports/<book-id>-story-map.json`
 
 scene entry の最小 shape:
 
@@ -156,7 +156,7 @@ scenes:
 - `series` では book-scoped story data と `shared/metadata/story/` の両方から参照を解決する
 - scene frontmatter の未解決 entity 参照は warning
 - invalid scene/entity frontmatter は error
-- report: `dist/reports/<book-id>-story-check.json`
+- report: `single-book` は `dist/reports/default-story-check.json`、`series` は `dist/reports/<book-id>-story-check.json`
 
 ## Story drift
 
@@ -275,17 +275,17 @@ pdf:
 テンプレートに応じて、次のような土台を生成する。
 
 - `book.yml` または `series.yml`
-- `manuscript/` または `manga/`
-- prose 系では `editorial/`
-- `assets/cover/`, `assets/images/`, `assets/fonts/`
-- `styles/`
 - `dist/`
 - `.gitignore`, `.gitattributes`
 - `.agents/skills/shosei-project/SKILL.md`
+- `single-book` では `assets/cover/`, `assets/images/`, `assets/fonts/`, `styles/`
+- `series` では `shared/assets/`, `shared/styles/`, `shared/fonts/`, `shared/metadata/`, `books/<book-id>/assets/`
+- prose 系では `single-book` に `manuscript/01-chapter-1.md` と `editorial/*.yml`、`series` に `books/<book-id>/manuscript/01-chapter-1.md` と `books/<book-id>/editorial/*.yml`
+- manga 系では `single-book` に `manga/`、`series` に `books/<book-id>/manga/`
 
-prose 系テンプレートでは、最初の章ファイルとして `manuscript/01-chapter-1.md` も生成する。この `01-` prefix は初期命名の慣例で、章順の source of truth ではない。
+prose 系テンプレートでは、最初の章ファイルとして `single-book` では `manuscript/01-chapter-1.md`、`series` では `books/<book-id>/manuscript/01-chapter-1.md` を生成する。この `01-` prefix は初期命名の慣例で、章順の source of truth ではない。
 
-また、prose 系では空の `editorial/style.yml`, `editorial/claims.yml`, `editorial/figures.yml`, `editorial/freshness.yml` を生成し、`book.yml` から参照する。
+また、prose 系では空の `editorial/style.yml`, `editorial/claims.yml`, `editorial/figures.yml`, `editorial/freshness.yml` を生成し、`single-book` では `book.yml`、`series` では `books/<book-id>/book.yml` から参照する。style 側は `single-book` では `styles/base.css`, `styles/epub.css`, `styles/print.css`、`series` では `shared/styles/base.css` を生成する。
 
 ## Preview and doctor
 

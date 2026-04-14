@@ -182,7 +182,7 @@ shosei chapter add books/vol-01/manuscript/02.md --book vol-01 --title "Chapter 
           <ul>
             <li><code>single-book</code>: <code>story/scenes.yml</code></li>
             <li><code>series</code>: <code>books/&lt;book-id&gt;/story/scenes.yml</code></li>
-            <li>report: <code>dist/reports/&lt;book-id&gt;-story-map.json</code></li>
+            <li>report: <code>single-book</code> は <code>dist/reports/default-story-map.json</code>、<code>series</code> は <code>dist/reports/&lt;book-id&gt;-story-map.json</code></li>
           </ul>
           <pre><code>scenes:
   - file: manuscript/01-chapter-1.md
@@ -201,7 +201,7 @@ shosei chapter add books/vol-01/manuscript/02.md --book vol-01 --title "Chapter 
             <li><code>series</code> では book-scoped story data と <code>shared/metadata/story/</code> の両方から参照を解決する</li>
             <li>scene frontmatter の未解決 entity 参照は warning</li>
             <li>invalid scene/entity frontmatter は error</li>
-            <li>report: <code>dist/reports/&lt;book-id&gt;-story-check.json</code></li>
+            <li>report: <code>single-book</code> は <code>dist/reports/default-story-check.json</code>、<code>series</code> は <code>dist/reports/&lt;book-id&gt;-story-check.json</code></li>
           </ul>
         </section>
 
@@ -318,16 +318,16 @@ pdf:
           <p>テンプレートに応じて、次のような土台を生成します。</p>
           <ul>
             <li>`book.yml` または `series.yml`</li>
-            <li>`manuscript/` または `manga/`</li>
-            <li>prose 系では `editorial/`</li>
-            <li>`assets/cover/`, `assets/images/`, `assets/fonts/`</li>
-            <li>`styles/`</li>
             <li>`dist/`</li>
             <li>`.gitignore`, `.gitattributes`</li>
             <li>`.agents/skills/shosei-project/SKILL.md`</li>
+            <li>`single-book` では `assets/cover/`, `assets/images/`, `assets/fonts/`, `styles/`</li>
+            <li>`series` では `shared/assets/`, `shared/styles/`, `shared/fonts/`, `shared/metadata/`, `books/&lt;book-id&gt;/assets/`</li>
+            <li>prose 系では `single-book` に `manuscript/01-chapter-1.md` と `editorial/*.yml`、`series` に `books/&lt;book-id&gt;/manuscript/01-chapter-1.md` と `books/&lt;book-id&gt;/editorial/*.yml`</li>
+            <li>manga 系では `single-book` に `manga/`、`series` に `books/&lt;book-id&gt;/manga/`</li>
           </ul>
-          <p>prose 系テンプレートでは、最初の章ファイルとして <code>manuscript/01-chapter-1.md</code> も生成します。この <code>01-</code> prefix は初期命名の慣例で、章順の source of truth ではありません。</p>
-          <p>また、prose 系では空の <code>editorial/style.yml</code>, <code>editorial/claims.yml</code>, <code>editorial/figures.yml</code>, <code>editorial/freshness.yml</code> を生成し、<code>book.yml</code> から参照します。</p>
+          <p>prose 系テンプレートでは、最初の章ファイルとして <code>single-book</code> では <code>manuscript/01-chapter-1.md</code>、<code>series</code> では <code>books/&lt;book-id&gt;/manuscript/01-chapter-1.md</code> を生成します。この <code>01-</code> prefix は初期命名の慣例で、章順の source of truth ではありません。</p>
+          <p>また、prose 系では空の <code>editorial/style.yml</code>, <code>editorial/claims.yml</code>, <code>editorial/figures.yml</code>, <code>editorial/freshness.yml</code> を生成し、<code>single-book</code> では <code>book.yml</code>、<code>series</code> では <code>books/&lt;book-id&gt;/book.yml</code> から参照します。style 側は <code>single-book</code> では <code>styles/base.css</code>, <code>styles/epub.css</code>, <code>styles/print.css</code>、<code>series</code> では <code>shared/styles/base.css</code> を生成します。</p>
         </section>
 
         <section>

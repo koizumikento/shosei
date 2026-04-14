@@ -85,9 +85,10 @@ repo/
     skills/
       shosei-project/
         SKILL.md
-  story/
-  manuscript/
-  manga/
+  [opt-in] story/
+  [prose] editorial/
+  [prose] manuscript/
+  [manga] manga/
   assets/
   styles/
   dist/
@@ -97,8 +98,8 @@ repo/
 
 備考:
 
-- `project.type` に応じて `manuscript/` か `manga/` を使う
-- 物語補助を使う場合は root に `story/` を置く
+- `project.type` に応じて prose では `editorial/` と `manuscript/` を、manga では `manga/` を使う
+- 物語補助を使う場合は `shosei story scaffold` で root に `story/` を追加する
 - 使わないディレクトリは空でもよい
 
 ## 6. `series` 構成
@@ -115,19 +116,20 @@ repo/
     styles/
     fonts/
     metadata/
-      story/
   books/
     vol-01/
       book.yml
-      story/
-      manuscript/
-      manga/
+      [opt-in] story/
+      [prose] editorial/
+      [prose] manuscript/
+      [manga] manga/
       assets/
     vol-02/
       book.yml
-      story/
-      manuscript/
-      manga/
+      [opt-in] story/
+      [prose] editorial/
+      [prose] manuscript/
+      [manga] manga/
       assets/
   dist/
   .gitignore
@@ -137,9 +139,9 @@ repo/
 備考:
 
 - `shared/` には共通資産だけを置く
-- 共通の worldbuilding / canon は `shared/metadata/story/` に置く
+- 共通の worldbuilding / canon は `shosei story scaffold --shared` を実行したときだけ `shared/metadata/story/` に置く
 - 巻固有資産は `books/<book-id>/assets/` に置く
-- 巻固有の scene / note / codex は `books/<book-id>/story/` に置く
+- 巻固有の scene / note / codex は `shosei story scaffold --book <book-id>` を実行したときだけ `books/<book-id>/story/` に置く
 - `dist/` は repo root で共通でも、巻ごとに分けてもよい
 
 ## 7. root 設定ファイルの役割
@@ -219,11 +221,11 @@ shosei validate --book vol-02
 shosei handoff --book vol-03
 ```
 
-series 運用では、現在次の補助コマンドを持つ:
+series 運用では、巻ごとの build / validate と共通 metadata の同期を次で扱う:
 
 ```bash
-shosei build --all
-shosei validate --all
+shosei build --book vol-01
+shosei validate --book vol-01
 shosei series sync
 ```
 

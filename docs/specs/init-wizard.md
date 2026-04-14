@@ -264,23 +264,21 @@ v0.1 で残す引数は最小限:
 ### 共通
 
 - `book.yml` または `series.yml`
-- `assets/cover/`
-- `assets/images/`
-- `assets/fonts/`
-- `styles/`
 - `dist/`
 - `.gitignore`
 - `.gitattributes`
 - `.agents/skills/shosei-project/SKILL.md`
+- `single-book` では `assets/cover/`, `assets/images/`, `assets/fonts/`, `styles/`
+- `series` では `shared/assets/`, `shared/styles/`, `shared/fonts/`, `shared/metadata/`
 
 ### prose
 
-- `manuscript/00-title.md`
-- `manuscript/01-chapter-1.md`
-- `manuscript/99-colophon.md`
-- `styles/base.css`
-- `styles/epub.css`
-- `styles/print.css`
+- `single-book` では `manuscript/01-chapter-1.md`
+- `single-book` では `editorial/style.yml`, `editorial/claims.yml`, `editorial/figures.yml`, `editorial/freshness.yml`
+- `single-book` では `styles/base.css`, `styles/epub.css`, `styles/print.css`
+- `series` では `books/<book-id>/manuscript/01-chapter-1.md`
+- `series` では `books/<book-id>/editorial/style.yml`, `books/<book-id>/editorial/claims.yml`, `books/<book-id>/editorial/figures.yml`, `books/<book-id>/editorial/freshness.yml`
+- `series` では `shared/styles/base.css`
 
 ### manga
 
@@ -293,10 +291,8 @@ v0.1 で残す引数は最小限:
 ### `repo_mode = series`
 
 - `series.yml`
-- `shared/assets/`
-- `shared/styles/`
-- `shared/fonts/`
 - `books/<book-id>/book.yml`
+- `books/<book-id>/assets/`
 - `books/<book-id>/manuscript/` または `books/<book-id>/manga/`
 
 ### `--sample` 相当

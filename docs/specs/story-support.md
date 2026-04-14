@@ -158,7 +158,7 @@ v0.1 の最小要件:
 - `single-book` では `story/scenes.yml` を読む
 - `series` では `books/<book-id>/story/scenes.yml` を読む
 - `shared/metadata/story/` は対象外
-- report は `dist/reports/<book-id>-story-map.json` に出力する
+- report は `single-book` では `dist/reports/default-story-map.json`、`series` では `dist/reports/<book-id>-story-map.json` に出力する
 
 ## 8. `shosei story check`
 
@@ -172,7 +172,7 @@ shosei story check --book vol-01
 v0.1 の最小要件:
 
 - 対象は book-scoped story workspace のみ
-- report は `dist/reports/<book-id>-story-check.json` に出力する
+- report は `single-book` では `dist/reports/default-story-check.json`、`series` では `dist/reports/<book-id>-story-check.json` に出力する
 - duplicate `file` entry は warning
 - invalid `file` path は error
 - repo 内に実ファイルが存在しない `file` は warning
