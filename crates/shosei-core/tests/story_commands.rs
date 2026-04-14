@@ -591,6 +591,10 @@ scenes:
     assert!(result.has_errors);
     let report = fs::read_to_string(root.join("dist/reports/vol-01-story-drift.json")).unwrap();
     assert!(report.contains("shared canon drift for character `lead`"));
+    assert!(report.contains("\"drifts\""));
+    assert!(report.contains("\"kind\": \"character\""));
+    assert!(report.contains("\"id\": \"lead\""));
+    assert!(report.contains("\"status\": \"drift\""));
     assert!(report.contains("shared/metadata/story/characters/hero.md"));
     assert!(report.contains("books/vol-01/story/characters/rival.md"));
 }
@@ -629,4 +633,456 @@ fn story_drift_warns_for_redundant_shared_and_book_copies() {
     assert!(!result.has_errors);
     let report = fs::read_to_string(root.join("dist/reports/vol-01-story-drift.json")).unwrap();
     assert!(report.contains("redundant shared/book character copy for `lead`"));
+}
+
+#[test]
+fn story_sync_copies_missing_shared_entity_into_book_story_workspace() {
+    let root = temp_dir("sync-copy-shared");
+    write_series_repo(&root);
+    app::story_scaffold(
+        &CommandContext::new(&root, Some("vol-01".to_string()), None),
+        app::StoryScaffoldOptions {
+            shared: false,
+            force: false,
+        },
+    )
+    .unwrap();
+    app::story_scaffold(
+        &CommandContext::new(&root, None, None),
+        app::StoryScaffoldOptions {
+            shared: true,
+            force: false,
+        },
+    )
+    .unwrap();
+    write_story_file(
+        &root,
+        "shared/metadata/story/characters/hero.md",
+        "---\nid: lead\n---\n# Shared Hero\n",
+    );
+
+    let result = app::story_sync(
+        &CommandContext::new(&root, Some("vol-01".to_string()), None),
+        app::StorySyncOptions {
+            source: Some("shared".to_string()),
+            destination: None,
+            kind: Some("character".to_string()),
+            id: Some("lead".to_string()),
+            report: None,
+            force: false,
+        },
+    )
+    .unwrap();
+
+    assert!(result.changed);
+    assert!(
+        result
+            .summary
+            .contains("copied shared canon character `lead`")
+    );
+    let synced = fs::read_to_string(root.join("books/vol-01/story/characters/hero.md")).unwrap();
+    assert!(synced.contains("# Shared Hero"));
+}
+
+#[test]
+fn story_sync_requires_force_to_overwrite_diverged_book_entity() {
+    let root = temp_dir("sync-force-required");
+    write_series_repo(&root);
+    app::story_scaffold(
+        &CommandContext::new(&root, Some("vol-01".to_string()), None),
+        app::StoryScaffoldOptions {
+            shared: false,
+            force: false,
+        },
+    )
+    .unwrap();
+    app::story_scaffold(
+        &CommandContext::new(&root, None, None),
+        app::StoryScaffoldOptions {
+            shared: true,
+            force: false,
+        },
+    )
+    .unwrap();
+    write_story_file(
+        &root,
+        "shared/metadata/story/characters/hero.md",
+        "---\nid: lead\n---\n# Shared Hero\n",
+    );
+    write_story_file(
+        &root,
+        "books/vol-01/story/characters/hero.md",
+        "---\nid: lead\n---\n# Local Hero\n",
+    );
+
+    let error = app::story_sync(
+        &CommandContext::new(&root, Some("vol-01".to_string()), None),
+        app::StorySyncOptions {
+            source: Some("shared".to_string()),
+            destination: None,
+            kind: Some("character".to_string()),
+            id: Some("lead".to_string()),
+            report: None,
+            force: false,
+        },
+    )
+    .unwrap_err();
+
+    assert!(matches!(
+        error,
+        app::StorySyncError::BookEntityConflict { .. }
+    ));
+}
+
+#[test]
+fn story_sync_force_overwrites_diverged_book_entity() {
+    let root = temp_dir("sync-force-overwrite");
+    write_series_repo(&root);
+    app::story_scaffold(
+        &CommandContext::new(&root, Some("vol-01".to_string()), None),
+        app::StoryScaffoldOptions {
+            shared: false,
+            force: false,
+        },
+    )
+    .unwrap();
+    app::story_scaffold(
+        &CommandContext::new(&root, None, None),
+        app::StoryScaffoldOptions {
+            shared: true,
+            force: false,
+        },
+    )
+    .unwrap();
+    write_story_file(
+        &root,
+        "shared/metadata/story/characters/hero.md",
+        "---\nid: lead\n---\n# Shared Hero\n",
+    );
+    write_story_file(
+        &root,
+        "books/vol-01/story/characters/hero.md",
+        "---\nid: lead\n---\n# Local Hero\n",
+    );
+
+    let result = app::story_sync(
+        &CommandContext::new(&root, Some("vol-01".to_string()), None),
+        app::StorySyncOptions {
+            source: Some("shared".to_string()),
+            destination: None,
+            kind: Some("character".to_string()),
+            id: Some("lead".to_string()),
+            report: None,
+            force: true,
+        },
+    )
+    .unwrap();
+
+    assert!(result.changed);
+    let synced = fs::read_to_string(root.join("books/vol-01/story/characters/hero.md")).unwrap();
+    assert!(synced.contains("# Shared Hero"));
+}
+
+#[test]
+fn story_sync_to_shared_copies_missing_book_entity_into_shared_story_workspace() {
+    let root = temp_dir("sync-copy-to-shared");
+    write_series_repo(&root);
+    app::story_scaffold(
+        &CommandContext::new(&root, Some("vol-01".to_string()), None),
+        app::StoryScaffoldOptions {
+            shared: false,
+            force: false,
+        },
+    )
+    .unwrap();
+    app::story_scaffold(
+        &CommandContext::new(&root, None, None),
+        app::StoryScaffoldOptions {
+            shared: true,
+            force: false,
+        },
+    )
+    .unwrap();
+    write_story_file(
+        &root,
+        "books/vol-01/story/characters/hero.md",
+        "---\nid: lead\n---\n# Local Hero\n",
+    );
+
+    let result = app::story_sync(
+        &CommandContext::new(&root, Some("vol-01".to_string()), None),
+        app::StorySyncOptions {
+            source: None,
+            destination: Some("shared".to_string()),
+            kind: Some("character".to_string()),
+            id: Some("lead".to_string()),
+            report: None,
+            force: false,
+        },
+    )
+    .unwrap();
+
+    assert!(result.changed);
+    assert!(
+        result
+            .summary
+            .contains("copied book story data character `lead`")
+    );
+    let synced = fs::read_to_string(root.join("shared/metadata/story/characters/hero.md")).unwrap();
+    assert!(synced.contains("# Local Hero"));
+}
+
+#[test]
+fn story_sync_to_shared_requires_force_to_overwrite_diverged_shared_entity() {
+    let root = temp_dir("sync-to-shared-force-required");
+    write_series_repo(&root);
+    app::story_scaffold(
+        &CommandContext::new(&root, Some("vol-01".to_string()), None),
+        app::StoryScaffoldOptions {
+            shared: false,
+            force: false,
+        },
+    )
+    .unwrap();
+    app::story_scaffold(
+        &CommandContext::new(&root, None, None),
+        app::StoryScaffoldOptions {
+            shared: true,
+            force: false,
+        },
+    )
+    .unwrap();
+    write_story_file(
+        &root,
+        "books/vol-01/story/characters/hero.md",
+        "---\nid: lead\n---\n# Local Hero\n",
+    );
+    write_story_file(
+        &root,
+        "shared/metadata/story/characters/hero.md",
+        "---\nid: lead\n---\n# Shared Hero\n",
+    );
+
+    let error = app::story_sync(
+        &CommandContext::new(&root, Some("vol-01".to_string()), None),
+        app::StorySyncOptions {
+            source: None,
+            destination: Some("shared".to_string()),
+            kind: Some("character".to_string()),
+            id: Some("lead".to_string()),
+            report: None,
+            force: false,
+        },
+    )
+    .unwrap_err();
+
+    assert!(matches!(
+        error,
+        app::StorySyncError::SharedEntityConflict { .. }
+    ));
+}
+
+#[test]
+fn story_sync_to_shared_force_overwrites_diverged_shared_entity() {
+    let root = temp_dir("sync-to-shared-force-overwrite");
+    write_series_repo(&root);
+    app::story_scaffold(
+        &CommandContext::new(&root, Some("vol-01".to_string()), None),
+        app::StoryScaffoldOptions {
+            shared: false,
+            force: false,
+        },
+    )
+    .unwrap();
+    app::story_scaffold(
+        &CommandContext::new(&root, None, None),
+        app::StoryScaffoldOptions {
+            shared: true,
+            force: false,
+        },
+    )
+    .unwrap();
+    write_story_file(
+        &root,
+        "books/vol-01/story/characters/hero.md",
+        "---\nid: lead\n---\n# Local Hero\n",
+    );
+    write_story_file(
+        &root,
+        "shared/metadata/story/characters/hero.md",
+        "---\nid: lead\n---\n# Shared Hero\n",
+    );
+
+    let result = app::story_sync(
+        &CommandContext::new(&root, Some("vol-01".to_string()), None),
+        app::StorySyncOptions {
+            source: None,
+            destination: Some("shared".to_string()),
+            kind: Some("character".to_string()),
+            id: Some("lead".to_string()),
+            report: None,
+            force: true,
+        },
+    )
+    .unwrap();
+
+    assert!(result.changed);
+    let synced = fs::read_to_string(root.join("shared/metadata/story/characters/hero.md")).unwrap();
+    assert!(synced.contains("# Local Hero"));
+}
+
+#[test]
+fn story_sync_report_requires_force() {
+    let root = temp_dir("sync-report-requires-force");
+    write_series_repo(&root);
+
+    let error = app::story_sync(
+        &CommandContext::new(&root, Some("vol-01".to_string()), None),
+        app::StorySyncOptions {
+            source: Some("shared".to_string()),
+            destination: None,
+            kind: None,
+            id: None,
+            report: Some(root.join("dist/reports/vol-01-story-drift.json")),
+            force: false,
+        },
+    )
+    .unwrap_err();
+
+    assert!(matches!(
+        error,
+        app::StorySyncError::ReportSyncRequiresForce
+    ));
+}
+
+#[test]
+fn story_sync_report_applies_shared_to_book_batch() {
+    let root = temp_dir("sync-report-from-shared");
+    write_series_repo(&root);
+    app::story_scaffold(
+        &CommandContext::new(&root, Some("vol-01".to_string()), None),
+        app::StoryScaffoldOptions {
+            shared: false,
+            force: false,
+        },
+    )
+    .unwrap();
+    app::story_scaffold(
+        &CommandContext::new(&root, None, None),
+        app::StoryScaffoldOptions {
+            shared: true,
+            force: false,
+        },
+    )
+    .unwrap();
+    write_story_file(
+        &root,
+        "shared/metadata/story/characters/hero.md",
+        "---\nid: lead\n---\n# Shared Hero\n",
+    );
+    write_story_file(
+        &root,
+        "books/vol-01/story/characters/hero.md",
+        "---\nid: lead\n---\n# Local Hero\n",
+    );
+    let shared_city = "---\nid: capital\n---\n# Capital\n";
+    write_story_file(
+        &root,
+        "shared/metadata/story/locations/capital.md",
+        shared_city,
+    );
+    write_story_file(
+        &root,
+        "books/vol-01/story/locations/capital.md",
+        shared_city,
+    );
+
+    let drift = app::story_drift(
+        &CommandContext::new(&root, Some("vol-01".to_string()), None),
+        app::StoryDriftOptions::default(),
+    )
+    .unwrap();
+
+    let result = app::story_sync(
+        &CommandContext::new(&root, Some("vol-01".to_string()), None),
+        app::StorySyncOptions {
+            source: Some("shared".to_string()),
+            destination: None,
+            kind: None,
+            id: None,
+            report: Some(drift.report_path),
+            force: true,
+        },
+    )
+    .unwrap();
+
+    assert!(result.changed);
+    assert_eq!(result.changed_count, 1);
+    assert_eq!(result.requested_count, 2);
+    let synced = fs::read_to_string(root.join("books/vol-01/story/characters/hero.md")).unwrap();
+    assert!(synced.contains("# Shared Hero"));
+}
+
+#[test]
+fn story_sync_report_applies_book_to_shared_batch() {
+    let root = temp_dir("sync-report-to-shared");
+    write_series_repo(&root);
+    app::story_scaffold(
+        &CommandContext::new(&root, Some("vol-01".to_string()), None),
+        app::StoryScaffoldOptions {
+            shared: false,
+            force: false,
+        },
+    )
+    .unwrap();
+    app::story_scaffold(
+        &CommandContext::new(&root, None, None),
+        app::StoryScaffoldOptions {
+            shared: true,
+            force: false,
+        },
+    )
+    .unwrap();
+    write_story_file(
+        &root,
+        "books/vol-01/story/characters/hero.md",
+        "---\nid: lead\n---\n# Local Hero\n",
+    );
+    write_story_file(
+        &root,
+        "shared/metadata/story/characters/hero.md",
+        "---\nid: lead\n---\n# Shared Hero\n",
+    );
+    let local_city = "---\nid: capital\n---\n# Capital\n";
+    write_story_file(&root, "books/vol-01/story/locations/capital.md", local_city);
+    write_story_file(
+        &root,
+        "shared/metadata/story/locations/capital.md",
+        local_city,
+    );
+
+    let drift = app::story_drift(
+        &CommandContext::new(&root, Some("vol-01".to_string()), None),
+        app::StoryDriftOptions::default(),
+    )
+    .unwrap();
+
+    let result = app::story_sync(
+        &CommandContext::new(&root, Some("vol-01".to_string()), None),
+        app::StorySyncOptions {
+            source: None,
+            destination: Some("shared".to_string()),
+            kind: None,
+            id: None,
+            report: Some(drift.report_path),
+            force: true,
+        },
+    )
+    .unwrap();
+
+    assert!(result.changed);
+    assert_eq!(result.changed_count, 1);
+    assert_eq!(result.requested_count, 2);
+    let synced = fs::read_to_string(root.join("shared/metadata/story/characters/hero.md")).unwrap();
+    assert!(synced.contains("# Local Hero"));
 }

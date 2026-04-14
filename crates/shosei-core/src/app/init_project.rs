@@ -523,6 +523,9 @@ mod tests {
         assert!(skill.contains("shared/metadata/story/"));
         assert!(skill.contains("resolves scene references against both"));
         assert!(skill.contains("shosei story drift --book <book-id>"));
+        assert!(skill.contains("shosei story sync --book <book-id> --from shared"));
+        assert!(skill.contains("--to shared"));
+        assert!(skill.contains("--report <drift-report> --force"));
     }
 
     #[test]

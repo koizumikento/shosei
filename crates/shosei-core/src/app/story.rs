@@ -61,6 +61,25 @@ pub struct StoryDriftResult {
     pub has_errors: bool,
 }
 
+#[derive(Debug, Clone)]
+pub struct StorySyncOptions {
+    pub source: Option<String>,
+    pub destination: Option<String>,
+    pub kind: Option<String>,
+    pub id: Option<String>,
+    pub report: Option<PathBuf>,
+    pub force: bool,
+}
+
+#[derive(Debug, Clone)]
+pub struct StorySyncResult {
+    pub summary: String,
+    pub target_path: Option<PathBuf>,
+    pub changed: bool,
+    pub changed_count: usize,
+    pub requested_count: usize,
+}
+
 #[derive(Debug, Error)]
 pub enum StoryScaffoldError {
     #[error(transparent)]
@@ -173,6 +192,88 @@ pub enum StoryDriftError {
     },
 }
 
+#[derive(Debug, Error)]
+pub enum StorySyncError {
+    #[error(transparent)]
+    Repo(#[from] RepoError),
+    #[error("story sync is only supported in series repositories")]
+    SeriesOnly,
+    #[error("use exactly one of `--from` or `--to`")]
+    InvalidDirection,
+    #[error("unsupported story sync source `{value}`")]
+    UnsupportedSource { value: String },
+    #[error("unsupported story sync destination `{value}`")]
+    UnsupportedDestination { value: String },
+    #[error("unsupported story entity kind `{value}`")]
+    UnsupportedKind { value: String },
+    #[error("use either `--report` or both `--kind` and `--id`")]
+    InvalidSelection,
+    #[error("`story sync --report` requires `--force`")]
+    ReportSyncRequiresForce,
+    #[error("failed to read story drift report {path}: {source}")]
+    ReadReport {
+        path: PathBuf,
+        #[source]
+        source: std::io::Error,
+    },
+    #[error("failed to parse story drift report {path}: {source}")]
+    ParseReport {
+        path: PathBuf,
+        #[source]
+        source: serde_json::Error,
+    },
+    #[error("story drift report was created for `{actual}`, not `{expected}`")]
+    ReportBookMismatch { expected: String, actual: String },
+    #[error("story drift report contains duplicate entry for {kind} `{id}`")]
+    DuplicateReportEntry { kind: String, id: String },
+    #[error("story drift report contains invalid repo path `{value}`: {source}")]
+    InvalidReportPath {
+        value: String,
+        #[source]
+        source: RepoPathError,
+    },
+    #[error("shared story entity not found for {kind} `{id}`")]
+    MissingSharedEntity { kind: String, id: String },
+    #[error("book story entity not found for {kind} `{id}`")]
+    MissingBookEntity { kind: String, id: String },
+    #[error(
+        "book story entity `{id}` already exists with different content; rerun with --force to overwrite"
+    )]
+    BookEntityConflict { id: String },
+    #[error(
+        "shared story entity `{id}` already exists with different content; rerun with --force to overwrite"
+    )]
+    SharedEntityConflict { id: String },
+    #[error("target path already exists for another story entry: {path}")]
+    TargetPathConflict { path: PathBuf },
+    #[error("failed to scan {path}: {source}")]
+    ScanDir {
+        path: PathBuf,
+        #[source]
+        source: std::io::Error,
+    },
+    #[error("failed to read {path}: {source}")]
+    ReadFile {
+        path: PathBuf,
+        #[source]
+        source: std::io::Error,
+    },
+    #[error("failed to parse story entity frontmatter {path}: {detail}")]
+    ParseEntity { path: PathBuf, detail: String },
+    #[error("failed to create {path}: {source}")]
+    CreateDir {
+        path: PathBuf,
+        #[source]
+        source: std::io::Error,
+    },
+    #[error("failed to write {path}: {source}")]
+    WriteFile {
+        path: PathBuf,
+        #[source]
+        source: std::io::Error,
+    },
+}
+
 #[derive(Debug, Clone)]
 enum StoryScope {
     SingleBook,
@@ -226,7 +327,31 @@ struct StoryDriftReport {
     book_id: String,
     story_root: String,
     shared_story_root: String,
+    drifts: Vec<StoryDriftEntry>,
     issues: Vec<ValidationIssue>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+enum StoryDriftStatus {
+    RedundantCopy,
+    Drift,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+struct StoryDriftEntry {
+    kind: String,
+    id: String,
+    status: StoryDriftStatus,
+    shared_path: String,
+    book_path: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct StorySyncReportInput {
+    book_id: String,
+    #[serde(default)]
+    drifts: Vec<StoryDriftEntry>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -262,6 +387,18 @@ enum StoryEntityScope {
 enum StoryEntityCollisionMode {
     IgnoreCrossScope,
     ReportCrossScope,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum StorySyncDirection {
+    FromShared,
+    ToShared,
+}
+
+#[derive(Debug, Clone)]
+enum StorySyncTarget {
+    Single { kind: StoryEntityKind, id: String },
+    Report { path: PathBuf },
 }
 
 pub fn story_scaffold(
@@ -351,8 +488,8 @@ pub fn story_map(
 
     let report = StoryMapReport {
         book_id: workspace.book_id.clone(),
-        story_root: relative_display(&workspace.repo_root, &workspace.story_root),
-        scenes_file: relative_display(&workspace.repo_root, &scenes_path),
+        story_root: relative_repo_path(&workspace.repo_root, &workspace.story_root),
+        scenes_file: relative_repo_path(&workspace.repo_root, &scenes_path),
         scene_count: validated_scenes.len(),
         file_count: files.len(),
         warnings: warnings.clone(),
@@ -392,10 +529,12 @@ pub fn story_check(
     let (scenes_path, document) = load_story_scenes_for_check(&workspace)?;
 
     let mut issues = Vec::new();
+    let mut drifts = Vec::new();
     let catalog = collect_story_entity_catalog(
         &workspace,
         StoryEntityCollisionMode::IgnoreCrossScope,
         &mut issues,
+        &mut drifts,
     );
     let mut seen = HashSet::new();
     let mut duplicate_paths = HashSet::new();
@@ -445,8 +584,8 @@ pub fn story_check(
 
     let report = StoryCheckReport {
         book_id: workspace.book_id.clone(),
-        story_root: relative_display(&workspace.repo_root, &workspace.story_root),
-        scenes_file: relative_display(&workspace.repo_root, &scenes_path),
+        story_root: relative_repo_path(&workspace.repo_root, &workspace.story_root),
+        scenes_file: relative_repo_path(&workspace.repo_root, &scenes_path),
         scene_count: document.scenes.len(),
         issues: issues.clone(),
     };
@@ -474,19 +613,22 @@ pub fn story_drift(
 ) -> Result<StoryDriftResult, StoryDriftError> {
     let workspace = discover_book_story_workspace_for_drift(command)?;
     let mut issues = Vec::new();
+    let mut drifts = Vec::new();
     let _catalog = collect_story_entity_catalog(
         &workspace,
         StoryEntityCollisionMode::ReportCrossScope,
         &mut issues,
+        &mut drifts,
     );
 
     let report = StoryDriftReport {
         book_id: workspace.book_id.clone(),
-        story_root: relative_display(&workspace.repo_root, &workspace.story_root),
-        shared_story_root: relative_display(
+        story_root: relative_repo_path(&workspace.repo_root, &workspace.story_root),
+        shared_story_root: relative_repo_path(
             &workspace.repo_root,
             workspace.shared_story_root.as_ref().expect("series only"),
         ),
+        drifts,
         issues: issues.clone(),
     };
     let report_path = story_drift_report_path(&workspace.repo_root, &workspace.book_id);
@@ -504,6 +646,48 @@ pub fn story_drift(
         issue_count: issues.len(),
         has_errors,
     })
+}
+
+pub fn story_sync(
+    command: &CommandContext,
+    options: StorySyncOptions,
+) -> Result<StorySyncResult, StorySyncError> {
+    let workspace = discover_book_story_workspace_for_sync(command)?;
+    let direction = story_sync_direction(&options)?;
+    match story_sync_target(&options)? {
+        StorySyncTarget::Single { kind, id } => {
+            let shared_story_root = workspace.shared_story_root.as_ref().expect("series only");
+            let book_story_root = &workspace.story_root;
+
+            match direction {
+                StorySyncDirection::FromShared => sync_story_entity(
+                    &workspace,
+                    kind,
+                    &id,
+                    options.force,
+                    SyncEndpoints {
+                        source_root: shared_story_root,
+                        source_scope: StoryEntityScope::Shared,
+                        destination_root: book_story_root,
+                        destination_scope: StoryEntityScope::Book,
+                    },
+                ),
+                StorySyncDirection::ToShared => sync_story_entity(
+                    &workspace,
+                    kind,
+                    &id,
+                    options.force,
+                    SyncEndpoints {
+                        source_root: book_story_root,
+                        source_scope: StoryEntityScope::Book,
+                        destination_root: shared_story_root,
+                        destination_scope: StoryEntityScope::Shared,
+                    },
+                ),
+            }
+        }
+        StorySyncTarget::Report { path } => sync_story_report(&workspace, direction, &path),
+    }
 }
 
 impl StoryScope {
@@ -634,6 +818,15 @@ fn relative_display(repo_root: &Path, path: &Path) -> String {
         .to_string()
 }
 
+fn relative_repo_path(repo_root: &Path, path: &Path) -> String {
+    path.strip_prefix(repo_root)
+        .unwrap_or(path)
+        .components()
+        .map(|component| component.as_os_str().to_string_lossy().into_owned())
+        .collect::<Vec<_>>()
+        .join("/")
+}
+
 fn discover_book_story_workspace(
     command: &CommandContext,
 ) -> Result<BookStoryWorkspace, StoryMapError> {
@@ -658,6 +851,307 @@ fn discover_book_story_workspace_for_drift(
         return Err(StoryDriftError::SeriesOnly);
     }
     Ok(workspace)
+}
+
+fn discover_book_story_workspace_for_sync(
+    command: &CommandContext,
+) -> Result<BookStoryWorkspace, StorySyncError> {
+    let workspace =
+        discover_book_story_workspace_inner(&command.start_path, command.book_id.as_deref())
+            .map_err(StorySyncError::Repo)?;
+    if workspace.shared_story_root.is_none() {
+        return Err(StorySyncError::SeriesOnly);
+    }
+    Ok(workspace)
+}
+
+#[derive(Debug, Clone, Copy)]
+struct SyncEndpoints<'a> {
+    source_root: &'a Path,
+    source_scope: StoryEntityScope,
+    destination_root: &'a Path,
+    destination_scope: StoryEntityScope,
+}
+
+#[derive(Debug, Clone)]
+struct StorySyncReportPlan {
+    target_path: PathBuf,
+    contents_to_write: Option<String>,
+}
+
+fn story_sync_direction(options: &StorySyncOptions) -> Result<StorySyncDirection, StorySyncError> {
+    match (options.source.as_deref(), options.destination.as_deref()) {
+        (Some("shared"), None) => Ok(StorySyncDirection::FromShared),
+        (None, Some("shared")) => Ok(StorySyncDirection::ToShared),
+        (Some(value), None) => Err(StorySyncError::UnsupportedSource {
+            value: value.to_string(),
+        }),
+        (None, Some(value)) => Err(StorySyncError::UnsupportedDestination {
+            value: value.to_string(),
+        }),
+        _ => Err(StorySyncError::InvalidDirection),
+    }
+}
+
+fn story_sync_target(options: &StorySyncOptions) -> Result<StorySyncTarget, StorySyncError> {
+    match (
+        &options.report,
+        options.kind.as_deref(),
+        options.id.as_deref(),
+    ) {
+        (Some(_), None, None) => {
+            if !options.force {
+                return Err(StorySyncError::ReportSyncRequiresForce);
+            }
+            Ok(StorySyncTarget::Report {
+                path: options.report.clone().expect("checked above"),
+            })
+        }
+        (Some(_), _, _) => Err(StorySyncError::InvalidSelection),
+        (None, Some(kind), Some(id)) => {
+            let kind =
+                StoryEntityKind::from_cli(kind).ok_or_else(|| StorySyncError::UnsupportedKind {
+                    value: kind.to_string(),
+                })?;
+            Ok(StorySyncTarget::Single {
+                kind,
+                id: id.to_string(),
+            })
+        }
+        _ => Err(StorySyncError::InvalidSelection),
+    }
+}
+
+fn sync_story_entity(
+    workspace: &BookStoryWorkspace,
+    kind: StoryEntityKind,
+    id: &str,
+    force: bool,
+    endpoints: SyncEndpoints<'_>,
+) -> Result<StorySyncResult, StorySyncError> {
+    let source_entry =
+        find_story_entity_by_id(endpoints.source_root, endpoints.source_scope, kind, id)?
+            .ok_or_else(|| missing_story_entity_error(endpoints.source_scope, kind, id))?;
+
+    let destination_dir = endpoints.destination_root.join(kind.dir_name());
+    let destination_entry = find_story_entity_by_id(
+        endpoints.destination_root,
+        endpoints.destination_scope,
+        kind,
+        id,
+    )?;
+
+    let target_path = if let Some(entry) = &destination_entry {
+        entry.path.clone()
+    } else {
+        destination_dir.join(
+            source_entry
+                .path
+                .file_name()
+                .expect("story entity file name must exist"),
+        )
+    };
+
+    if let Some(entry) = &destination_entry {
+        if entry.contents == source_entry.contents {
+            return Ok(StorySyncResult {
+                summary: format!(
+                    "story sync: `{}` already matches {} at {}",
+                    id,
+                    endpoints.source_scope.label(),
+                    relative_display(&workspace.repo_root, &entry.path)
+                ),
+                target_path: Some(entry.path.clone()),
+                changed: false,
+                changed_count: 0,
+                requested_count: 1,
+            });
+        }
+        if !force {
+            return Err(conflicting_story_entity_error(
+                endpoints.destination_scope,
+                id,
+            ));
+        }
+    } else if target_path.exists() {
+        return Err(StorySyncError::TargetPathConflict { path: target_path });
+    }
+
+    fs::create_dir_all(&destination_dir).map_err(|source| StorySyncError::CreateDir {
+        path: destination_dir.clone(),
+        source,
+    })?;
+    fs::write(&target_path, &source_entry.contents).map_err(|source| {
+        StorySyncError::WriteFile {
+            path: target_path.clone(),
+            source,
+        }
+    })?;
+
+    Ok(StorySyncResult {
+        summary: format!(
+            "story sync: copied {} {} `{}` to {}",
+            endpoints.source_scope.label(),
+            kind.label(),
+            id,
+            relative_display(&workspace.repo_root, &target_path)
+        ),
+        target_path: Some(target_path),
+        changed: true,
+        changed_count: 1,
+        requested_count: 1,
+    })
+}
+
+fn sync_story_report(
+    workspace: &BookStoryWorkspace,
+    direction: StorySyncDirection,
+    report_path: &Path,
+) -> Result<StorySyncResult, StorySyncError> {
+    let report = load_story_sync_report(report_path)?;
+    if report.book_id != workspace.book_id {
+        return Err(StorySyncError::ReportBookMismatch {
+            expected: workspace.book_id.clone(),
+            actual: report.book_id,
+        });
+    }
+
+    let mut seen = HashSet::new();
+    let mut plans = Vec::new();
+    for drift in report.drifts {
+        let kind = StoryEntityKind::from_cli(&drift.kind).ok_or_else(|| {
+            StorySyncError::UnsupportedKind {
+                value: drift.kind.clone(),
+            }
+        })?;
+        let key = (kind, drift.id.clone());
+        if !seen.insert(key) {
+            return Err(StorySyncError::DuplicateReportEntry {
+                kind: drift.kind,
+                id: drift.id,
+            });
+        }
+        plans.push(prepare_story_sync_report_plan(
+            workspace, direction, drift, kind,
+        )?);
+    }
+
+    let changed_count = plans
+        .iter()
+        .filter(|plan| plan.contents_to_write.is_some())
+        .count();
+    for plan in &plans {
+        if let Some(contents) = &plan.contents_to_write {
+            if let Some(parent) = plan.target_path.parent() {
+                fs::create_dir_all(parent).map_err(|source| StorySyncError::CreateDir {
+                    path: parent.to_path_buf(),
+                    source,
+                })?;
+            }
+            fs::write(&plan.target_path, contents).map_err(|source| StorySyncError::WriteFile {
+                path: plan.target_path.clone(),
+                source,
+            })?;
+        }
+    }
+
+    Ok(StorySyncResult {
+        summary: format!(
+            "story sync: applied {} report entries from {} (changed: {}, unchanged: {})",
+            plans.len(),
+            report_path.display(),
+            changed_count,
+            plans.len().saturating_sub(changed_count)
+        ),
+        target_path: Some(report_path.to_path_buf()),
+        changed: changed_count > 0,
+        changed_count,
+        requested_count: plans.len(),
+    })
+}
+
+fn load_story_sync_report(report_path: &Path) -> Result<StorySyncReportInput, StorySyncError> {
+    let contents =
+        fs::read_to_string(report_path).map_err(|source| StorySyncError::ReadReport {
+            path: report_path.to_path_buf(),
+            source,
+        })?;
+    serde_json::from_str(&contents).map_err(|source| StorySyncError::ParseReport {
+        path: report_path.to_path_buf(),
+        source,
+    })
+}
+
+fn prepare_story_sync_report_plan(
+    workspace: &BookStoryWorkspace,
+    direction: StorySyncDirection,
+    drift: StoryDriftEntry,
+    _kind: StoryEntityKind,
+) -> Result<StorySyncReportPlan, StorySyncError> {
+    let (source_value, destination_value) = match direction {
+        StorySyncDirection::FromShared => (drift.shared_path, drift.book_path),
+        StorySyncDirection::ToShared => (drift.book_path, drift.shared_path),
+    };
+    let source_repo_path = RepoPath::parse(source_value.clone()).map_err(|source| {
+        StorySyncError::InvalidReportPath {
+            value: source_value.clone(),
+            source,
+        }
+    })?;
+    let destination_repo_path = RepoPath::parse(destination_value.clone()).map_err(|source| {
+        StorySyncError::InvalidReportPath {
+            value: destination_value.clone(),
+            source,
+        }
+    })?;
+
+    let source_path = join_repo_path(&workspace.repo_root, &source_repo_path);
+    let target_path = join_repo_path(&workspace.repo_root, &destination_repo_path);
+    let source_contents =
+        fs::read_to_string(&source_path).map_err(|source| StorySyncError::ReadFile {
+            path: source_path.clone(),
+            source,
+        })?;
+    let contents_to_write = match fs::read_to_string(&target_path) {
+        Ok(existing) if existing == source_contents => None,
+        Ok(_) => Some(source_contents),
+        Err(source) if source.kind() == std::io::ErrorKind::NotFound => Some(source_contents),
+        Err(source) => {
+            return Err(StorySyncError::ReadFile {
+                path: target_path.clone(),
+                source,
+            });
+        }
+    };
+
+    Ok(StorySyncReportPlan {
+        target_path,
+        contents_to_write,
+    })
+}
+
+fn missing_story_entity_error(
+    scope: StoryEntityScope,
+    kind: StoryEntityKind,
+    id: &str,
+) -> StorySyncError {
+    match scope {
+        StoryEntityScope::Shared => StorySyncError::MissingSharedEntity {
+            kind: kind.label().to_string(),
+            id: id.to_string(),
+        },
+        StoryEntityScope::Book => StorySyncError::MissingBookEntity {
+            kind: kind.label().to_string(),
+            id: id.to_string(),
+        },
+    }
+}
+
+fn conflicting_story_entity_error(scope: StoryEntityScope, id: &str) -> StorySyncError {
+    match scope {
+        StoryEntityScope::Shared => StorySyncError::SharedEntityConflict { id: id.to_string() },
+        StoryEntityScope::Book => StorySyncError::BookEntityConflict { id: id.to_string() },
+    }
 }
 
 fn discover_book_story_workspace_inner(
@@ -821,6 +1315,7 @@ fn collect_story_entity_catalog(
     workspace: &BookStoryWorkspace,
     collision_mode: StoryEntityCollisionMode,
     issues: &mut Vec<ValidationIssue>,
+    drifts: &mut Vec<StoryDriftEntry>,
 ) -> StoryEntityCatalog {
     let mut catalog = StoryEntityCatalog::default();
 
@@ -832,6 +1327,7 @@ fn collect_story_entity_catalog(
             collision_mode,
             &mut catalog,
             issues,
+            drifts,
         );
     }
     collect_story_entity_catalog_from_root(
@@ -841,6 +1337,7 @@ fn collect_story_entity_catalog(
         collision_mode,
         &mut catalog,
         issues,
+        drifts,
     );
 
     catalog
@@ -853,6 +1350,7 @@ fn collect_story_entity_catalog_from_root(
     collision_mode: StoryEntityCollisionMode,
     catalog: &mut StoryEntityCatalog,
     issues: &mut Vec<ValidationIssue>,
+    drifts: &mut Vec<StoryDriftEntry>,
 ) {
     for kind in StoryEntityKind::ALL {
         let dir = story_root.join(kind.dir_name());
@@ -945,20 +1443,75 @@ fn collect_story_entity_catalog_from_root(
                 scope,
                 contents,
             };
-            if let Some(previous) = catalog.map_mut(kind).insert(id.clone(), entry.clone())
-                && let Some(issue) = story_entity_collision_issue(
+            if let Some(previous) = catalog.map_mut(kind).insert(id.clone(), entry.clone()) {
+                if let Some(issue) = story_entity_collision_issue(
                     repo_root,
                     kind,
                     &id,
                     &previous,
                     &entry,
                     collision_mode,
-                )
-            {
-                issues.push(issue);
+                ) {
+                    issues.push(issue);
+                }
+                if let Some(drift) = story_entity_collision_drift_entry(
+                    repo_root,
+                    kind,
+                    &id,
+                    &previous,
+                    &entry,
+                    collision_mode,
+                ) {
+                    drifts.push(drift);
+                }
             }
         }
     }
+}
+
+fn find_story_entity_by_id(
+    story_root: &Path,
+    scope: StoryEntityScope,
+    kind: StoryEntityKind,
+    id: &str,
+) -> Result<Option<StoryEntityEntry>, StorySyncError> {
+    let dir = story_root.join(kind.dir_name());
+    if !dir.is_dir() {
+        return Ok(None);
+    }
+
+    let files = markdown_files_in_dir(&dir).map_err(|source| StorySyncError::ScanDir {
+        path: dir.clone(),
+        source,
+    })?;
+
+    for path in files {
+        let Some(file_name) = path.file_name().and_then(|name| name.to_str()) else {
+            continue;
+        };
+        if file_name.eq_ignore_ascii_case("README.md") {
+            continue;
+        }
+
+        let contents = fs::read_to_string(&path).map_err(|source| StorySyncError::ReadFile {
+            path: path.clone(),
+            source,
+        })?;
+        let frontmatter =
+            parse_frontmatter(&contents).map_err(|source| StorySyncError::ParseEntity {
+                path: path.clone(),
+                detail: source.to_string(),
+            })?;
+        if story_entity_id(&path, frontmatter.as_ref()).ok().as_deref() == Some(id) {
+            return Ok(Some(StoryEntityEntry {
+                path,
+                scope,
+                contents,
+            }));
+        }
+    }
+
+    Ok(None)
 }
 
 fn check_scene_frontmatter(
@@ -1167,6 +1720,16 @@ fn scene_summary_line(scene: &StoryScene) -> String {
 impl StoryEntityKind {
     const ALL: [Self; 4] = [Self::Character, Self::Location, Self::Term, Self::Faction];
 
+    fn from_cli(value: &str) -> Option<Self> {
+        match value {
+            "character" => Some(Self::Character),
+            "location" => Some(Self::Location),
+            "term" => Some(Self::Term),
+            "faction" => Some(Self::Faction),
+            _ => None,
+        }
+    }
+
     fn dir_name(self) -> &'static str {
         self.field_name()
     }
@@ -1210,6 +1773,15 @@ impl StoryEntityCatalog {
             StoryEntityKind::Location => &mut self.locations,
             StoryEntityKind::Term => &mut self.terms,
             StoryEntityKind::Faction => &mut self.factions,
+        }
+    }
+}
+
+impl StoryEntityScope {
+    fn label(self) -> &'static str {
+        match self {
+            StoryEntityScope::Shared => "shared canon",
+            StoryEntityScope::Book => "book story data",
         }
     }
 }
@@ -1266,4 +1838,37 @@ fn story_entity_collision_issue(
             .at(current.path.clone()),
         ),
     }
+}
+
+fn story_entity_collision_drift_entry(
+    repo_root: &Path,
+    kind: StoryEntityKind,
+    id: &str,
+    previous: &StoryEntityEntry,
+    current: &StoryEntityEntry,
+    collision_mode: StoryEntityCollisionMode,
+) -> Option<StoryDriftEntry> {
+    if previous.scope == current.scope
+        || !matches!(collision_mode, StoryEntityCollisionMode::ReportCrossScope)
+    {
+        return None;
+    }
+
+    let (shared, book) = match (previous.scope, current.scope) {
+        (StoryEntityScope::Shared, StoryEntityScope::Book) => (previous, current),
+        (StoryEntityScope::Book, StoryEntityScope::Shared) => (current, previous),
+        _ => return None,
+    };
+
+    Some(StoryDriftEntry {
+        kind: kind.label().to_string(),
+        id: id.to_string(),
+        status: if shared.contents == book.contents {
+            StoryDriftStatus::RedundantCopy
+        } else {
+            StoryDriftStatus::Drift
+        },
+        shared_path: relative_repo_path(repo_root, &shared.path),
+        book_path: relative_repo_path(repo_root, &book.path),
+    })
 }

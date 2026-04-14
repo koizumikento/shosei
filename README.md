@@ -177,7 +177,7 @@ prose 系テンプレートでは、最初の章ファイルとして `manuscrip
 
 この `01-` prefix は初期命名の慣例です。prose の章順は filename prefix ではなく `book.yml` の `manuscript.chapters` で決まります。prefix を整えたい場合は `shosei chapter renumber` を明示的に使います。
 
-物語補助を使いたい場合は、初期 scaffold の後で `shosei story scaffold` を明示実行して `story/` または series 用の story workspace を生成します。scene 一覧は `shosei story map`、軽い整合チェックは `shosei story check` で `scenes.yml` と scene/entity frontmatter から report 化できます。series では book-scoped story data に加えて `shared/metadata/story/` の canon も参照解決に使い、scope 間の衝突は `shosei story drift --book <book-id>` で確認できます。
+物語補助を使いたい場合は、初期 scaffold の後で `shosei story scaffold` を明示実行して `story/` または series 用の story workspace を生成します。scene 一覧は `shosei story map`、軽い整合チェックは `shosei story check` で `scenes.yml` と scene/entity frontmatter から report 化できます。series では book-scoped story data に加えて `shared/metadata/story/` の canon も参照解決に使い、scope 間の衝突は `shosei story drift --book <book-id>` で確認できます。scope 間で 1 entity を明示同期するときは `shosei story sync --book <book-id> --from shared --kind <kind> --id <id>` または `shosei story sync --book <book-id> --to shared --kind <kind> --id <id>` を使い、`story drift` report の `drifts` 配列をまとめて反映したいときは `shosei story sync --book <book-id> --from shared --report dist/reports/<book-id>-story-drift.json --force` のように batch 適用できます。
 
 ## ドキュメント
 

@@ -132,7 +132,10 @@ shosei story map
 shosei story map --book vol-01
 shosei story check
 shosei story check --book vol-01
-shosei story drift --book vol-01</code></pre>
+shosei story drift --book vol-01
+shosei story sync --book vol-01 --from shared --kind character --id lead
+shosei story sync --book vol-01 --to shared --kind character --id lead
+shosei story sync --book vol-01 --from shared --report dist/reports/vol-01-story-drift.json --force</code></pre>
         </section>
 
         <section>
@@ -194,10 +197,28 @@ shosei chapter add books/vol-01/manuscript/02.md --book vol-01 --title "Chapter 
           <p><code>story drift</code> は <code>series</code> で shared canon と巻固有 story data の衝突を JSON report に出します。</p>
           <ul>
             <li>対象: <code>shared/metadata/story/</code> と <code>books/&lt;book-id&gt;/story/</code></li>
+            <li>report には <code>drifts</code> 配列を含める</li>
             <li>same-scope duplicate entity <code>id</code> は error</li>
             <li>内容が分岐した shared/book の同一 <code>id</code> は error</li>
             <li>内容が同じ shared/book の同一 <code>id</code> は warning</li>
             <li>report: <code>dist/reports/&lt;book-id&gt;-story-drift.json</code></li>
+          </ul>
+        </section>
+
+        <section>
+          <h2>Story sync</h2>
+          <p><code>story sync</code> は <code>series</code> で shared canon と巻固有 story workspace の間を明示コピーします。1 entity の単体 sync と、<code>story drift</code> report からの batch sync を持ちます。</p>
+          <ul>
+            <li>例: <code>shosei story sync --book vol-01 --from shared --kind character --id lead</code></li>
+            <li>例: <code>shosei story sync --book vol-01 --to shared --kind character --id lead</code></li>
+            <li>例: <code>shosei story sync --book vol-01 --from shared --report dist/reports/vol-01-story-drift.json --force</code></li>
+            <li><code>--from shared</code> か <code>--to shared</code> のどちらか一方を使う</li>
+            <li>単体 mode では <code>kind</code>: <code>character|location|term|faction</code></li>
+            <li>report mode では <code>--report</code> を使い、<code>--kind</code> / <code>--id</code> は使わない</li>
+            <li>report mode は <code>--force</code> 必須</li>
+            <li>destination 側に同じ <code>id</code> があり内容が違う場合は error</li>
+            <li><code>--force</code> を付けた場合だけ source 内容で destination 側を上書きする</li>
+            <li>destination 側に同じ内容があれば no-op</li>
           </ul>
         </section>
 

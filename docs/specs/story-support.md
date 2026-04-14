@@ -198,12 +198,50 @@ v0.1 の最小要件:
 - 対象は `series` の book-scoped story workspace のみ
 - `shared/metadata/story/` と `books/<book-id>/story/` の両方を読む
 - report は `dist/reports/<book-id>-story-drift.json` に出力する
+- report には machine-readable な `drifts` 配列を含める
+- 各 `drifts` entry は `kind`, `id`, `status`, `shared_path`, `book_path` を持つ
 - 同一 tree 内の duplicate entity `id` は error
 - `shared` と book-scoped で同じ kind の同じ `id` があり、内容が分岐していれば error
 - `shared` と book-scoped で同じ kind の同じ `id` があり、内容が同じなら warning
 - scene Markdown や `scenes.yml` は入力に含めない
 
-## 10. 初期内容
+## 10. `shosei story sync`
+
+`series` で shared canon と巻固有 story workspace の間を明示コピーする。単体 copy と、`story drift` report に基づく batch copy を両方サポートする。
+
+```bash
+shosei story sync --book vol-01 --from shared --kind character --id lead
+shosei story sync --book vol-01 --to shared --kind character --id lead
+shosei story sync --book vol-01 --from shared --kind character --id lead --force
+shosei story sync --book vol-01 --to shared --kind character --id lead --force
+shosei story sync --book vol-01 --from shared --report dist/reports/vol-01-story-drift.json --force
+shosei story sync --book vol-01 --to shared --report dist/reports/vol-01-story-drift.json --force
+```
+
+v0.1 の最小要件:
+
+- 対象は `series` のみ
+- `--from shared` か `--to shared` のどちらか一方だけを受け付ける
+- 単体 mode では対象 entity を `--kind` と `--id` で 1 件ずつ指定する
+- report mode では `--report <story-drift-report>` を受け付け、`--kind` と `--id` は受け付けない
+- report mode は `--force` を必須にする
+- `--from shared` のとき:
+  - source は `shared/metadata/story/<kind>/`
+  - destination は `books/<book-id>/story/<kind>/`
+  - book 側に同じ `id` が無ければ source file 名を保って copy する
+  - book 側に同じ `id` があり内容が違う場合、既定では error、`--force` のときだけ上書きする
+  - book 側に同じ `id` があり内容も同じ場合は no-op summary を返す
+- `--to shared` のとき:
+  - source は `books/<book-id>/story/<kind>/`
+  - destination は `shared/metadata/story/<kind>/`
+  - shared 側に同じ `id` が無ければ source file 名を保って copy する
+  - shared 側に同じ `id` があり内容が違う場合、既定では error、`--force` のときだけ上書きする
+  - shared 側に同じ `id` があり内容も同じ場合は no-op summary を返す
+- report mode は `story drift` report の `drifts` 配列に含まれる全 entry を、指定方向へ順に適用する
+- report mode は report 内の `shared_path` / `book_path` をそのまま使い、対象セットの再発見はしない
+- `scenes.yml` は更新しない
+
+## 11. 初期内容
 
 - `README.md` は置き場所の意味と運用ルールを短く説明する
 - entity directory の `README.md` は 1 file 1 entity の方針と推奨 frontmatter を示す
@@ -225,6 +263,6 @@ factions:
 - `characters/`, `locations/`, `terms/`, `factions/` の entity Markdown では `id` を置ける
 - `scenes.yml` は空配列の skeleton を置く
 
-## 11. 今後の拡張候補
+## 12. 今後の拡張候補
 
 - repo-scoped story skill template

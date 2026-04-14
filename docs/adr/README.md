@@ -21,6 +21,9 @@ Architecture Decision Record の一覧。
 - [ADR-0017: `shosei chapter` は prose の source structure だけを更新する](0017-chapter-commands-follow-prose-source-structure.md)
 - [ADR-0018: 物語補助は explicit な repo-native scaffold から始める](0018-story-support-starts-with-explicit-repo-native-scaffold.md)
 - [ADR-0019: story drift は series 向けの別コマンドとして扱う](0019-story-drift-is-a-separate-series-command.md)
+- [ADR-0020: story sync は explicit な shared-to-book copy から始める](0020-story-sync-starts-as-explicit-shared-to-book-copy.md)
+- [ADR-0021: story sync は explicit のまま 1 entity の双方向 copy を許可する](0021-story-sync-stays-explicit-but-supports-both-directions.md)
+- [ADR-0022: story sync の batch 適用は drift report 駆動で扱う](0022-story-sync-batch-replays-drift-report.md)
 
 記法:
 

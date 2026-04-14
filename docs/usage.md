@@ -69,6 +69,9 @@ shosei story map --book vol-01
 shosei story check
 shosei story check --book vol-01
 shosei story drift --book vol-01
+shosei story sync --book vol-01 --from shared --kind character --id lead
+shosei story sync --book vol-01 --to shared --kind character --id lead
+shosei story sync --book vol-01 --from shared --report dist/reports/vol-01-story-drift.json --force
 ```
 
 ## Chapter commands
@@ -143,10 +146,26 @@ scenes:
 `story drift` は `series` で shared canon と巻固有 story data の衝突を JSON report に出す。
 
 - 対象: `shared/metadata/story/` と `books/<book-id>/story/`
+- report には `drifts` 配列を含める
 - same-scope duplicate entity `id` は error
 - 内容が分岐した shared/book の同一 `id` は error
 - 内容が同じ shared/book の同一 `id` は warning
 - report: `dist/reports/<book-id>-story-drift.json`
+
+## Story sync
+
+`story sync` は `series` で shared canon と巻固有 story workspace の間を明示コピーする。1 entity の単体 sync と、`story drift` report からの batch sync を持つ。
+
+- 例: `shosei story sync --book vol-01 --from shared --kind character --id lead`
+- 例: `shosei story sync --book vol-01 --to shared --kind character --id lead`
+- 例: `shosei story sync --book vol-01 --from shared --report dist/reports/vol-01-story-drift.json --force`
+- `--from shared` か `--to shared` のどちらか一方を使う
+- 単体 mode では `kind`: `character|location|term|faction`
+- report mode では `--report` を使い、`--kind` / `--id` は使わない
+- report mode は `--force` 必須
+- destination 側に同じ `id` があり内容が違う場合は error
+- `--force` を付けた場合だけ source 内容で destination 側を上書きする
+- destination 側に同じ内容があれば no-op
 
 ## Validate checks
 

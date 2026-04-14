@@ -456,6 +456,7 @@ v0.1 の最小要件:
 主な責務:
 
 - `shared/metadata/story/` と `books/<book-id>/story/` を比較する
+- machine-readable な `drifts` 配列を report に含める
 - same-scope duplicate entity `id` を error として報告する
 - shared/book で内容が分岐した同一 kind + `id` を drift error として報告する
 - shared/book で内容が同じ同一 kind + `id` を redundant copy warning として報告する
@@ -473,7 +474,41 @@ v0.1 の最小要件:
 - report path と issue 数を summary で返す
 - error issue がある場合は non-zero exit で返せる
 
-### 7.14 将来候補
+### 7.14 `shosei story sync`
+
+`series` で shared canon と巻固有 story workspace の間を明示コピーする。単体 sync と `story drift` report を使う batch sync の両方を扱う。
+
+- `shosei story sync --book vol-01 --from shared --kind character --id lead`
+- `shosei story sync --book vol-01 --to shared --kind character --id lead`
+- `shosei story sync --book vol-01 --from shared --kind character --id lead --force`
+- `shosei story sync --book vol-01 --to shared --kind character --id lead --force`
+- `shosei story sync --book vol-01 --from shared --report dist/reports/vol-01-story-drift.json --force`
+- `shosei story sync --book vol-01 --to shared --report dist/reports/vol-01-story-drift.json --force`
+
+主な責務:
+
+- `shared/metadata/story/` から 1 entity を選ぶ
+- `--from shared` では `books/<book-id>/story/` へ同じ entity を copy する
+- `--to shared` では `shared/metadata/story/` へ同じ entity を copy する
+- `--report` 時は `story drift` report の `drifts` 配列を読んで対象 entity 群を確定する
+- destination 側に diverged copy がある場合、`--force` が無ければ error にする
+- `--force` 時のみ source 内容で destination 側を上書きする
+
+非責務:
+
+- `scenes.yml` の更新
+- automatic merge
+
+v0.1 の最小要件:
+
+- `series` のみ対象とする
+- `--from shared` か `--to shared` のどちらか一方を必須にする
+- 単体 mode では `kind` を `character|location|term|faction` から 1 件指定する
+- 単体 mode では `id` を 1 件だけ指定する
+- report mode では `--report` を必須にし、`--kind` / `--id` は受け付けない
+- report mode は `--force` を必須にする
+
+### 7.15 将来候補
 
 - `shosei release`: handoff + tag 前提の成果物固定化
 - `shosei page add`

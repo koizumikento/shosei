@@ -24,6 +24,7 @@ pub use preview_book::{PreviewBookError, PreviewBookResult, preview_book, watch_
 pub use story::{
     StoryCheckError, StoryCheckOptions, StoryCheckResult, StoryDriftError, StoryDriftOptions,
     StoryDriftResult, StoryMapError, StoryMapOptions, StoryMapResult, StoryScaffoldError,
-    StoryScaffoldOptions, StoryScaffoldResult, story_check, story_drift, story_map, story_scaffold,
+    StoryScaffoldOptions, StoryScaffoldResult, StorySyncError, StorySyncOptions, StorySyncResult,
+    story_check, story_drift, story_map, story_scaffold, story_sync,
 };
 pub use validate_book::{ValidateBookError, ValidateBookResult, validate_book};

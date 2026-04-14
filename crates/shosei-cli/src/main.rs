@@ -174,6 +174,30 @@ fn run() -> Result<i32> {
                     exit_code::OK
                 })
             }
+            StoryCommands::Sync {
+                book,
+                source,
+                destination,
+                kind,
+                id,
+                report,
+                force,
+                path,
+            } => {
+                let result = app::story_sync(
+                    &CommandContext::new(path, book, None),
+                    app::StorySyncOptions {
+                        source,
+                        destination,
+                        kind,
+                        id,
+                        report,
+                        force,
+                    },
+                )?;
+                output::print_line(&result.summary);
+                Ok(exit_code::OK)
+            }
             StoryCommands::Map { book, path } => {
                 let result = app::story_map(
                     &CommandContext::new(path, book, None),
