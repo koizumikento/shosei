@@ -67,7 +67,9 @@ CLI バイナリ名は `shosei` とする。
 `business`, `paper`, `novel`, `light-novel` は Pandoc を中核変換エンジンとして扱う。
 
 - EPUB: Pandoc EPUB3 writer を利用
-- PDF: Pandoc + `weasyprint` を v0.1 の既定 backend として利用する
+- PDF:
+  - `book.writing_mode: horizontal-ltr` と `conference-preprint` は Pandoc + `weasyprint`
+  - `book.writing_mode: vertical-rl` は Pandoc で self-contained HTML を生成し、headless `chromium` で PDF 化する
 - ツール本体の責務:
   - プロジェクト構成管理
   - profile 解決
@@ -211,6 +213,9 @@ v0.1 の現行質問項目:
 - `--title`, `--author`, `--language`, `--output-preset`, `--repo-mode` を付けると対話で決める値を明示 override できる
 - `paper` を選んだ場合は prose 系のまま扱い、`paper` または `conference-preprint` の profile を後続質問で選べるようにする
 - prose project では `editorial/style.yml`, `claims.yml`, `figures.yml`, `freshness.yml` も scaffold に含める
+- prose project では template/profile が所有する `base.css`, `epub.css`, `print.css` を scaffold し、`series` では `shared/styles/` に置く
+  - `novel`, `light-novel` の `print.css` は PDF 向けに本文サイズを半段締め、扉と目次まわりの見た目を整える
+  - build-generated print stylesheet は vertical prose print の frontmatter pagination を持ち、title と TOC は同じ前付けに保ったまま本文だけを次ページに送る
 
 ### 7.2 `shosei build`
 
@@ -308,6 +313,7 @@ v0.1 の最小要件:
 - `git`
 - `pandoc`
 - `weasyprint`
+- `chromium`
 - `epubcheck`
 - Kindle Previewer
 - `git-lfs`
@@ -321,7 +327,7 @@ v0.1 の最小要件:
 v0.1 の最小要件:
 
 - required tool と optional tool を分けて返せる
-- required tool は `git`, `pandoc`, `weasyprint` とする
+- required tool は `git`, `pandoc`, `weasyprint`, `chromium` とする
 - optional tool は `epubcheck`, `git-lfs`, Kindle Previewer とする
 - `typst`, `lualatex` は将来拡張候補として config 値では受け付けても、v0.1 の doctor の必須確認対象には含めない
 - PATH 解決結果、バージョン、導入ヒントを text 出力で返せる
@@ -609,7 +615,7 @@ outputs:
     target: print-jp-pdfx1a
 
 pdf:
-  engine: weasyprint
+  engine: chromium
   toc: true
   page_number: true
   running_header: auto
@@ -873,10 +879,20 @@ v0.1 では次を未対応とする。
 2. profile 解決
 3. 章順確定
 4. アセット解決
-5. Pandoc 実行
-6. target 別後処理
-7. 検証
-8. handoff 成果物作成
+5. stylesheet 解決
+6. Pandoc 実行
+7. target 別後処理
+8. 検証
+9. handoff 成果物作成
+
+v0.1 の既定:
+
+- prose Kindle / EPUB build では `base.css` と `epub.css` を Pandoc に渡す
+- prose print build では `base.css`, `print.css`, generated layout stylesheet を解決する
+  - `pdf.engine = weasyprint` の場合は Pandoc にそのまま渡して PDF を生成する
+  - `pdf.engine = chromium` の場合は Pandoc で self-contained HTML を生成し、その HTML を headless Chromium で PDF 化する
+  - `novel`, `light-novel` の tighter print typography は `print.css` 側の責務とし、扉 / 目次と本文のページ分離は generated layout stylesheet 側の責務とする
+- `series` repo では prose stylesheet は `shared/styles/` から解決する
 
 ### 14.2 manga
 

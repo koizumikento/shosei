@@ -265,7 +265,7 @@ outputs:
 
 ```yaml
 pdf:
-  engine: weasyprint
+  engine: chromium
   toc: true
   page_number: true
   running_header: auto
@@ -277,7 +277,7 @@ pdf:
 
 | Field | Type | Required | Default | Allowed |
 |---|---|---|---|---|
-| `engine` | string | conditional | `weasyprint` | `weasyprint`, `typst`, `lualatex` |
+| `engine` | string | conditional | `writing_mode` / `profile` derived | `weasyprint`, `chromium`, `typst`, `lualatex` |
 | `toc` | boolean | no | `true` | `true`, `false` |
 | `page_number` | boolean | no | `true` | `true`, `false` |
 | `running_header` | string | no | `auto` | `auto`, `none`, `title`, `chapter` |
@@ -288,7 +288,10 @@ pdf:
 
 補足:
 
-- v0.1 の prose print backend は `weasyprint` を正式既定とする
+- `book.writing_mode: vertical-rl` の prose print 既定 engine は `chromium`
+- `book.writing_mode: horizontal-ltr` の prose print 既定 engine は `weasyprint`
+- `book.profile: conference-preprint` は `weasyprint` を正式既定とする
+- `weasyprint` は現行 v0.1 経路では `vertical-rl` prose print を表現できないため、`book.writing_mode: vertical-rl` と組み合わせる場合は error とする
 - `typst`, `lualatex` は将来拡張・検証候補として値は受け付けるが、v0.1 の doctor / CI の必須サポート対象には含めない
 - `toc: true` は prose の導出済み navigation structure から目次を生成する
 - `running_header: chapter` は prose 本文の chapter title を参照する
@@ -743,6 +746,7 @@ git:
 - `project.type != manga` なのに `manga` セクションが存在する場合は warning
 - `outputs.print.enabled: true` なのに `print` セクションがない場合は warning
 - `outputs.kindle.enabled: true` なのに `book.reading_direction` が未指定なら error
+- `book.writing_mode: vertical-rl` なのに `pdf.engine = weasyprint` の場合は error
 - `editorial.*` がある場合、参照先 path の形式不正は error
 - `book.profile: conference-preprint` なのに `outputs.print.enabled` が `true` でない場合は warning
 - `book.profile: conference-preprint` なのに `pdf.engine != weasyprint` の場合は warning

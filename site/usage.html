@@ -322,13 +322,16 @@ shosei explain --json</code></pre>
     target: print-jp-pdfx1a
 
 pdf:
-  engine: weasyprint
+  engine: chromium
   toc: true
   page_number: true
   running_header: auto</code></pre>
-          <p>既定では <code>pdf.toc: true</code> です。ただし <code>paper</code> / <code>conference-preprint</code> の scaffold では <code>pdf.toc: false</code> を書きます。</p>
+          <p>既定では <code>pdf.toc: true</code> です。ただし <code>paper</code> / <code>conference-preprint</code> の scaffold では <code>pdf.toc: false</code> を書きます。<code>book.writing_mode: vertical-rl</code> の prose print 既定 engine は <code>chromium</code>、<code>horizontal-ltr</code> と <code>conference-preprint</code> は <code>weasyprint</code> です。</p>
           <p><code>pdf.toc: false</code> にすると、print build では Pandoc の <code>--toc</code> を付けずに実行します。</p>
-          <p><code>weasyprint</code> を使う print build では <code>styles/base.css</code>, <code>styles/print.css</code> と、<code>pdf</code> / <code>print</code> 設定から生成した layout stylesheet を合わせて渡します。<code>conference-preprint</code> では A4、余白、2 段組、本文サイズがこの generated stylesheet に反映されます。<code>typst</code> では <code>columns</code>, <code>papersize</code>, <code>margin</code>, <code>fontsize</code>, <code>linestretch</code> の変数として渡します。</p>
+          <p>prose の Kindle / EPUB build では <code>styles/base.css</code> と <code>styles/epub.css</code> を Pandoc に渡します。<code>series</code> repo では対応する <code>shared/styles/base.css</code>, <code>shared/styles/epub.css</code> を使います。</p>
+          <p><code>chromium</code> を使う print build では <code>styles/base.css</code>, <code>styles/print.css</code>, generated layout stylesheet を含む self-contained HTML を Pandoc で作り、その HTML を headless Chromium で PDF 化します。<code>series</code> repo では対応する <code>shared/styles/base.css</code>, <code>shared/styles/print.css</code> を使います。縦組み prose print では、この generated layout stylesheet が title と TOC を同じ前付けに保ったまま、本文だけ次ページへ送ります。</p>
+          <p><code>weasyprint</code> を使う print build では <code>styles/base.css</code>, <code>styles/print.css</code> と、<code>pdf</code> / <code>print</code> 設定から生成した layout stylesheet を合わせて Pandoc に渡します。<code>conference-preprint</code> では A4、余白、2 段組、本文サイズがこの generated stylesheet に反映されます。<code>weasyprint</code> は <code>vertical-rl</code> prose print には使えません。</p>
+          <p><code>typst</code> では <code>columns</code>, <code>papersize</code>, <code>margin</code>, <code>fontsize</code>, <code>linestretch</code> の変数として渡します。</p>
         </section>
 
         <section>
@@ -346,7 +349,7 @@ pdf:
             <li>manga 系では `single-book` に `manga/`、`series` に `books/&lt;book-id&gt;/manga/`</li>
           </ul>
           <p>prose 系テンプレートでは、最初の原稿ファイルとして <code>paper</code> / <code>conference-preprint</code> は <code>single-book</code> で <code>manuscript/01-main.md</code>、<code>series</code> で <code>books/&lt;book-id&gt;/manuscript/01-main.md</code> を生成します。その他の prose は <code>01-chapter-1.md</code> を生成します。この <code>01-</code> prefix は初期命名の慣例で、章順の source of truth ではありません。</p>
-          <p>また、prose 系では空の <code>editorial/style.yml</code>, <code>editorial/claims.yml</code>, <code>editorial/figures.yml</code>, <code>editorial/freshness.yml</code> を生成し、<code>single-book</code> では <code>book.yml</code>、<code>series</code> では <code>books/&lt;book-id&gt;/book.yml</code> から参照します。style 側は <code>single-book</code> では <code>styles/base.css</code>, <code>styles/epub.css</code>, <code>styles/print.css</code>、<code>series</code> では <code>shared/styles/base.css</code> を生成します。</p>
+          <p>また、prose 系では空の <code>editorial/style.yml</code>, <code>editorial/claims.yml</code>, <code>editorial/figures.yml</code>, <code>editorial/freshness.yml</code> を生成し、<code>single-book</code> では <code>book.yml</code>、<code>series</code> では <code>books/&lt;book-id&gt;/book.yml</code> から参照します。style 側は <code>single-book</code> では <code>styles/base.css</code>, <code>styles/epub.css</code>, <code>styles/print.css</code>、<code>series</code> では <code>shared/styles/base.css</code>, <code>shared/styles/epub.css</code>, <code>shared/styles/print.css</code> を生成します。これらの default CSS は template/profile ごとに異なり、<code>business</code> / <code>paper</code> は横組み prose、<code>novel</code> / <code>light-novel</code> は縦組み prose を初期状態で表します。<code>novel</code> / <code>light-novel</code> の <code>print.css</code> は PDF 向けに本文サイズを半段締め、扉と目次を控えめに整えます。本文へのページ分離は generated layout stylesheet が持ちます。</p>
         </section>
 
         <section>
@@ -364,11 +367,12 @@ shosei doctor --json</code></pre>
             <li><code>git</code></li>
             <li><code>pandoc</code></li>
             <li><code>weasyprint</code></li>
+            <li><code>chromium</code></li>
             <li><code>epubcheck</code></li>
             <li><code>git-lfs</code></li>
             <li>Kindle Previewer</li>
           </ul>
-          <p>required tool は <code>git</code>, <code>pandoc</code>, <code>weasyprint</code>。optional tool は <code>epubcheck</code>, <code>git-lfs</code>, Kindle Previewer です。</p>
+          <p>required tool は <code>git</code>, <code>pandoc</code>, <code>weasyprint</code>, <code>chromium</code>。optional tool は <code>epubcheck</code>, <code>git-lfs</code>, Kindle Previewer です。</p>
           <p><code>typst</code>, <code>lualatex</code> は将来拡張候補として config 値では受け付けますが、v0.1 の doctor の必須確認対象には含めません。</p>
           <p><code>--json</code> は editor integration 向けで、host OS、required / optional ごとの available / missing / pending 件数、各 tool の category / status / path / version / install hint を機械可読で返します。</p>
           <p><code>handoff proof</code> は validate report に加えて、<code>review-notes.md</code>、<code>reports/review-packet.json</code>、editorial sidecar のコピーも package に含めます。<code>manifest.json</code> には review packet の path と editorial summary 件数も入ります。</p>

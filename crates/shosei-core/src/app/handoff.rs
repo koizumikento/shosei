@@ -794,6 +794,17 @@ mod tests {
                         .to_string(),
                 },
                 ToolRecord {
+                    key: "chromium",
+                    display_name: "Chromium PDF",
+                    status: ToolStatus::Available,
+                    detected_as: Some("chromium".to_string()),
+                    resolved_path: None,
+                    version: None,
+                    install_hint:
+                        "Install a Chromium-based browser and ensure its executable is available."
+                            .to_string(),
+                },
+                ToolRecord {
                     key: "pdf-engine",
                     display_name: "PDF engine",
                     status: ToolStatus::Available,
@@ -801,7 +812,7 @@ mod tests {
                     resolved_path: None,
                     version: None,
                     install_hint:
-                        "Install one supported PDF engine such as weasyprint, typst, or lualatex."
+                        "Install one supported PDF engine such as weasyprint, Chromium, typst, or lualatex."
                             .to_string(),
                 },
             ],

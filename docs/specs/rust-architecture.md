@@ -177,11 +177,16 @@ repo root 探索と context 判定。
 - `git`
 - `pandoc`
 - `weasyprint`
+- `chromium`
 - `epubcheck`
 - `git-lfs`
 - Kindle Previewer
 
-v0.1 の prose print backend は `weasyprint` を正式対象にし、他の PDF engine 候補は将来拡張で扱う。
+v0.1 の prose print backend は writing mode ごとの正式 support matrix を持つ。
+
+- `horizontal-ltr` prose と `conference-preprint`: `weasyprint`
+- `vertical-rl` prose: `chromium`
+- `typst`, `lualatex` は将来拡張候補として扱う
 
 ### 4.8 `diagnostics/`
 

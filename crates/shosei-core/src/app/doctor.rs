@@ -19,6 +19,7 @@ const DOCTOR_TOOL_MATRIX: &[(&str, DoctorToolCategory)] = &[
     ("git", DoctorToolCategory::Required),
     ("pandoc", DoctorToolCategory::Required),
     ("weasyprint", DoctorToolCategory::Required),
+    ("chromium", DoctorToolCategory::Required),
     ("epubcheck", DoctorToolCategory::Optional),
     ("git-lfs", DoctorToolCategory::Optional),
     ("kindle-previewer", DoctorToolCategory::Optional),

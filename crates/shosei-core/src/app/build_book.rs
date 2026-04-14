@@ -46,6 +46,10 @@ pub enum BuildBookError {
         #[source]
         source: std::io::Error,
     },
+    #[error(
+        "pdf.engine `weasyprint` does not support vertical-rl prose print for target `{target}`; set `pdf.engine: chromium`"
+    )]
+    UnsupportedVerticalWeasyprint { target: String },
 }
 
 pub fn build_book(command: &CommandContext) -> Result<BuildBookResult, BuildBookError> {
@@ -150,13 +154,18 @@ fn execute_build_outputs(
                     &book.id,
                     &output.target,
                 )?;
+                let epub_stylesheets = epub_stylesheets(resolved);
                 let run_output = toolchain::run_pandoc_epub(
                     pandoc,
                     &plan.manuscript_files,
-                    &output.artifact_path,
-                    &resolved.effective.book.title,
-                    &resolved.effective.book.language,
-                    resolved_cover_image_path(resolved).as_deref(),
+                    &toolchain::PandocEpubOptions {
+                        working_dir: &book.root,
+                        output: &output.artifact_path,
+                        title: &resolved.effective.book.title,
+                        language: &resolved.effective.book.language,
+                        stylesheets: &epub_stylesheets,
+                        cover_image: resolved_cover_image_path(resolved).as_deref(),
+                    },
                 )
                 .map_err(|error| {
                     execution_failed_with_message(
@@ -166,7 +175,14 @@ fn execute_build_outputs(
                         format!("failed to start pandoc for {}: {error}", output.target),
                     )
                 })?;
-                ensure_artifact_written(&resolved.repo.repo_root, &book.id, output, run_output)?;
+                ensure_path_written(
+                    &resolved.repo.repo_root,
+                    &book.id,
+                    &output.target,
+                    "pandoc",
+                    &output.artifact_path,
+                    run_output,
+                )?;
                 artifacts.push(output.artifact_path.clone());
             }
             "print" => {
@@ -176,30 +192,116 @@ fn execute_build_outputs(
                         target: output.target.clone(),
                     }
                 })?;
+                let pdf = resolved
+                    .effective
+                    .pdf
+                    .as_ref()
+                    .expect("pdf settings must exist for prose print build");
                 prepare_artifact_dir(
                     &output.artifact_path,
                     &resolved.repo.repo_root,
                     &book.id,
                     &output.target,
                 )?;
-                let pdf_options = build_pandoc_pdf_options(resolved, output)?;
-                let run_output = toolchain::run_pandoc_pdf(
-                    pandoc,
-                    &plan.manuscript_files,
-                    &output.artifact_path,
-                    &resolved.effective.book.title,
-                    &resolved.effective.book.language,
-                    &pdf_options,
-                )
-                .map_err(|error| {
-                    execution_failed_with_message(
-                        &resolved.repo.repo_root,
-                        &book.id,
-                        &output.target,
-                        format!("failed to start pandoc for {}: {error}", output.target),
-                    )
-                })?;
-                ensure_artifact_written(&resolved.repo.repo_root, &book.id, output, run_output)?;
+                match pdf.engine {
+                    config::PdfEngine::Chromium => {
+                        let chromium =
+                            available_tool_path(toolchain, "chromium").ok_or_else(|| {
+                                BuildBookError::RequiredToolMissing {
+                                    tool: "chromium",
+                                    target: output.target.clone(),
+                                }
+                            })?;
+                        let stylesheets = generated_print_stylesheets(resolved, output)?;
+                        let html_path = generated_print_html_path(&output.artifact_path);
+                        let pandoc_output = toolchain::run_pandoc_html(
+                            pandoc,
+                            &plan.manuscript_files,
+                            &toolchain::PandocHtmlOptions {
+                                working_dir: &book.root,
+                                output: &html_path,
+                                title: &resolved.effective.book.title,
+                                language: &resolved.effective.book.language,
+                                stylesheets: &stylesheets,
+                                table_of_contents: pdf.toc,
+                            },
+                        )
+                        .map_err(|error| {
+                            execution_failed_with_message(
+                                &resolved.repo.repo_root,
+                                &book.id,
+                                &output.target,
+                                format!("failed to start pandoc for {}: {error}", output.target),
+                            )
+                        })?;
+                        ensure_path_written(
+                            &resolved.repo.repo_root,
+                            &book.id,
+                            &output.target,
+                            "pandoc",
+                            &html_path,
+                            pandoc_output,
+                        )?;
+
+                        let chromium_output = toolchain::run_chromium_pdf(
+                            chromium,
+                            &html_path,
+                            &output.artifact_path,
+                        )
+                        .map_err(|error| {
+                            execution_failed_with_message(
+                                &resolved.repo.repo_root,
+                                &book.id,
+                                &output.target,
+                                format!("failed to start chromium for {}: {error}", output.target),
+                            )
+                        })?;
+                        ensure_path_written(
+                            &resolved.repo.repo_root,
+                            &book.id,
+                            &output.target,
+                            "chromium",
+                            &output.artifact_path,
+                            chromium_output,
+                        )?;
+                    }
+                    config::PdfEngine::Weasyprint
+                        if resolved.effective.book.writing_mode
+                            == config::WritingMode::VerticalRl =>
+                    {
+                        return Err(BuildBookError::UnsupportedVerticalWeasyprint {
+                            target: output.target.clone(),
+                        });
+                    }
+                    _ => {
+                        let pdf_options = build_pandoc_pdf_options(resolved, output)?;
+                        let run_output = toolchain::run_pandoc_pdf(
+                            pandoc,
+                            &book.root,
+                            &plan.manuscript_files,
+                            &output.artifact_path,
+                            &resolved.effective.book.title,
+                            &resolved.effective.book.language,
+                            &pdf_options,
+                        )
+                        .map_err(|error| {
+                            execution_failed_with_message(
+                                &resolved.repo.repo_root,
+                                &book.id,
+                                &output.target,
+                                format!("failed to start pandoc for {}: {error}", output.target),
+                            )
+                        })?;
+                        ensure_path_written(
+                            &resolved.repo.repo_root,
+                            &book.id,
+                            &output.target,
+                            "pandoc",
+                            &output.artifact_path,
+                            run_output,
+                        )?;
+                    }
+                }
                 artifacts.push(output.artifact_path.clone());
             }
             _ => {
@@ -233,23 +335,9 @@ fn build_pandoc_pdf_options(
 
     match pdf.engine {
         config::PdfEngine::Weasyprint => {
-            options.stylesheets = print_stylesheets(resolved);
-            let generated = generated_print_stylesheet_path(&output.artifact_path);
-            fs::write(
-                &generated,
-                render_generated_print_stylesheet(
-                    &resolved.effective.book.title,
-                    &resolved.effective.book.profile,
-                    pdf,
-                    print,
-                ),
-            )
-            .map_err(|source| BuildBookError::WriteGeneratedStylesheet {
-                path: generated.clone(),
-                source,
-            })?;
-            options.stylesheets.push(generated);
+            options.stylesheets = generated_print_stylesheets(resolved, output)?;
         }
+        config::PdfEngine::Chromium => {}
         config::PdfEngine::Typst => {
             apply_typst_print_variables(&mut options, pdf, print);
         }
@@ -261,7 +349,15 @@ fn build_pandoc_pdf_options(
     Ok(options)
 }
 
+fn epub_stylesheets(resolved: &config::ResolvedBookConfig) -> Vec<PathBuf> {
+    prose_stylesheets(resolved, &["base.css", "epub.css"])
+}
+
 fn print_stylesheets(resolved: &config::ResolvedBookConfig) -> Vec<PathBuf> {
+    prose_stylesheets(resolved, &["base.css", "print.css"])
+}
+
+fn prose_stylesheets(resolved: &config::ResolvedBookConfig, file_names: &[&str]) -> Vec<PathBuf> {
     let book = resolved
         .repo
         .book
@@ -269,20 +365,21 @@ fn print_stylesheets(resolved: &config::ResolvedBookConfig) -> Vec<PathBuf> {
         .expect("book context must exist for build");
     let mut stylesheets = Vec::new();
 
-    push_print_stylesheet_candidates(&mut stylesheets, &book.root.join("styles"));
+    push_stylesheet_candidates(&mut stylesheets, &book.root.join("styles"), file_names);
     for path in &resolved.shared.styles {
-        push_print_stylesheet_candidates(
+        push_stylesheet_candidates(
             &mut stylesheets,
             &join_repo_path(&resolved.repo.repo_root, path),
+            file_names,
         );
     }
 
     stylesheets
 }
 
-fn push_print_stylesheet_candidates(stylesheets: &mut Vec<PathBuf>, path: &Path) {
+fn push_stylesheet_candidates(stylesheets: &mut Vec<PathBuf>, path: &Path, file_names: &[&str]) {
     if path.is_dir() {
-        for name in ["base.css", "print.css"] {
+        for name in file_names {
             let candidate = path.join(name);
             if candidate.is_file() && !stylesheets.iter().any(|existing| existing == &candidate) {
                 stylesheets.push(candidate);
@@ -300,9 +397,44 @@ fn generated_print_stylesheet_path(output: &Path) -> PathBuf {
     output.with_extension("layout.css")
 }
 
+fn generated_print_html_path(output: &Path) -> PathBuf {
+    output.with_extension("print.html")
+}
+
+fn generated_print_stylesheets(
+    resolved: &config::ResolvedBookConfig,
+    output: &pipeline::BuildOutputPlan,
+) -> Result<Vec<PathBuf>, BuildBookError> {
+    let pdf = resolved
+        .effective
+        .pdf
+        .as_ref()
+        .expect("pdf settings must exist for prose print build");
+    let print = resolved.effective.print.as_ref();
+    let mut stylesheets = print_stylesheets(resolved);
+    let generated = generated_print_stylesheet_path(&output.artifact_path);
+    fs::write(
+        &generated,
+        render_generated_print_stylesheet(
+            &resolved.effective.book.title,
+            &resolved.effective.book.profile,
+            resolved.effective.book.writing_mode,
+            pdf,
+            print,
+        ),
+    )
+    .map_err(|source| BuildBookError::WriteGeneratedStylesheet {
+        path: generated.clone(),
+        source,
+    })?;
+    stylesheets.push(generated);
+    Ok(stylesheets)
+}
+
 fn render_generated_print_stylesheet(
     title: &str,
     profile: &str,
+    writing_mode: config::WritingMode,
     pdf: &config::PdfSettings,
     print: Option<&config::PrintSettings>,
 ) -> String {
@@ -328,6 +460,13 @@ fn render_generated_print_stylesheet(
     css.push("h1, h2, h3 { break-after: avoid; }".to_string());
     css.push("figure, table, pre, blockquote { break-inside: avoid; }".to_string());
     css.push("h1 { string-set: shosei-heading content(text); }".to_string());
+    if writing_mode == config::WritingMode::VerticalRl {
+        css.push(
+            "header#title-block-header { break-after: avoid; page-break-after: avoid; }"
+                .to_string(),
+        );
+        css.push("nav#TOC { break-after: page; page-break-after: always; }".to_string());
+    }
 
     let mut page_lines = Vec::new();
     if let Some(print) = print {
@@ -584,17 +723,19 @@ fn execution_failed_with_message(
     }
 }
 
-fn ensure_artifact_written(
+fn ensure_path_written(
     repo_root: &std::path::Path,
     book_id: &str,
-    output: &pipeline::BuildOutputPlan,
+    target: &str,
+    tool_name: &str,
+    expected_path: &std::path::Path,
     run_output: toolchain::ToolRunOutput,
 ) -> Result<(), BuildBookError> {
-    if run_output.status.success() && output.artifact_path.is_file() {
+    if run_output.status.success() && expected_path.is_file() {
         return Ok(());
     }
 
-    let log_path = build_log_path(repo_root, book_id, &output.target);
+    let log_path = build_log_path(repo_root, book_id, target);
     let log_contents = format!(
         "tool: pandoc\nstatus: {}\nstdout:\n{}\n\nstderr:\n{}\n",
         run_output
@@ -605,9 +746,10 @@ fn ensure_artifact_written(
         run_output.stdout,
         run_output.stderr
     );
+    let log_contents = log_contents.replacen("tool: pandoc", &format!("tool: {tool_name}"), 1);
     let _ = write_build_log(&log_path, &log_contents);
     Err(BuildBookError::ExecutionFailed {
-        target: output.target.clone(),
+        target: target.to_string(),
         log_path,
     })
 }
@@ -707,6 +849,7 @@ fn execute_manga_build_outputs(
 mod tests {
     use std::{fs, io::Read, path::PathBuf};
 
+    use crate::app::init_project::{InitProjectOptions, init_project};
     use crate::toolchain::{ToolRecord, ToolchainReport};
 
     use super::*;
@@ -720,20 +863,44 @@ mod tests {
     }
 
     fn fake_toolchain(pandoc_path: Option<PathBuf>) -> ToolchainReport {
+        fake_toolchain_with_chromium(pandoc_path, None)
+    }
+
+    fn fake_toolchain_with_chromium(
+        pandoc_path: Option<PathBuf>,
+        chromium_path: Option<PathBuf>,
+    ) -> ToolchainReport {
         ToolchainReport {
-            tools: vec![ToolRecord {
-                key: "pandoc",
-                display_name: "pandoc",
-                status: if pandoc_path.is_some() {
-                    ToolStatus::Available
-                } else {
-                    ToolStatus::Missing
+            tools: vec![
+                ToolRecord {
+                    key: "pandoc",
+                    display_name: "pandoc",
+                    status: if pandoc_path.is_some() {
+                        ToolStatus::Available
+                    } else {
+                        ToolStatus::Missing
+                    },
+                    detected_as: Some("pandoc".to_string()),
+                    resolved_path: pandoc_path,
+                    version: None,
+                    install_hint: "Install pandoc and ensure it is available on PATH.".to_string(),
                 },
-                detected_as: Some("pandoc".to_string()),
-                resolved_path: pandoc_path,
-                version: None,
-                install_hint: "Install pandoc and ensure it is available on PATH.".to_string(),
-            }],
+                ToolRecord {
+                    key: "chromium",
+                    display_name: "Chromium PDF",
+                    status: if chromium_path.is_some() {
+                        ToolStatus::Available
+                    } else {
+                        ToolStatus::Missing
+                    },
+                    detected_as: Some("chromium".to_string()),
+                    resolved_path: chromium_path,
+                    version: None,
+                    install_hint:
+                        "Install a Chromium-based browser and ensure its executable is available."
+                            .to_string(),
+                },
+            ],
         }
     }
 
@@ -769,6 +936,22 @@ git:
         .unwrap();
     }
 
+    fn write_series_book(root: &std::path::Path) {
+        init_project(InitProjectOptions {
+            root: root.to_path_buf(),
+            non_interactive: true,
+            force: false,
+            config_template: Some("business".to_string()),
+            config_profile: None,
+            repo_mode: Some("series".to_string()),
+            title: Some("Series Sample".to_string()),
+            author: Some("Author".to_string()),
+            language: Some("ja".to_string()),
+            output_preset: Some("kindle".to_string()),
+        })
+        .unwrap();
+    }
+
     fn write_book_with_cover(root: &std::path::Path) {
         write_book(root);
         fs::create_dir_all(root.join("assets/cover")).unwrap();
@@ -782,10 +965,47 @@ git:
     }
 
     fn write_print_book(root: &std::path::Path) {
-        write_print_book_with_pdf(root, "");
+        write_print_book_with_pdf(
+            root,
+            "pdf:\n  engine: weasyprint\n  toc: true\n  page_number: true\n  running_header: auto\n",
+        );
     }
 
     fn write_print_book_with_pdf(root: &std::path::Path, pdf_block: &str) {
+        fs::create_dir_all(root.join("manuscript")).unwrap();
+        fs::write(root.join("manuscript/01.md"), "# Chapter 1\n").unwrap();
+        fs::write(
+            root.join("book.yml"),
+            format!(
+                r#"
+project:
+  type: business
+  vcs: git
+book:
+  title: "Sample"
+  authors:
+    - "Author"
+  reading_direction: ltr
+layout:
+  binding: left
+manuscript:
+  chapters:
+    - manuscript/01.md
+outputs:
+  print:
+    enabled: true
+    target: print-jp-pdfx1a
+{pdf_block}validation:
+  strict: true
+git:
+  lfs: true
+"#
+            ),
+        )
+        .unwrap();
+    }
+
+    fn write_vertical_print_book_with_pdf(root: &std::path::Path, pdf_block: &str) {
         fs::create_dir_all(root.join("manuscript")).unwrap();
         fs::write(root.join("manuscript/01.md"), "# Chapter 1\n").unwrap();
         fs::write(
@@ -799,6 +1019,7 @@ book:
   title: "Sample"
   authors:
     - "Author"
+  reading_direction: rtl
 layout:
   binding: right
 manuscript:
@@ -829,6 +1050,13 @@ git:
         write_print_book_with_pdf(
             root,
             "pdf:\n  engine: weasyprint\n  toc: true\n  page_number: true\n  running_header: auto\n",
+        );
+    }
+
+    fn write_chromium_print_book(root: &std::path::Path) {
+        write_vertical_print_book_with_pdf(
+            root,
+            "pdf:\n  engine: chromium\n  toc: true\n  page_number: true\n  running_header: auto\n",
         );
     }
 
@@ -1069,6 +1297,143 @@ printf 'fake epub' > "$out"
         assert_eq!(
             fs::read_to_string(cover_arg).unwrap(),
             root.join("assets/cover/front.png").display().to_string()
+        );
+    }
+
+    #[test]
+    fn build_passes_base_and_epub_stylesheets_to_pandoc_epub() {
+        if !cfg!(unix) {
+            return;
+        }
+
+        let root = temp_dir("fake-pandoc-epub-css");
+        write_book(&root);
+        fs::create_dir_all(root.join("styles")).unwrap();
+        fs::write(root.join("styles/base.css"), "body { color: black; }\n").unwrap();
+        fs::write(
+            root.join("styles/epub.css"),
+            "body { background: white; }\n",
+        )
+        .unwrap();
+        let pandoc = root.join("pandoc");
+        let args_path = root.join("pandoc-args.txt");
+        fs::write(
+            &pandoc,
+            format!(
+                r#"#!/bin/sh
+printf '%s\n' "$@" > "{}"
+out=""
+prev=""
+for arg in "$@"; do
+  if [ "$prev" = "--output" ]; then
+    out="$arg"
+  fi
+  prev="$arg"
+done
+mkdir -p "$(dirname "$out")"
+printf 'fake epub' > "$out"
+"#,
+                args_path.display()
+            ),
+        )
+        .unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mut permissions = fs::metadata(&pandoc).unwrap().permissions();
+            permissions.set_mode(0o755);
+            fs::set_permissions(&pandoc, permissions).unwrap();
+        }
+
+        let result = build_book_with_toolchain(
+            &CommandContext::new(&root, None, None),
+            &fake_toolchain(Some(pandoc)),
+        )
+        .unwrap();
+
+        assert!(result.artifacts[0].is_file());
+        let args = fs::read_to_string(args_path).unwrap();
+        let css_args = args
+            .lines()
+            .collect::<Vec<_>>()
+            .windows(2)
+            .filter_map(|window| (window[0] == "--css").then_some(window[1]))
+            .collect::<Vec<_>>();
+        assert!(css_args.iter().any(|arg| arg.ends_with("/styles/base.css")));
+        assert!(css_args.iter().any(|arg| arg.ends_with("/styles/epub.css")));
+    }
+
+    #[test]
+    fn build_passes_shared_base_and_epub_stylesheets_to_pandoc_epub_for_series() {
+        if !cfg!(unix) {
+            return;
+        }
+
+        let root = temp_dir("fake-pandoc-series-epub-css");
+        write_series_book(&root);
+        fs::write(
+            root.join("shared/styles/base.css"),
+            "body { color: black; }\n",
+        )
+        .unwrap();
+        fs::write(
+            root.join("shared/styles/epub.css"),
+            "body { background: white; }\n",
+        )
+        .unwrap();
+        let pandoc = root.join("pandoc");
+        let args_path = root.join("pandoc-args.txt");
+        fs::write(
+            &pandoc,
+            format!(
+                r#"#!/bin/sh
+printf '%s\n' "$@" > "{}"
+out=""
+prev=""
+for arg in "$@"; do
+  if [ "$prev" = "--output" ]; then
+    out="$arg"
+  fi
+  prev="$arg"
+done
+mkdir -p "$(dirname "$out")"
+printf 'fake epub' > "$out"
+"#,
+                args_path.display()
+            ),
+        )
+        .unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mut permissions = fs::metadata(&pandoc).unwrap().permissions();
+            permissions.set_mode(0o755);
+            fs::set_permissions(&pandoc, permissions).unwrap();
+        }
+
+        let result = build_book_with_toolchain(
+            &CommandContext::new(&root, Some("vol-01".to_string()), None),
+            &fake_toolchain(Some(pandoc)),
+        )
+        .unwrap();
+
+        assert!(result.artifacts[0].is_file());
+        let args = fs::read_to_string(args_path).unwrap();
+        let css_args = args
+            .lines()
+            .collect::<Vec<_>>()
+            .windows(2)
+            .filter_map(|window| (window[0] == "--css").then_some(window[1]))
+            .collect::<Vec<_>>();
+        assert!(
+            css_args
+                .iter()
+                .any(|arg| arg.ends_with("/shared/styles/base.css"))
+        );
+        assert!(
+            css_args
+                .iter()
+                .any(|arg| arg.ends_with("/shared/styles/epub.css"))
         );
     }
 
@@ -1316,6 +1681,186 @@ printf 'fake pdf' > "$out"
     }
 
     #[test]
+    fn build_requires_chromium_for_vertical_print() {
+        if !cfg!(unix) {
+            return;
+        }
+
+        let root = temp_dir("missing-chromium");
+        write_chromium_print_book(&root);
+        let pandoc = root.join("pandoc");
+        fs::write(&pandoc, "#!/bin/sh\nexit 0\n").unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mut permissions = fs::metadata(&pandoc).unwrap().permissions();
+            permissions.set_mode(0o755);
+            fs::set_permissions(&pandoc, permissions).unwrap();
+        }
+
+        let error = build_book_with_toolchain(
+            &CommandContext::new(&root, None, None),
+            &fake_toolchain_with_chromium(Some(pandoc), None),
+        )
+        .unwrap_err();
+
+        assert!(matches!(
+            error,
+            BuildBookError::RequiredToolMissing { tool, target }
+                if tool == "chromium" && target == "print-jp-pdfx1a"
+        ));
+    }
+
+    #[test]
+    fn build_rejects_vertical_weasyprint_print() {
+        if !cfg!(unix) {
+            return;
+        }
+
+        let root = temp_dir("vertical-weasyprint");
+        write_vertical_print_book_with_pdf(
+            &root,
+            "pdf:\n  engine: weasyprint\n  toc: true\n  page_number: true\n  running_header: auto\n",
+        );
+        let pandoc = root.join("pandoc");
+        fs::write(&pandoc, "#!/bin/sh\nexit 0\n").unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mut permissions = fs::metadata(&pandoc).unwrap().permissions();
+            permissions.set_mode(0o755);
+            fs::set_permissions(&pandoc, permissions).unwrap();
+        }
+
+        let error = build_book_with_toolchain(
+            &CommandContext::new(&root, None, None),
+            &fake_toolchain(Some(pandoc)),
+        )
+        .unwrap_err();
+
+        assert!(matches!(
+            error,
+            BuildBookError::UnsupportedVerticalWeasyprint { target }
+                if target == "print-jp-pdfx1a"
+        ));
+    }
+
+    #[test]
+    fn build_passes_chromium_vertical_print_through_html_and_browser() {
+        if !cfg!(unix) {
+            return;
+        }
+
+        let root = temp_dir("chromium-print");
+        write_chromium_print_book(&root);
+        fs::create_dir_all(root.join("styles")).unwrap();
+        fs::write(
+            root.join("styles/base.css"),
+            "body { writing-mode: vertical-rl; }\n",
+        )
+        .unwrap();
+        fs::write(root.join("styles/print.css"), "body { color: black; }\n").unwrap();
+
+        let pandoc = root.join("pandoc");
+        let pandoc_args_path = root.join("pandoc-args.txt");
+        fs::write(
+            &pandoc,
+            format!(
+                r#"#!/bin/sh
+printf '%s\n' "$@" > "{}"
+out=""
+prev=""
+for arg in "$@"; do
+  if [ "$prev" = "--output" ]; then
+    out="$arg"
+  fi
+  prev="$arg"
+done
+mkdir -p "$(dirname "$out")"
+printf '<!doctype html><html><body>fake</body></html>' > "$out"
+"#,
+                pandoc_args_path.display()
+            ),
+        )
+        .unwrap();
+
+        let chromium = root.join("chromium");
+        let chromium_args_path = root.join("chromium-args.txt");
+        fs::write(
+            &chromium,
+            format!(
+                r#"#!/bin/sh
+printf '%s\n' "$@" > "{}"
+out=""
+for arg in "$@"; do
+  case "$arg" in
+    --print-to-pdf=*)
+      out="${{arg#--print-to-pdf=}}"
+      ;;
+  esac
+done
+mkdir -p "$(dirname "$out")"
+printf 'fake pdf' > "$out"
+"#,
+                chromium_args_path.display()
+            ),
+        )
+        .unwrap();
+
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            for tool in [&pandoc, &chromium] {
+                let mut permissions = fs::metadata(tool).unwrap().permissions();
+                permissions.set_mode(0o755);
+                fs::set_permissions(tool, permissions).unwrap();
+            }
+        }
+
+        let result = build_book_with_toolchain(
+            &CommandContext::new(&root, None, None),
+            &fake_toolchain_with_chromium(Some(pandoc), Some(chromium)),
+        )
+        .unwrap();
+
+        assert!(result.artifacts[0].is_file());
+        let pandoc_args = fs::read_to_string(pandoc_args_path).unwrap();
+        assert!(pandoc_args.lines().any(|arg| arg == "html5"));
+        assert!(pandoc_args.lines().any(|arg| arg == "--embed-resources"));
+        let css_args = pandoc_args
+            .lines()
+            .collect::<Vec<_>>()
+            .windows(2)
+            .filter_map(|window| (window[0] == "--css").then_some(window[1]))
+            .collect::<Vec<_>>();
+        assert!(css_args.iter().any(|arg| arg.ends_with("/styles/base.css")));
+        assert!(
+            css_args
+                .iter()
+                .any(|arg| arg.ends_with("/styles/print.css"))
+        );
+        assert!(css_args.iter().any(|arg| arg.ends_with(".layout.css")));
+        let generated = css_args
+            .iter()
+            .find(|arg| arg.ends_with(".layout.css"))
+            .expect("generated layout stylesheet must be passed");
+        let generated_css = fs::read_to_string(generated).unwrap();
+        assert!(generated_css.contains("header#title-block-header { break-after: avoid;"));
+        assert!(generated_css.contains("nav#TOC { break-after: page;"));
+
+        let chromium_args = fs::read_to_string(chromium_args_path).unwrap();
+        assert!(chromium_args.lines().any(|arg| arg == "--headless=new"));
+        assert!(
+            chromium_args
+                .lines()
+                .any(|arg| arg == "--no-pdf-header-footer")
+        );
+        assert!(chromium_args.contains("--print-to-pdf="));
+        assert!(chromium_args.contains("file://"));
+        assert!(result.artifacts[0].with_extension("print.html").is_file());
+    }
+
+    #[test]
     fn build_writes_generated_weasyprint_layout_css_for_preprint() {
         if !cfg!(unix) {
             return;
@@ -1384,6 +1929,7 @@ printf 'fake pdf' > "$out"
         assert!(css.contains("column-gap: 10mm;"));
         assert!(css.contains("font-size: 9pt;"));
         assert!(css.contains("line-height: 14pt;"));
+        assert!(!css.contains("title-block-header"));
     }
 
     #[test]
