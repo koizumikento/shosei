@@ -68,3 +68,47 @@ test("validateChapterPathInput rejects non repo-relative paths", () => {
     null
   );
 });
+
+test("resolveDiagnosticLocation reads file path from issue.location.path", () => {
+  const resolved = extension.__test.resolveDiagnosticLocation("/tmp/book", {
+    location: {
+      path: "manuscript/01.md",
+      line: 12
+    }
+  });
+
+  assert.deepEqual(resolved, {
+    filePath: path.resolve("/tmp/book", "manuscript/01.md"),
+    line: 11
+  });
+});
+
+test("resolveDiagnosticLocation falls back to line 0 when report line is absent", () => {
+  const resolved = extension.__test.resolveDiagnosticLocation("/tmp/book", {
+    location: {
+      path: "manuscript/01.md"
+    }
+  });
+
+  assert.deepEqual(resolved, {
+    filePath: path.resolve("/tmp/book", "manuscript/01.md"),
+    line: 0
+  });
+});
+
+test("resolveDiagnosticLocation ignores malformed issue locations", () => {
+  assert.equal(
+    extension.__test.resolveDiagnosticLocation("/tmp/book", {
+      location: {
+        line: 3
+      }
+    }),
+    null
+  );
+  assert.equal(
+    extension.__test.resolveDiagnosticLocation("/tmp/book", {
+      location: "manuscript/01.md"
+    }),
+    null
+  );
+});

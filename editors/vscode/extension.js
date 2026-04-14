@@ -467,13 +467,13 @@ async function applyDiagnosticsFromReport(vscode, output, collection, source, re
 
   const perFile = new Map();
   for (const issue of issues) {
-    if (!issue || !issue.location) {
+    const diagnosticLocation = resolveDiagnosticLocation(resolved.repoRoot, issue);
+    if (!diagnosticLocation) {
       continue;
     }
-    const filePath = core.toAbsolutePath(resolved.repoRoot, issue.location);
-    const uri = vscode.Uri.file(path.normalize(filePath)).toString();
+    const uri = vscode.Uri.file(path.normalize(diagnosticLocation.filePath)).toString();
     const diagnostic = new vscode.Diagnostic(
-      new vscode.Range(0, 0, 0, 0),
+      new vscode.Range(diagnosticLocation.line, 0, diagnosticLocation.line, 0),
       [issue.cause, issue.remedy].filter(Boolean).join("\n"),
       issue.severity === "error"
         ? vscode.DiagnosticSeverity.Error
@@ -495,6 +495,28 @@ async function applyDiagnosticsFromReport(vscode, output, collection, source, re
   output.appendLine(
     `[shosei] ${source}: loaded ${issues.length} issue(s) from ${absolutePath}`
   );
+}
+
+function resolveDiagnosticLocation(repoRoot, issue) {
+  if (!issue || typeof issue !== "object") {
+    return null;
+  }
+
+  const location =
+    issue.location && typeof issue.location === "object" ? issue.location : null;
+  const candidatePath =
+    typeof location?.path === "string" && location.path.trim() ? location.path : null;
+  if (!candidatePath) {
+    return null;
+  }
+
+  const line =
+    Number.isFinite(location.line) && location.line > 0 ? Math.trunc(location.line) - 1 : 0;
+
+  return {
+    filePath: core.toAbsolutePath(repoRoot, candidatePath),
+    line
+  };
 }
 
 async function pickStartPath(vscode, options = {}) {
@@ -1657,6 +1679,7 @@ module.exports = {
     buildChapterMoveCommandParts,
     buildChapterRemoveCommandParts,
     buildChapterRenumberCommandParts,
+    resolveDiagnosticLocation,
     suggestChapterPath,
     validateChapterPathInput
   }
