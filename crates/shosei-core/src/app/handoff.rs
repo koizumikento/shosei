@@ -1,6 +1,6 @@
 use std::{
     fs,
-    path::{Path, PathBuf},
+    path::{Component, Path, PathBuf},
     process::Command,
     time::{SystemTime, UNIX_EPOCH},
 };
@@ -643,10 +643,31 @@ fn write_manifest(path: &Path, manifest: &HandoffManifest) -> Result<(), Handoff
 }
 
 fn relative_to(base: &Path, path: &Path) -> String {
-    path.strip_prefix(base)
-        .unwrap_or(path)
-        .display()
-        .to_string()
+    path.strip_prefix(base).unwrap_or(path).components().fold(
+        String::new(),
+        |mut relative, component| {
+            match component {
+                Component::Prefix(prefix) => {
+                    relative.push_str(&prefix.as_os_str().to_string_lossy());
+                }
+                Component::RootDir => relative.push('/'),
+                Component::CurDir => relative.push('.'),
+                Component::ParentDir => {
+                    if !relative.is_empty() && !relative.ends_with('/') {
+                        relative.push('/');
+                    }
+                    relative.push_str("..");
+                }
+                Component::Normal(part) => {
+                    if !relative.is_empty() && !relative.ends_with('/') {
+                        relative.push('/');
+                    }
+                    relative.push_str(&part.to_string_lossy());
+                }
+            }
+            relative
+        },
+    )
 }
 
 fn now_unix_seconds() -> u64 {

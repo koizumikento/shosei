@@ -5,6 +5,8 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
+use serde_json::Value;
+
 fn temp_dir(name: &str) -> PathBuf {
     let unique = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -330,11 +332,13 @@ fn handoff_proof_cli_packages_review_packet() {
     assert!(package_dir.join("editorial/figures.yml").is_file());
     assert!(package_dir.join("editorial/freshness.yml").is_file());
 
-    let manifest = fs::read_to_string(package_dir.join("manifest.json")).unwrap();
-    assert!(manifest.contains("\"review_packet\": \"reports/review-packet.json\""));
-    assert!(manifest.contains("\"review_notes\": \"review-notes.md\""));
-    assert!(manifest.contains("\"claim_count\": 1"));
-    assert!(manifest.contains("\"figure_count\": 1"));
+    let manifest: Value =
+        serde_json::from_str(&fs::read_to_string(package_dir.join("manifest.json")).unwrap())
+            .unwrap();
+    assert_eq!(manifest["review_packet"], "reports/review-packet.json");
+    assert_eq!(manifest["review_notes"], "review-notes.md");
+    assert_eq!(manifest["editorial_summary"]["claim_count"], 1);
+    assert_eq!(manifest["editorial_summary"]["figure_count"], 1);
 
     let review_packet = fs::read_to_string(package_dir.join("reports/review-packet.json")).unwrap();
     assert!(review_packet.contains("\"book_id\": \"default\""));
