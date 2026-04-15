@@ -50,16 +50,11 @@ pub fn preview_book(command: &CommandContext) -> Result<PreviewBookResult, Previ
         .map(|output| output.target.as_str())
         .unwrap_or("none");
     let artifacts = build.artifacts.clone();
+    let artifact_summary = summarize_paths(&context.repo_root, &artifacts, 4);
     Ok(PreviewBookResult {
         summary: format!(
             "preview ready for {} using target {}: {}",
-            book.id,
-            preview_target,
-            artifacts
-                .iter()
-                .map(|path| path.display().to_string())
-                .collect::<Vec<_>>()
-                .join(", ")
+            book.id, preview_target, artifact_summary
         ),
         artifacts,
     })
@@ -79,10 +74,12 @@ pub fn watch_preview(
 
     let initial = preview_book(command)?;
     emit(&initial.summary);
+    let watch_root_summary = summarize_paths(&context.repo_root, &watch_roots, 4);
     emit(&format!(
-        "watching preview for {} under {} path(s); press Ctrl-C to stop",
+        "watching preview for {} under {} path(s): {}; press Ctrl-C to stop",
         book.id,
-        watch_roots.len()
+        watch_roots.len(),
+        watch_root_summary
     ));
 
     loop {
@@ -91,10 +88,21 @@ pub fn watch_preview(
         if next == snapshot {
             continue;
         }
+        let changed = changed_paths(&snapshot, &next);
         snapshot = next;
+        let changed_summary = summarize_paths(&context.repo_root, &changed, 5);
         match preview_book(command) {
-            Ok(result) => emit(&format!("rebuild: {}", result.summary)),
-            Err(error) => emit(&format!("rebuild failed: {error}")),
+            Ok(result) => emit(&format!(
+                "rebuild after {} change(s) [{}]: {}",
+                changed.len(),
+                changed_summary,
+                result.summary
+            )),
+            Err(error) => emit(&format!(
+                "rebuild failed after {} change(s) [{}]: {error}",
+                changed.len(),
+                changed_summary
+            )),
         }
     }
 }
@@ -177,6 +185,48 @@ fn file_stamp(metadata: &fs::Metadata) -> FileStamp {
     }
 }
 
+fn changed_paths(
+    before: &BTreeMap<PathBuf, FileStamp>,
+    after: &BTreeMap<PathBuf, FileStamp>,
+) -> Vec<PathBuf> {
+    let mut changed = after
+        .iter()
+        .filter_map(|(path, stamp)| match before.get(path) {
+            Some(previous) if previous == stamp => None,
+            _ => Some(path.clone()),
+        })
+        .collect::<Vec<_>>();
+    changed.extend(
+        before
+            .keys()
+            .filter(|path| !after.contains_key(*path))
+            .cloned(),
+    );
+    changed.sort();
+    changed
+}
+
+fn summarize_paths(base: &Path, paths: &[PathBuf], max_items: usize) -> String {
+    if paths.is_empty() {
+        return "none".to_string();
+    }
+
+    let mut rendered = paths
+        .iter()
+        .take(max_items)
+        .map(|path| {
+            path.strip_prefix(base)
+                .ok()
+                .map(|relative| relative.display().to_string())
+                .unwrap_or_else(|| path.display().to_string())
+        })
+        .collect::<Vec<_>>();
+    if paths.len() > max_items {
+        rendered.push(format!("... and {} more", paths.len() - max_items));
+    }
+    rendered.join(", ")
+}
+
 #[cfg(test)]
 mod tests {
     use std::{fs, thread, time::Duration};
@@ -185,7 +235,7 @@ mod tests {
 
     use crate::cli_api::CommandContext;
 
-    use super::{build_watch_snapshot, preview_book, watch_roots};
+    use super::{build_watch_snapshot, changed_paths, preview_book, summarize_paths, watch_roots};
 
     fn temp_dir(name: &str) -> std::path::PathBuf {
         let dir =
@@ -284,5 +334,41 @@ manga:
         let after = build_watch_snapshot(&[root.join("manuscript")]).unwrap();
 
         assert_ne!(before, after);
+    }
+
+    #[test]
+    fn changed_paths_reports_modified_and_removed_entries() {
+        let root = temp_dir("watch-diff");
+        fs::create_dir_all(root.join("manuscript")).unwrap();
+        let chapter = root.join("manuscript/01.md");
+        let removed = root.join("manuscript/old.md");
+        fs::write(&chapter, "# Chapter 1\n").unwrap();
+        fs::write(&removed, "old\n").unwrap();
+        let before = build_watch_snapshot(&[root.join("manuscript")]).unwrap();
+
+        thread::sleep(Duration::from_millis(20));
+        fs::write(&chapter, "# Chapter 1\n\nupdated\n").unwrap();
+        fs::remove_file(&removed).unwrap();
+        let after = build_watch_snapshot(&[root.join("manuscript")]).unwrap();
+
+        let changed = changed_paths(&before, &after);
+        assert!(changed.contains(&chapter));
+        assert!(changed.contains(&removed));
+    }
+
+    #[test]
+    fn summarize_paths_prefers_repo_relative_rendering() {
+        let root = temp_dir("path-summary");
+        let paths = vec![
+            root.join("manuscript/01.md"),
+            root.join("styles/print.css"),
+            root.join("dist/out.pdf"),
+        ];
+
+        let summary = summarize_paths(&root, &paths, 2);
+
+        assert!(summary.contains("manuscript/01.md"));
+        assert!(summary.contains("styles/print.css"));
+        assert!(summary.contains("... and 1 more"));
     }
 }

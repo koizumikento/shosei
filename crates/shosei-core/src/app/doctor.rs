@@ -1,4 +1,11 @@
-use crate::toolchain::{self, HostOs, ToolStatus};
+use std::path::Path;
+
+use crate::{
+    config::{self, ResolvedBookConfig},
+    domain::RepoMode,
+    repo,
+    toolchain::{self, HostOs, ToolStatus},
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum DoctorToolCategory {
@@ -45,6 +52,7 @@ pub struct DoctorSnapshot {
     pub optional_missing: usize,
     pub optional_pending: usize,
     pub tools: Vec<DoctorSnapshotTool>,
+    pub detected_project: Option<DoctorDetectedProject>,
 }
 
 #[derive(Debug, Clone, serde::Serialize)]
@@ -57,6 +65,17 @@ pub struct DoctorSnapshotTool {
     pub resolved_path: Option<String>,
     pub version: Option<String>,
     pub install_hint: String,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct DoctorDetectedProject {
+    pub repo_mode: String,
+    pub book_id: Option<String>,
+    pub project_type: Option<String>,
+    pub enabled_outputs: Vec<String>,
+    pub focused_required_tools: Vec<String>,
+    pub focused_optional_tools: Vec<String>,
+    pub notes: Vec<String>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -80,8 +99,17 @@ struct DoctorCounts {
 
 pub fn doctor() -> DoctorResult {
     let report = toolchain::inspect_default_toolchain();
+    let cwd = std::env::current_dir().ok();
+    doctor_with_report_and_path(report, cwd.as_deref())
+}
+
+fn doctor_with_report_and_path(
+    report: toolchain::ToolchainReport,
+    start_path: Option<&Path>,
+) -> DoctorResult {
     let host_os = HostOs::detect();
     let tools = display_tools(&report);
+    let detected_project = detect_project(start_path);
     let (required_available, required_missing, required_pending) =
         category_counts(&tools, DoctorToolCategory::Required);
     let (optional_available, optional_missing, optional_pending) =
@@ -121,11 +149,12 @@ pub fn doctor() -> DoctorResult {
             )
         })
         .collect::<Vec<_>>();
-    let snapshot = build_snapshot(host_os, counts, &tools);
+    let snapshot = build_snapshot(host_os, counts, &tools, detected_project.clone());
+    let project_section = render_detected_project(&detected_project);
 
     DoctorResult {
         summary: format!(
-            "doctor summary for {}: required {} available, {} missing, {} pending; optional {} available, {} missing, {} pending\n\nrequired tools:\n{}\n\noptional tools:\n{}\n\nnext steps:\n{}",
+            "doctor summary for {}: required {} available, {} missing, {} pending; optional {} available, {} missing, {} pending\n\nrequired tools:\n{}\n\noptional tools:\n{}\n{}\n\nnext steps:\n{}",
             host_os.as_str(),
             counts.required_available,
             counts.required_missing,
@@ -143,6 +172,7 @@ pub fn doctor() -> DoctorResult {
             } else {
                 optional_lines.join("\n")
             },
+            project_section,
             if next_steps.is_empty() {
                 "- no immediate action required".to_string()
             } else {
@@ -158,6 +188,7 @@ fn build_snapshot(
     host_os: HostOs,
     counts: DoctorCounts,
     tools: &[DoctorDisplayTool<'_>],
+    detected_project: Option<DoctorDetectedProject>,
 ) -> DoctorSnapshot {
     DoctorSnapshot {
         host_os: host_os.as_str().to_string(),
@@ -170,6 +201,7 @@ fn build_snapshot(
         optional_available: counts.optional_available,
         optional_missing: counts.optional_missing,
         optional_pending: counts.optional_pending,
+        detected_project,
         tools: tools
             .iter()
             .map(|tool| DoctorSnapshotTool {
@@ -188,6 +220,149 @@ fn build_snapshot(
             })
             .collect(),
     }
+}
+
+fn detect_project(start_path: Option<&Path>) -> Option<DoctorDetectedProject> {
+    let start_path = start_path?;
+    let context = repo::discover(start_path, None).ok()?;
+    let mut detected = DoctorDetectedProject {
+        repo_mode: match context.mode {
+            RepoMode::SingleBook => "single-book".to_string(),
+            RepoMode::Series => "series".to_string(),
+        },
+        book_id: context.book.as_ref().map(|book| book.id.clone()),
+        project_type: None,
+        enabled_outputs: Vec::new(),
+        focused_required_tools: vec!["git".to_string()],
+        focused_optional_tools: Vec::new(),
+        notes: Vec::new(),
+    };
+
+    if context.mode == RepoMode::Series && context.book.is_none() {
+        detected.notes.push(
+            "series repo root detected; run doctor inside books/<book-id>/... for book-specific tool requirements".to_string(),
+        );
+        return Some(detected);
+    }
+
+    match config::resolve_book_config(&context) {
+        Ok(resolved) => apply_resolved_book_context(&mut detected, &resolved),
+        Err(error) => detected.notes.push(format!(
+            "detected repo but could not resolve current book config: {error}"
+        )),
+    }
+
+    Some(detected)
+}
+
+fn apply_resolved_book_context(
+    detected: &mut DoctorDetectedProject,
+    resolved: &ResolvedBookConfig,
+) {
+    detected.project_type = Some(resolved.effective.project.project_type.as_str().to_string());
+    if resolved.effective.outputs.kindle.is_some() {
+        detected.enabled_outputs.push("kindle".to_string());
+    }
+    if resolved.effective.outputs.print.is_some() {
+        detected.enabled_outputs.push("print".to_string());
+    }
+
+    if resolved.effective.project.project_type.is_prose()
+        && !detected
+            .focused_required_tools
+            .iter()
+            .any(|tool| tool == "pandoc")
+    {
+        detected.focused_required_tools.push("pandoc".to_string());
+    }
+    if resolved.effective.outputs.print.is_some()
+        && resolved.effective.project.project_type.is_prose()
+        && let Some(pdf) = resolved.effective.pdf.as_ref()
+    {
+        let engine = pdf.engine.as_str().to_string();
+        if !detected
+            .focused_required_tools
+            .iter()
+            .any(|tool| tool == &engine)
+        {
+            detected.focused_required_tools.push(engine);
+        }
+    }
+    if resolved.effective.outputs.kindle.is_some() && resolved.effective.validation.epubcheck {
+        detected
+            .focused_optional_tools
+            .push("epubcheck".to_string());
+    }
+    if resolved.effective.outputs.kindle.is_some() {
+        detected
+            .focused_optional_tools
+            .push("kindle-previewer".to_string());
+    }
+    if resolved.effective.git.lfs {
+        detected.focused_optional_tools.push("git-lfs".to_string());
+    }
+    detected.focused_optional_tools.sort();
+    detected.focused_optional_tools.dedup();
+
+    if resolved.effective.project.project_type.is_prose()
+        && resolved.effective.outputs.print.is_some()
+        && resolved.effective.book.writing_mode == config::WritingMode::VerticalRl
+        && resolved
+            .effective
+            .pdf
+            .as_ref()
+            .is_some_and(|pdf| pdf.engine == config::PdfEngine::Weasyprint)
+    {
+        detected.notes.push(
+            "vertical-rl prose print requires chromium at build time; current config still points to weasyprint".to_string(),
+        );
+    }
+}
+
+fn render_detected_project(detected_project: &Option<DoctorDetectedProject>) -> String {
+    let Some(detected_project) = detected_project else {
+        return String::new();
+    };
+
+    let outputs = if detected_project.enabled_outputs.is_empty() {
+        "none".to_string()
+    } else {
+        detected_project.enabled_outputs.join(", ")
+    };
+    let focused_required = if detected_project.focused_required_tools.is_empty() {
+        "none".to_string()
+    } else {
+        detected_project.focused_required_tools.join(", ")
+    };
+    let focused_optional = if detected_project.focused_optional_tools.is_empty() {
+        "none".to_string()
+    } else {
+        detected_project.focused_optional_tools.join(", ")
+    };
+    let notes = if detected_project.notes.is_empty() {
+        "- none".to_string()
+    } else {
+        detected_project
+            .notes
+            .iter()
+            .map(|note| format!("- {note}"))
+            .collect::<Vec<_>>()
+            .join("\n")
+    };
+
+    format!(
+        "\ndetected project:\n- repo mode: {}\n- book: {}\n- project type: {}\n- enabled outputs: {}\n- focused required tools: {}\n- focused optional tools: {}\n- notes:\n{}",
+        detected_project.repo_mode,
+        detected_project.book_id.as_deref().unwrap_or("none"),
+        detected_project
+            .project_type
+            .as_deref()
+            .unwrap_or("unknown"),
+        outputs,
+        focused_required,
+        focused_optional,
+        notes
+    )
 }
 
 fn display_tools(report: &toolchain::ToolchainReport) -> Vec<DoctorDisplayTool<'_>> {
@@ -351,6 +526,7 @@ mod tests {
                 optional_pending: 0,
             },
             &tools,
+            None,
         );
 
         assert_eq!(snapshot.host_os, "macOS");
@@ -368,5 +544,102 @@ mod tests {
         assert_eq!(snapshot.tools[1].category, "optional");
         assert_eq!(snapshot.tools[1].display_name, "Kindle Previewer");
         assert_eq!(snapshot.tools[1].status, "missing");
+    }
+
+    #[test]
+    fn doctor_detects_project_specific_tool_focus_for_current_book() {
+        let root =
+            std::env::temp_dir().join(format!("shosei-doctor-project-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(root.join("manuscript")).unwrap();
+        std::fs::write(root.join("manuscript/01.md"), "# Chapter 1\n").unwrap();
+        std::fs::write(
+            root.join("book.yml"),
+            r#"
+project:
+  type: novel
+  vcs: git
+book:
+  title: "Sample"
+  authors:
+    - "Author"
+  reading_direction: rtl
+layout:
+  binding: right
+manuscript:
+  chapters:
+    - manuscript/01.md
+outputs:
+  kindle:
+    enabled: true
+    target: kindle-ja
+  print:
+    enabled: true
+    target: print-jp-pdfx1a
+pdf:
+  engine: chromium
+validation:
+  strict: true
+  epubcheck: true
+git:
+  lfs: true
+"#,
+        )
+        .unwrap();
+
+        let result = doctor_with_report_and_path(ToolchainReport { tools: vec![] }, Some(&root));
+        let project = result
+            .snapshot
+            .detected_project
+            .expect("project should be detected");
+
+        assert_eq!(project.repo_mode, "single-book");
+        assert_eq!(project.book_id.as_deref(), Some("default"));
+        assert_eq!(project.project_type.as_deref(), Some("novel"));
+        assert_eq!(project.enabled_outputs, vec!["kindle", "print"]);
+        assert_eq!(
+            project.focused_required_tools,
+            vec!["git", "pandoc", "chromium"]
+        );
+        assert_eq!(
+            project.focused_optional_tools,
+            vec!["epubcheck", "git-lfs", "kindle-previewer"]
+        );
+    }
+
+    #[test]
+    fn doctor_notes_series_root_without_selected_book() {
+        let root =
+            std::env::temp_dir().join(format!("shosei-doctor-series-root-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(root.join("books/vol-01")).unwrap();
+        std::fs::write(
+            root.join("series.yml"),
+            r#"
+series:
+  id: sample
+  title: Sample
+  type: novel
+books:
+  - id: vol-01
+    path: books/vol-01
+"#,
+        )
+        .unwrap();
+
+        let result = doctor_with_report_and_path(ToolchainReport { tools: vec![] }, Some(&root));
+        let project = result
+            .snapshot
+            .detected_project
+            .expect("project should be detected");
+
+        assert_eq!(project.repo_mode, "series");
+        assert_eq!(project.book_id, None);
+        assert!(
+            project
+                .notes
+                .iter()
+                .any(|note| note.contains("series repo root detected"))
+        );
     }
 }
