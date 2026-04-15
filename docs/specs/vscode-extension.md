@@ -165,6 +165,28 @@ repo/
 - ただし、出版ロジック、repo model、config loading、pipeline planning は Rust 側から移さない
 - v0.1 では sidebar の専用 Tree View を持ってよい
 
+## 7.1 ローカル配布
+
+v0.1 の拡張は Marketplace 公開を前提にしなくてよい。開発中または個人利用では、`editors/vscode/` を VSIX に package して手元の VS Code に手動 install してよい。
+
+ルール:
+
+- VSIX には runtime に必要な file だけを含めてよい
+- test や repo 運用用 metadata を同梱必須にしない
+- install 後も実処理は `shosei` CLI に委譲し、拡張単体で publishing logic を持たない
+
+## 7.2 GitHub Release 配布
+
+v0.1 では Marketplace 公開の代わりに、GitHub Release に VSIX asset を添付する配布を許容してよい。
+
+ルール:
+
+- release asset は `shosei-vscode-<version>.vsix` とする
+- release は repo 全体の tag `v<shosei-cli-version>` にぶら下げてよい
+- release workflow は package 前に extension の構文チェック / test と CLI の check を通す
+- 同じ GitHub Release に CLI binary archive が同居してよい
+- GitHub Release は VSIX の配布チャネルであり、publish logic の source of truth ではない
+
 ## 8. 非目標
 
 - `book.yml` / `series.yml` schema を JS 側で再実装すること

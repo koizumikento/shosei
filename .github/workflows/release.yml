@@ -1,0 +1,237 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag. Defaults to v<shosei-cli-version>."
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  meta:
+    runs-on: ubuntu-latest
+    outputs:
+      cli_version: ${{ steps.meta.outputs.cli_version }}
+      extension_version: ${{ steps.meta.outputs.extension_version }}
+      tag: ${{ steps.meta.outputs.tag }}
+      release_title: ${{ steps.meta.outputs.release_title }}
+      vsix_name: ${{ steps.meta.outputs.vsix_name }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve release metadata
+        id: meta
+        env:
+          INPUT_TAG: ${{ github.event.inputs.tag }}
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          import subprocess
+
+          cargo_metadata = json.loads(
+              subprocess.check_output(
+                  ["cargo", "metadata", "--no-deps", "--format-version", "1"],
+                  text=True,
+              )
+          )
+          cli_pkg = next(pkg for pkg in cargo_metadata["packages"] if pkg["name"] == "shosei-cli")
+          cli_version = cli_pkg["version"]
+
+          with open("editors/vscode/package.json", "r", encoding="utf-8") as fh:
+              extension_version = json.load(fh)["version"]
+
+          default_tag = f"v{cli_version}"
+          tag = os.environ.get("INPUT_TAG") or default_tag
+
+          if os.environ.get("GITHUB_EVENT_NAME") == "push":
+              tag = os.environ["GITHUB_REF_NAME"]
+              if tag != default_tag:
+                  raise SystemExit(
+                      f"Tag {tag} does not match shosei-cli version {cli_version}. Expected {default_tag}."
+                  )
+
+          outputs = {
+              "cli_version": cli_version,
+              "extension_version": extension_version,
+              "tag": tag,
+              "release_title": f"shosei {cli_version}",
+              "vsix_name": f"shosei-vscode-{extension_version}.vsix",
+          }
+
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as fh:
+              for key, value in outputs.items():
+                  fh.write(f"{key}={value}\n")
+          PY
+
+  quality:
+    runs-on: ubuntu-latest
+    needs: meta
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust build artifacts
+        uses: Swatinem/rust-cache@v2
+
+      - name: Run extension checks
+        working-directory: editors/vscode
+        run: |
+          node --check extension.js
+          node --check src/core.js
+          node --check src/view.js
+          node --test ./test/**/*.test.js
+
+      - name: Run CLI checks
+        run: |
+          cargo test --workspace
+          cargo run -p shosei-cli --bin shosei -- --help
+
+  build-cli:
+    needs:
+      - meta
+      - quality
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-latest
+            rust_target: x86_64-unknown-linux-gnu
+            archive_suffix: x86_64-unknown-linux-gnu
+            archive_format: tar.gz
+          - runner: macos-13
+            rust_target: x86_64-apple-darwin
+            archive_suffix: x86_64-apple-darwin
+            archive_format: tar.gz
+          - runner: windows-latest
+            rust_target: x86_64-pc-windows-msvc
+            archive_suffix: x86_64-pc-windows-msvc
+            archive_format: zip
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust_target }}
+
+      - name: Cache Rust build artifacts
+        uses: Swatinem/rust-cache@v2
+
+      - name: Build CLI
+        run: cargo build --release -p shosei-cli --target ${{ matrix.rust_target }}
+
+      - name: Resolve CLI archive name
+        shell: bash
+        run: |
+          echo "ARCHIVE_NAME=shosei-${{ needs.meta.outputs.tag }}-${{ matrix.archive_suffix }}.${{ matrix.archive_format }}" >> "$GITHUB_ENV"
+
+      - name: Package CLI archive (Unix)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          mkdir -p release-assets
+          cp target/${{ matrix.rust_target }}/release/shosei release-assets/
+          tar -C release-assets -czf "${ARCHIVE_NAME}" shosei
+
+      - name: Package CLI archive (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path release-assets | Out-Null
+          Copy-Item target/${{ matrix.rust_target }}/release/shosei.exe release-assets/shosei.exe
+          Compress-Archive -Path release-assets/shosei.exe -DestinationPath $env:ARCHIVE_NAME -Force
+
+      - name: Upload CLI artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: shosei-${{ needs.meta.outputs.tag }}-${{ matrix.archive_suffix }}.${{ matrix.archive_format }}
+          path: shosei-${{ needs.meta.outputs.tag }}-${{ matrix.archive_suffix }}.${{ matrix.archive_format }}
+          if-no-files-found: error
+
+  build-vscode:
+    needs:
+      - meta
+      - quality
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Package VSIX
+        working-directory: editors/vscode
+        run: npm run package
+
+      - name: Upload VSIX artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ needs.meta.outputs.vsix_name }}
+          path: editors/vscode/${{ needs.meta.outputs.vsix_name }}
+          if-no-files-found: error
+
+  release:
+    needs:
+      - meta
+      - build-cli
+      - build-vscode
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Download release artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+
+      - name: Create or update GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ needs.meta.outputs.tag }}
+          RELEASE_TITLE: ${{ needs.meta.outputs.release_title }}
+        run: |
+          if gh release view "${RELEASE_TAG}" >/dev/null 2>&1; then
+            echo "Release ${RELEASE_TAG} already exists; uploading assets."
+          else
+            gh release create "${RELEASE_TAG}" \
+              --title "${RELEASE_TITLE}" \
+              --generate-notes \
+              --target "${GITHUB_SHA}"
+          fi
+
+          mapfile -t assets < <(find release-assets -type f | sort)
+          if [ "${#assets[@]}" -eq 0 ]; then
+            echo "No release assets found." >&2
+            exit 1
+          fi
+
+          gh release upload "${RELEASE_TAG}" "${assets[@]}" --clobber
