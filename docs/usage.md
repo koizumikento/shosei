@@ -397,17 +397,23 @@ outputs:
     target: print-jp-pdfx1a
 
 pdf:
-  engine: weasyprint
+  engine: chromium
   toc: true
   page_number: true
   running_header: auto
 ```
 
-既定では `pdf.toc: true`。ただし `paper` / `conference-preprint` の scaffold では `pdf.toc: false` を書く。
+既定では `pdf.toc: true`。ただし `paper` / `conference-preprint` の scaffold では `pdf.toc: false` を書く。`book.writing_mode: vertical-rl` の prose print 既定 engine は `chromium`、`horizontal-ltr` と `conference-preprint` は `weasyprint`。
 
 `pdf.toc: false` にすると、print build では Pandoc の `--toc` を付けずに実行する。
 
-`weasyprint` を使う print build では `styles/base.css`, `styles/print.css` と、`pdf` / `print` 設定から生成した layout stylesheet を合わせて渡す。`conference-preprint` では A4、余白、2 段組、本文サイズがこの generated stylesheet に反映される。`typst` では `columns`, `papersize`, `margin`, `fontsize`, `linestretch` の変数として渡す。
+prose の Kindle / EPUB build では `styles/base.css` と `styles/epub.css` を Pandoc に渡す。`series` repo では対応する `shared/styles/base.css`, `shared/styles/epub.css` を使う。
+
+`chromium` を使う print build では `styles/base.css`, `styles/print.css`, generated layout stylesheet を含む self-contained HTML を Pandoc で作り、その HTML を headless Chromium で PDF 化する。`series` repo では対応する `shared/styles/base.css`, `shared/styles/print.css` を使う。縦組み prose print では、この generated layout stylesheet が frontmatter の改ページを持ち、TOC があれば本文は TOC 後の次ページ、TOC がなければ本文は title 後の次ページから始まる。Chromium の margin box 挙動に合わせて、page number は各ページの下中央、running header は有効な場合だけ各ページの上中央へ置き、title / TOC など frontmatter では両方を抑制する。
+
+`weasyprint` を使う print build では `styles/base.css`, `styles/print.css` と、`pdf` / `print` 設定から生成した layout stylesheet を合わせて Pandoc に渡す。`conference-preprint` では A4、余白、2 段組、本文サイズがこの generated stylesheet に反映される。`weasyprint` は `vertical-rl` prose print には使えない。
+
+`typst` では `columns`, `papersize`, `margin`, `fontsize`, `linestretch` の変数として渡す。
 
 ## Generated scaffold
 
@@ -426,7 +432,7 @@ pdf:
 
 prose 系テンプレートでは、最初の原稿ファイルとして `paper` / `conference-preprint` は `single-book` で `manuscript/01-main.md`、`series` で `books/<book-id>/manuscript/01-main.md` を生成する。その他の prose は `01-chapter-1.md` を生成する。この `01-` prefix は初期命名の慣例で、章順の source of truth ではない。
 
-また、prose 系では空の `editorial/style.yml`, `editorial/claims.yml`, `editorial/figures.yml`, `editorial/freshness.yml` を生成し、`single-book` では `book.yml`、`series` では `books/<book-id>/book.yml` から参照する。style 側は `single-book` では `styles/base.css`, `styles/epub.css`, `styles/print.css`、`series` では `shared/styles/base.css` を生成する。
+また、prose 系では空の `editorial/style.yml`, `editorial/claims.yml`, `editorial/figures.yml`, `editorial/freshness.yml` を生成し、`single-book` では `book.yml`、`series` では `books/<book-id>/book.yml` から参照する。style 側は `single-book` では `styles/base.css`, `styles/epub.css`, `styles/print.css`、`series` では `shared/styles/base.css`, `shared/styles/epub.css`, `shared/styles/print.css` を生成する。これらの default CSS は template/profile ごとに異なり、`business` / `paper` は横組み prose、`novel` / `light-novel` は縦組み prose を初期状態で表す。`novel` / `light-novel` の `print.css` は PDF 向けに本文サイズを半段締め、扉と目次を控えめに整える。本文へのページ分離は generated layout stylesheet が持つ。
 
 ## Preview and doctor
 
@@ -459,11 +465,12 @@ shosei doctor --json
 - `git`
 - `pandoc`
 - `weasyprint`
+- `chromium`
 - `epubcheck`
 - `git-lfs`
 - Kindle Previewer
 
-required tool は `git`, `pandoc`, `weasyprint`。optional tool は `epubcheck`, `git-lfs`, Kindle Previewer。
+required tool は `git`, `pandoc`, `weasyprint`, `chromium`。optional tool は `epubcheck`, `git-lfs`, Kindle Previewer。
 
 `typst`, `lualatex` は将来拡張候補として config 値では受け付けるが、v0.1 の doctor の必須確認対象には含めない。
 

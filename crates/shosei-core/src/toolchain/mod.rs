@@ -1,6 +1,7 @@
 use std::{
     env,
     ffi::OsString,
+    fs,
     path::{Path, PathBuf},
     process::{Command, ExitStatus},
 };
@@ -95,6 +96,26 @@ pub struct PandocPdfOptions {
     pub variable_json: Vec<(String, String)>,
 }
 
+#[derive(Debug, Clone, Copy)]
+pub struct PandocEpubOptions<'a> {
+    pub working_dir: &'a Path,
+    pub output: &'a Path,
+    pub title: &'a str,
+    pub language: &'a str,
+    pub stylesheets: &'a [PathBuf],
+    pub cover_image: Option<&'a Path>,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct PandocHtmlOptions<'a> {
+    pub working_dir: &'a Path,
+    pub output: &'a Path,
+    pub title: &'a str,
+    pub language: &'a str,
+    pub stylesheets: &'a [PathBuf],
+    pub table_of_contents: bool,
+}
+
 struct ToolSpec {
     key: &'static str,
     display_name: &'static str,
@@ -140,6 +161,13 @@ const TOOL_SPECS: &[ToolSpec] = &[
         install_hint: weasyprint_install_hint,
     },
     ToolSpec {
+        key: "chromium",
+        display_name: "Chromium PDF",
+        candidates: &[],
+        version_args: &["--version"],
+        install_hint: chromium_install_hint,
+    },
+    ToolSpec {
         key: "typst",
         display_name: "typst",
         candidates: &["typst"],
@@ -175,30 +203,39 @@ const TOOL_SPECS: &[ToolSpec] = &[
 ];
 
 pub fn inspect_default_toolchain() -> ToolchainReport {
-    inspect_toolchain_with_env(env::var_os("PATH"), env::var_os("PATHEXT"))
+    inspect_toolchain_with_env_and_direct_candidates(
+        env::var_os("PATH"),
+        env::var_os("PATHEXT"),
+        true,
+    )
 }
 
 pub fn run_pandoc_epub(
     executable: &Path,
     inputs: &[PathBuf],
-    output: &Path,
-    title: &str,
-    language: &str,
-    cover_image: Option<&Path>,
+    options: &PandocEpubOptions<'_>,
 ) -> std::io::Result<ToolRunOutput> {
     let mut command = Command::new(executable);
     command
+        .current_dir(options.working_dir)
         .arg("--to")
         .arg("epub3")
         .arg("--standalone")
         .arg("--metadata")
-        .arg(format!("title={title}"))
+        .arg(format!("title={}", options.title))
         .arg("--metadata")
-        .arg(format!("lang={language}"));
-    if let Some(cover_image) = cover_image {
+        .arg(format!("lang={}", options.language));
+    for stylesheet in options.stylesheets {
+        command.arg("--css").arg(stylesheet);
+    }
+    if let Some(cover_image) = options.cover_image {
         command.arg("--epub-cover-image").arg(cover_image);
     }
-    let command_output = command.arg("--output").arg(output).args(inputs).output()?;
+    let command_output = command
+        .arg("--output")
+        .arg(options.output)
+        .args(inputs)
+        .output()?;
 
     Ok(ToolRunOutput {
         status: command_output.status,
@@ -207,8 +244,72 @@ pub fn run_pandoc_epub(
     })
 }
 
+pub fn run_pandoc_html(
+    executable: &Path,
+    inputs: &[PathBuf],
+    options: &PandocHtmlOptions<'_>,
+) -> std::io::Result<ToolRunOutput> {
+    let output =
+        run_pandoc_html_with_resource_flag(executable, inputs, options, "--embed-resources")?;
+    if output.status.success() || !pandoc_embed_resources_unsupported(&output) {
+        return Ok(output);
+    }
+
+    run_pandoc_html_with_resource_flag(executable, inputs, options, "--self-contained")
+}
+
+fn run_pandoc_html_with_resource_flag(
+    executable: &Path,
+    inputs: &[PathBuf],
+    options: &PandocHtmlOptions<'_>,
+    resource_flag: &str,
+) -> std::io::Result<ToolRunOutput> {
+    let mut command = Command::new(executable);
+    command
+        .current_dir(options.working_dir)
+        .arg("--to")
+        .arg("html5")
+        .arg("--standalone")
+        .arg(resource_flag)
+        .arg("--metadata")
+        .arg(format!("title={}", options.title))
+        .arg("--metadata")
+        .arg(format!("lang={}", options.language));
+    for stylesheet in options.stylesheets {
+        command.arg("--css").arg(stylesheet);
+    }
+    if options.table_of_contents {
+        command.arg("--toc");
+    }
+    let command_output = command
+        .arg("--output")
+        .arg(options.output)
+        .args(inputs)
+        .output()?;
+
+    Ok(ToolRunOutput {
+        status: command_output.status,
+        stdout: String::from_utf8_lossy(&command_output.stdout).into_owned(),
+        stderr: String::from_utf8_lossy(&command_output.stderr).into_owned(),
+    })
+}
+
+fn pandoc_embed_resources_unsupported(output: &ToolRunOutput) -> bool {
+    if output.status.success() {
+        return false;
+    }
+
+    let combined = format!("{}\n{}", output.stdout, output.stderr).to_ascii_lowercase();
+    combined.contains("embed-resources")
+        && (combined.contains("unknown option")
+            || combined.contains("unrecognized option")
+            || combined.contains("did you mean")
+            || combined.contains("invalid option"))
+}
+
 pub fn run_pandoc_pdf(
     executable: &Path,
+    working_dir: &Path,
     inputs: &[PathBuf],
     output: &Path,
     title: &str,
@@ -217,6 +318,7 @@ pub fn run_pandoc_pdf(
 ) -> std::io::Result<ToolRunOutput> {
     let mut command = Command::new(executable);
     command
+        .current_dir(working_dir)
         .arg("--to")
         .arg("pdf")
         .arg("--pdf-engine")
@@ -247,9 +349,39 @@ pub fn run_pandoc_pdf(
     })
 }
 
+pub fn run_chromium_pdf(
+    executable: &Path,
+    input_html: &Path,
+    output: &Path,
+) -> std::io::Result<ToolRunOutput> {
+    let command_output = Command::new(executable)
+        .arg("--headless=new")
+        .arg("--disable-gpu")
+        .arg("--allow-file-access-from-files")
+        .arg("--no-pdf-header-footer")
+        .arg(format!("--print-to-pdf={}", output.display()))
+        .arg(file_url(input_html))
+        .output()?;
+
+    Ok(ToolRunOutput {
+        status: command_output.status,
+        stdout: String::from_utf8_lossy(&command_output.stdout).into_owned(),
+        stderr: String::from_utf8_lossy(&command_output.stderr).into_owned(),
+    })
+}
+
+#[cfg(test)]
 fn inspect_toolchain_with_env(
     path_var: Option<OsString>,
     pathext: Option<OsString>,
+) -> ToolchainReport {
+    inspect_toolchain_with_env_and_direct_candidates(path_var, pathext, false)
+}
+
+fn inspect_toolchain_with_env_and_direct_candidates(
+    path_var: Option<OsString>,
+    pathext: Option<OsString>,
+    allow_direct_candidates: bool,
 ) -> ToolchainReport {
     let host_os = HostOs::detect();
     let mut tools = Vec::new();
@@ -262,6 +394,7 @@ fn inspect_toolchain_with_env(
             path_var.as_ref(),
             pathext.as_ref(),
             host_os,
+            allow_direct_candidates,
         ));
     }
     tools.push(pdf_engine_record(&tools, host_os));
@@ -274,9 +407,12 @@ fn inspect_tool(
     path_var: Option<&OsString>,
     pathext: Option<&OsString>,
     host_os: HostOs,
+    allow_direct_candidates: bool,
 ) -> ToolRecord {
-    let resolved = spec.candidates.iter().find_map(|candidate| {
-        find_in_path(candidate, path_var, pathext).map(|path| ((*candidate).to_string(), path))
+    let candidates = tool_candidates(spec, host_os);
+    let resolved = candidates.iter().find_map(|candidate| {
+        find_candidate(candidate, path_var, pathext, allow_direct_candidates)
+            .map(|path| (candidate.clone(), path))
     });
     let (detected_as, resolved_path) = match resolved {
         Some((candidate, path)) => (Some(candidate), Some(path)),
@@ -301,10 +437,110 @@ fn inspect_tool(
     }
 }
 
+fn tool_candidates(spec: &ToolSpec, host_os: HostOs) -> Vec<String> {
+    match spec.key {
+        "chromium" => chromium_candidates(host_os),
+        _ => spec
+            .candidates
+            .iter()
+            .map(|candidate| (*candidate).to_string())
+            .collect(),
+    }
+}
+
+fn chromium_candidates(host_os: HostOs) -> Vec<String> {
+    chromium_candidates_with_home(host_os, tool_home_dir(host_os).as_deref())
+}
+
+fn chromium_candidates_with_home(host_os: HostOs, home_dir: Option<&Path>) -> Vec<String> {
+    let mut candidates = vec![
+        "chrome-headless-shell".to_string(),
+        "chromium-headless-shell".to_string(),
+    ];
+    candidates.extend(playwright_headless_shell_candidates(host_os, home_dir));
+    candidates.extend(
+        [
+            "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+            "/Applications/Chromium.app/Contents/MacOS/Chromium",
+            "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
+            "google-chrome",
+            "google-chrome-stable",
+            "chromium",
+            "chromium-browser",
+            "microsoft-edge",
+            "microsoft-edge-stable",
+            "msedge",
+            "chrome",
+        ]
+        .into_iter()
+        .map(str::to_string),
+    );
+    candidates
+}
+
+fn playwright_headless_shell_candidates(host_os: HostOs, home_dir: Option<&Path>) -> Vec<String> {
+    let Some(cache_root) = playwright_cache_root(host_os, home_dir) else {
+        return Vec::new();
+    };
+    let Ok(entries) = fs::read_dir(cache_root) else {
+        return Vec::new();
+    };
+
+    let mut installs = entries
+        .filter_map(Result::ok)
+        .map(|entry| entry.path())
+        .filter(|path| {
+            path.is_dir()
+                && path
+                    .file_name()
+                    .and_then(|name| name.to_str())
+                    .is_some_and(|name| name.starts_with("chromium_headless_shell-"))
+        })
+        .collect::<Vec<_>>();
+    installs.sort();
+    installs.reverse();
+
+    let suffixes: &[&str] = match host_os {
+        HostOs::Macos => &[
+            "chrome-headless-shell-mac-arm64/chrome-headless-shell",
+            "chrome-headless-shell-mac-x64/chrome-headless-shell",
+        ],
+        HostOs::Windows => &["chrome-headless-shell-win64/chrome-headless-shell.exe"],
+        HostOs::Linux => &["chrome-headless-shell-linux64/chrome-headless-shell"],
+        HostOs::Other => &[],
+    };
+
+    installs
+        .into_iter()
+        .flat_map(|install| {
+            suffixes
+                .iter()
+                .map(move |suffix| install.join(suffix).to_string_lossy().into_owned())
+        })
+        .collect()
+}
+
+fn playwright_cache_root(host_os: HostOs, home_dir: Option<&Path>) -> Option<PathBuf> {
+    let home_dir = home_dir?;
+    let path = match host_os {
+        HostOs::Macos => home_dir.join("Library/Caches/ms-playwright"),
+        HostOs::Windows => home_dir.join("AppData/Local/ms-playwright"),
+        HostOs::Linux | HostOs::Other => home_dir.join(".cache/ms-playwright"),
+    };
+    Some(path)
+}
+
+fn tool_home_dir(host_os: HostOs) -> Option<PathBuf> {
+    match host_os {
+        HostOs::Windows => env::var_os("USERPROFILE").map(PathBuf::from),
+        HostOs::Macos | HostOs::Linux | HostOs::Other => env::var_os("HOME").map(PathBuf::from),
+    }
+}
+
 fn pdf_engine_record(tools: &[ToolRecord], host_os: HostOs) -> ToolRecord {
     let detected = tools
         .iter()
-        .filter(|tool| matches!(tool.key, "weasyprint" | "typst" | "lualatex"))
+        .filter(|tool| matches!(tool.key, "weasyprint" | "chromium" | "typst" | "lualatex"))
         .find(|tool| tool.status == ToolStatus::Available);
     ToolRecord {
         key: "pdf-engine",
@@ -374,6 +610,23 @@ fn weasyprint_install_hint(host_os: HostOs) -> String {
     }
 }
 
+fn chromium_install_hint(host_os: HostOs) -> String {
+    match host_os {
+        HostOs::Macos => {
+            "Install chrome-headless-shell, Google Chrome, Chromium, or Microsoft Edge and ensure a compatible executable is available.".to_string()
+        }
+        HostOs::Windows => {
+            "Install chrome-headless-shell or a Chromium-based browser such as Google Chrome or Microsoft Edge and ensure it is available.".to_string()
+        }
+        HostOs::Linux => {
+            "Install chrome-headless-shell or a Chromium-based browser such as chromium or Google Chrome and ensure it is on PATH.".to_string()
+        }
+        HostOs::Other => {
+            "Install chrome-headless-shell or another headless-capable Chromium executable and ensure it is available.".to_string()
+        }
+    }
+}
+
 fn typst_install_hint(host_os: HostOs) -> String {
     match host_os {
         HostOs::Macos => "Install typst via Homebrew or the official release and ensure `typst` is on PATH.".to_string(),
@@ -406,16 +659,20 @@ fn lualatex_install_hint(host_os: HostOs) -> String {
 fn pdf_engine_install_hint(host_os: HostOs) -> String {
     match host_os {
         HostOs::Macos => {
-            "Install one supported PDF engine: weasyprint, typst, or lualatex.".to_string()
+            "Install one supported PDF engine: weasyprint, Chromium, typst, or lualatex."
+                .to_string()
         }
         HostOs::Windows => {
-            "Install one supported PDF engine: weasyprint, typst, or lualatex.".to_string()
+            "Install one supported PDF engine: weasyprint, Chromium, typst, or lualatex."
+                .to_string()
         }
         HostOs::Linux => {
-            "Install one supported PDF engine: weasyprint, typst, or lualatex.".to_string()
+            "Install one supported PDF engine: weasyprint, Chromium, typst, or lualatex."
+                .to_string()
         }
         HostOs::Other => {
-            "Install one supported PDF engine such as weasyprint, typst, or lualatex.".to_string()
+            "Install one supported PDF engine such as weasyprint, Chromium, typst, or lualatex."
+                .to_string()
         }
     }
 }
@@ -429,11 +686,30 @@ fn kindle_previewer_install_hint(host_os: HostOs) -> String {
     }
 }
 
+fn find_candidate(
+    candidate: &str,
+    path_var: Option<&OsString>,
+    pathext: Option<&OsString>,
+    allow_direct_candidates: bool,
+) -> Option<PathBuf> {
+    let direct = Path::new(candidate);
+    if allow_direct_candidates
+        && (direct.is_absolute() || candidate.contains('/') || candidate.contains('\\'))
+        && direct.is_file()
+    {
+        return Some(direct.to_path_buf());
+    }
+    find_in_path(candidate, path_var, pathext)
+}
+
 fn find_in_path(
     candidate: &str,
     path_var: Option<&OsString>,
     pathext: Option<&OsString>,
 ) -> Option<PathBuf> {
+    if Path::new(candidate).is_absolute() || candidate.contains('/') || candidate.contains('\\') {
+        return None;
+    }
     let has_extension = Path::new(candidate).extension().is_some();
     let path_var = path_var?;
 
@@ -455,6 +731,28 @@ fn find_in_path(
     }
 
     None
+}
+
+fn file_url(path: &Path) -> String {
+    let absolute = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
+    let mut value = absolute.to_string_lossy().replace('\\', "/");
+    if cfg!(windows) && !value.starts_with('/') {
+        value.insert(0, '/');
+    }
+    format!("file://{}", percent_encode_path(&value))
+}
+
+fn percent_encode_path(path: &str) -> String {
+    let mut encoded = String::new();
+    for byte in path.as_bytes() {
+        match byte {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' | b'/' | b':' => {
+                encoded.push(*byte as char)
+            }
+            _ => encoded.push_str(&format!("%{:02X}", byte)),
+        }
+    }
+    encoded
 }
 
 fn windows_extensions(pathext: Option<&OsString>) -> Vec<String> {
@@ -497,7 +795,11 @@ fn read_version(path: &Path, args: &[&str]) -> Option<String> {
 
 #[cfg(test)]
 mod tests {
-    use std::{fs, path::PathBuf};
+    use std::{
+        ffi::OsStr,
+        fs,
+        path::{Path, PathBuf},
+    };
 
     use super::*;
 
@@ -519,6 +821,7 @@ mod tests {
             report.tool("weasyprint").unwrap().status,
             ToolStatus::Missing
         );
+        assert_eq!(report.tool("chromium").unwrap().status, ToolStatus::Missing);
         assert_eq!(
             report.tool("pdf-engine").unwrap().status,
             ToolStatus::Missing
@@ -565,6 +868,29 @@ mod tests {
     }
 
     #[test]
+    fn finds_tool_via_direct_candidate_path() {
+        let dir = temp_dir("find-direct-tool");
+        let tool_path = dir.join("chromium");
+        fs::write(&tool_path, "").unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mut permissions = fs::metadata(&tool_path).unwrap().permissions();
+            permissions.set_mode(0o755);
+            fs::set_permissions(&tool_path, permissions).unwrap();
+        }
+
+        let resolved = find_candidate(
+            tool_path.to_str().unwrap(),
+            Some(&OsString::from("")),
+            Some(&OsString::from(".EXE;.BAT;.CMD")),
+            true,
+        );
+
+        assert_eq!(resolved.as_deref(), Some(tool_path.as_path()));
+    }
+
+    #[test]
     fn pdf_engine_prefers_first_available_specific_tool() {
         let dir = temp_dir("find-pdf-engine");
         let tool_path = if cfg!(windows) {
@@ -589,5 +915,104 @@ mod tests {
         let pdf_engine = report.tool("pdf-engine").unwrap();
         assert_eq!(pdf_engine.status, ToolStatus::Available);
         assert_eq!(pdf_engine.detected_as.as_deref(), Some("typst"));
+    }
+
+    #[test]
+    fn chromium_candidates_prefer_playwright_headless_shells_before_browser_apps() {
+        let home_dir = temp_dir("playwright-headless-shell-home");
+        let shell_path = playwright_cache_root(HostOs::Macos, Some(&home_dir))
+            .unwrap()
+            .join("chromium_headless_shell-1208")
+            .join("chrome-headless-shell-mac-arm64")
+            .join("chrome-headless-shell");
+        fs::create_dir_all(shell_path.parent().unwrap()).unwrap();
+        fs::write(&shell_path, "").unwrap();
+
+        let candidates = chromium_candidates_with_home(HostOs::Macos, Some(&home_dir));
+        let shell_index = candidates
+            .iter()
+            .position(|candidate| {
+                let path = Path::new(candidate);
+                path.file_name() == Some(OsStr::new("chrome-headless-shell"))
+                    && path.components().any(|component| {
+                        component.as_os_str() == OsStr::new("chromium_headless_shell-1208")
+                    })
+                    && path.components().any(|component| {
+                        component.as_os_str() == OsStr::new("chrome-headless-shell-mac-arm64")
+                    })
+            })
+            .unwrap();
+        let chrome_app_index = candidates
+            .iter()
+            .position(|candidate| {
+                candidate == "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+            })
+            .unwrap();
+
+        assert!(shell_index < chrome_app_index);
+    }
+
+    #[test]
+    fn run_pandoc_html_falls_back_to_self_contained_when_embed_resources_is_unsupported() {
+        if !cfg!(unix) {
+            return;
+        }
+
+        let dir = temp_dir("pandoc-html-fallback");
+        let pandoc = dir.join("pandoc");
+        let args_path = dir.join("pandoc-args.txt");
+        let output = dir.join("out.html");
+        let input = dir.join("chapter.md");
+        fs::write(&input, "# Chapter\n").unwrap();
+        fs::write(
+            &pandoc,
+            format!(
+                r#"#!/bin/sh
+printf '%s\n' "$@" >> "{}"
+if printf '%s\n' "$@" | grep -q -- '--embed-resources'; then
+  echo 'Unknown option --embed-resources' >&2
+  exit 64
+fi
+out=""
+prev=""
+for arg in "$@"; do
+  if [ "$prev" = "--output" ]; then
+    out="$arg"
+  fi
+  prev="$arg"
+done
+printf '<!doctype html><html></html>' > "$out"
+"#,
+                args_path.display()
+            ),
+        )
+        .unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mut permissions = fs::metadata(&pandoc).unwrap().permissions();
+            permissions.set_mode(0o755);
+            fs::set_permissions(&pandoc, permissions).unwrap();
+        }
+
+        let result = run_pandoc_html(
+            &pandoc,
+            &[input],
+            &PandocHtmlOptions {
+                working_dir: &dir,
+                output: &output,
+                title: "Sample",
+                language: "ja",
+                stylesheets: &[],
+                table_of_contents: true,
+            },
+        )
+        .unwrap();
+
+        assert!(result.status.success());
+        let args = fs::read_to_string(args_path).unwrap();
+        assert!(args.contains("--embed-resources"));
+        assert!(args.contains("--self-contained"));
+        assert!(output.is_file());
     }
 }

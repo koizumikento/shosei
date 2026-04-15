@@ -551,7 +551,7 @@ git:
         assert!(
             plan.checks
                 .iter()
-                .any(|check| check.name == "pdf-engine" && check.tool == Some("weasyprint"))
+                .any(|check| check.name == "pdf-engine" && check.tool == Some("chromium"))
         );
     }
 }

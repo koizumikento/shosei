@@ -31,6 +31,12 @@ fn tiny_png() -> &'static [u8] {
     ]
 }
 
+fn assert_contains_normalized_path(haystack: &str, needle: impl AsRef<str>) {
+    let normalized_haystack = haystack.replace('\\', "/");
+    let normalized_needle = needle.as_ref().replace('\\', "/");
+    assert!(normalized_haystack.contains(&normalized_needle));
+}
+
 fn write_validate_fixture(root: &Path) {
     fs::create_dir_all(root.join("manuscript")).unwrap();
     fs::create_dir_all(root.join("assets/cover")).unwrap();
@@ -354,10 +360,10 @@ fn validate_cli_prints_issue_preview() {
     assert!(stdout.contains("issues:"));
     assert!(stdout.contains("[error] image is missing alt text: assets/missing.png"));
     assert!(stdout.contains("[warn] link target not found: missing.md"));
-    assert!(stdout.contains(&format!(
-        "location: {}:3",
-        root.join("manuscript/01.md").display()
-    )));
+    assert_contains_normalized_path(
+        &stdout,
+        format!("location: {}:3", root.join("manuscript/01.md").display()),
+    );
     assert!(stdout.contains("remedy: 画像参照に代替テキストを追加してください。"));
 }
 
@@ -378,10 +384,10 @@ fn page_check_cli_prints_summary_and_issue_preview() {
     assert!(stdout.contains("spread candidates: none"));
     assert!(stdout.contains("issues:"));
     assert!(stdout.contains("[warn] lexicographic page order differs from numeric order"));
-    assert!(stdout.contains(&format!(
-        "location: {}",
-        root.join("manga").join("pages").display()
-    )));
+    assert_contains_normalized_path(
+        &stdout,
+        format!("location: {}", root.join("manga").join("pages").display()),
+    );
     assert!(stdout.contains(
         "remedy: ページ順はファイル名の辞書順で決まります。ゼロ埋めした連番へ揃えてください。"
     ));
@@ -495,10 +501,13 @@ id: duplicate-source
     assert!(stdout.contains("issues:"));
     assert!(stdout.contains("[warn] reference link target not found: missing.md"));
     assert!(stdout.contains("[error] duplicate reference id `duplicate-source`"));
-    assert!(stdout.contains(&format!(
-        "location: {}",
-        root.join("references/entries/source-b.md").display()
-    )));
+    assert_contains_normalized_path(
+        &stdout,
+        format!(
+            "location: {}",
+            root.join("references/entries/source-b.md").display()
+        ),
+    );
     assert!(
         root.join("dist/reports/default-reference-check.json")
             .is_file()
@@ -563,10 +572,10 @@ outputs:
     assert!(stdout.contains("reference check completed for default"));
     assert!(stdout.contains("issues:"));
     assert!(stdout.contains("claim `claim-market` references missing source `ref:missing`"));
-    assert!(stdout.contains(&format!(
-        "location: {}",
-        root.join("editorial/claims.yml").display()
-    )));
+    assert_contains_normalized_path(
+        &stdout,
+        format!("location: {}", root.join("editorial/claims.yml").display()),
+    );
 }
 
 #[test]

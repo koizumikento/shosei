@@ -181,6 +181,7 @@ pub struct PdfSettings {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PdfEngine {
     Weasyprint,
+    Chromium,
     Typst,
     Lualatex,
 }
@@ -189,6 +190,7 @@ impl PdfEngine {
     fn parse(value: &str) -> Option<Self> {
         match value {
             "weasyprint" => Some(Self::Weasyprint),
+            "chromium" => Some(Self::Chromium),
             "typst" => Some(Self::Typst),
             "lualatex" => Some(Self::Lualatex),
             _ => None,
@@ -198,6 +200,7 @@ impl PdfEngine {
     pub fn as_str(self) -> &'static str {
         match self {
             Self::Weasyprint => "weasyprint",
+            Self::Chromium => "chromium",
             Self::Typst => "typst",
             Self::Lualatex => "lualatex",
         }
@@ -1135,6 +1138,7 @@ fn parse_effective_book_config(
     config_path: &Path,
 ) -> Result<EffectiveBookConfig, ConfigError> {
     let project_type = parse_project_type(raw, config_path)?;
+    let profile = parse_profile(raw, config_path, project_type)?;
     let writing_mode = parse_writing_mode(raw, config_path, project_type)?;
     let (reading_direction, reading_direction_explicit) =
         parse_reading_direction(raw, config_path, writing_mode)?;
@@ -1157,7 +1161,7 @@ fn parse_effective_book_config(
             authors: parse_authors(raw, config_path)?,
             language: optional_string_at(raw, &["book", "language"], config_path)?
                 .unwrap_or_else(|| "ja".to_string()),
-            profile: parse_profile(raw, config_path, project_type)?,
+            profile: profile.clone(),
             writing_mode,
             reading_direction,
         },
@@ -1177,7 +1181,7 @@ fn parse_effective_book_config(
             .unwrap_or(true),
         },
         cover: parse_cover(raw, config_path)?,
-        pdf: parse_pdf(raw, config_path, project_type)?,
+        pdf: parse_pdf(raw, config_path, project_type, &profile, writing_mode)?,
         print: parse_print(raw, config_path, outputs.print.as_deref())?,
         outputs,
         editorial: parse_editorial(raw, config_path)?,
@@ -1269,13 +1273,15 @@ fn parse_pdf(
     raw: &Value,
     config_path: &Path,
     project_type: ProjectType,
+    profile: &str,
+    writing_mode: WritingMode,
 ) -> Result<Option<PdfSettings>, ConfigError> {
     if !project_type.is_prose() {
         return Ok(None);
     }
 
     Ok(Some(PdfSettings {
-        engine: parse_pdf_engine(raw, config_path)?,
+        engine: parse_pdf_engine(raw, config_path, profile, writing_mode)?,
         toc: optional_bool_at(raw, &["pdf", "toc"], config_path)?.unwrap_or(true),
         page_number: optional_bool_at(raw, &["pdf", "page_number"], config_path)?.unwrap_or(true),
         running_header: parse_pdf_running_header(raw, config_path)?,
@@ -1310,17 +1316,33 @@ fn parse_pdf(
     }))
 }
 
-fn parse_pdf_engine(raw: &Value, config_path: &Path) -> Result<PdfEngine, ConfigError> {
+fn parse_pdf_engine(
+    raw: &Value,
+    config_path: &Path,
+    profile: &str,
+    writing_mode: WritingMode,
+) -> Result<PdfEngine, ConfigError> {
     match optional_string_at(raw, &["pdf", "engine"], config_path)? {
         Some(value) => PdfEngine::parse(&value).ok_or_else(|| {
             invalid_value(
                 config_path,
                 "pdf.engine",
                 value,
-                "must be weasyprint, typst, or lualatex",
+                "must be weasyprint, chromium, typst, or lualatex",
             )
         }),
-        None => Ok(PdfEngine::Weasyprint),
+        None => Ok(default_pdf_engine(profile, writing_mode)),
+    }
+}
+
+fn default_pdf_engine(profile: &str, writing_mode: WritingMode) -> PdfEngine {
+    if profile == "conference-preprint" {
+        PdfEngine::Weasyprint
+    } else {
+        match writing_mode {
+            WritingMode::VerticalRl => PdfEngine::Chromium,
+            WritingMode::HorizontalLtr => PdfEngine::Weasyprint,
+        }
     }
 }
 
@@ -2478,10 +2500,48 @@ git:
         let resolved = resolve_book_config(&context).unwrap();
         let pdf = resolved.effective.pdf.as_ref().unwrap();
 
-        assert_eq!(pdf.engine, PdfEngine::Weasyprint);
+        assert_eq!(pdf.engine, PdfEngine::Chromium);
         assert!(pdf.toc);
         assert!(pdf.page_number);
         assert_eq!(pdf.running_header, PdfRunningHeader::Auto);
+    }
+
+    #[test]
+    fn defaults_horizontal_prose_print_engine_to_weasyprint() {
+        let root = temp_dir("pdf-default-horizontal");
+        fs::write(
+            root.join("book.yml"),
+            r#"
+project:
+  type: paper
+  vcs: git
+book:
+  title: "Sample Paper"
+  authors:
+    - "Author"
+  reading_direction: ltr
+layout:
+  binding: left
+manuscript:
+  chapters:
+    - manuscript/01.md
+outputs:
+  print:
+    enabled: true
+    target: print-jp-pdfx4
+validation:
+  strict: true
+git:
+  lfs: true
+"#,
+        )
+        .unwrap();
+
+        let context = repo::discover(&root, None).unwrap();
+        let resolved = resolve_book_config(&context).unwrap();
+        let pdf = resolved.effective.pdf.as_ref().unwrap();
+
+        assert_eq!(pdf.engine, PdfEngine::Weasyprint);
     }
 
     #[test]

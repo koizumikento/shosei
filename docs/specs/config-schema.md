@@ -265,7 +265,7 @@ outputs:
 
 ```yaml
 pdf:
-  engine: weasyprint
+  engine: chromium
   toc: true
   page_number: true
   running_header: auto
@@ -277,7 +277,7 @@ pdf:
 
 | Field | Type | Required | Default | Allowed |
 |---|---|---|---|---|
-| `engine` | string | conditional | `weasyprint` | `weasyprint`, `typst`, `lualatex` |
+| `engine` | string | conditional | `writing_mode` / `profile` derived | `weasyprint`, `chromium`, `typst`, `lualatex` |
 | `toc` | boolean | no | `true` | `true`, `false` |
 | `page_number` | boolean | no | `true` | `true`, `false` |
 | `running_header` | string | no | `auto` | `auto`, `none`, `title`, `chapter` |
@@ -288,9 +288,16 @@ pdf:
 
 補足:
 
-- v0.1 の prose print backend は `weasyprint` を正式既定とする
+- `book.writing_mode: vertical-rl` の prose print 既定 engine は `chromium`
+- `book.writing_mode: horizontal-ltr` の prose print 既定 engine は `weasyprint`
+- `book.profile: conference-preprint` は `weasyprint` を正式既定とする
+- `weasyprint` は現行 v0.1 経路では `vertical-rl` prose print を表現できないため、`book.writing_mode: vertical-rl` と組み合わせる場合は error とする
 - `typst`, `lualatex` は将来拡張・検証候補として値は受け付けるが、v0.1 の doctor / CI の必須サポート対象には含めない
 - `toc: true` は prose の導出済み navigation structure から目次を生成する
+- `book.writing_mode: vertical-rl` の generated page style は Chromium の margin box 挙動に合わせて中央寄せを既定にする
+  - `page_number: true` の場合は page number を各ページの下中央に置く
+  - `running_header != none` の場合は running header を各ページの上中央に置く
+  - title / TOC など frontmatter では page number と running header を抑制する
 - `running_header: chapter` は prose 本文の chapter title を参照する
 - `running_header: auto` は profile ごとの既定を使い、必要に応じて chapter title を参照する
 - `book.profile: conference-preprint` では `toc: false`, `page_number: false`, `running_header: none`, `column_count: 2`, `column_gap: 10mm`, `base_font_size: 9pt`, `line_height: 14pt` を既定候補とする
@@ -746,6 +753,7 @@ git:
 - `project.type != manga` なのに `manga` セクションが存在する場合は warning
 - `outputs.print.enabled: true` なのに `print` セクションがない場合は warning
 - `outputs.kindle.enabled: true` なのに `book.reading_direction` が未指定なら error
+- `book.writing_mode: vertical-rl` なのに `pdf.engine = weasyprint` の場合は error
 - `editorial.*` がある場合、参照先 path の形式不正は error
 - `book.profile: conference-preprint` なのに `outputs.print.enabled` が `true` でない場合は warning
 - `book.profile: conference-preprint` なのに `pdf.engine != weasyprint` の場合は warning

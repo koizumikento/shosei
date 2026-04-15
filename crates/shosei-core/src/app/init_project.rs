@@ -330,9 +330,7 @@ fn init_single_book(root: &Path, scaffold: &InitScaffoldConfig) -> Result<(), In
     write_file(&root.join("book.yml"), &book_yml(scaffold))?;
     write_file(&root.join(".gitignore"), gitignore_contents())?;
     write_file(&root.join(".gitattributes"), gitattributes_contents())?;
-    write_file(&root.join("styles/base.css"), base_css_contents())?;
-    write_file(&root.join("styles/epub.css"), "/* EPUB styles */\n")?;
-    write_file(&root.join("styles/print.css"), "/* Print styles */\n")?;
+    write_style_scaffold(&root.join("styles"), template, scaffold.profile)?;
     write_agent_skill_template(root, template, RepoTemplate::SingleBook)?;
     Ok(())
 }
@@ -370,7 +368,7 @@ fn init_series(root: &Path, scaffold: &InitScaffoldConfig) -> Result<(), InitPro
     )?;
     write_file(&root.join(".gitignore"), gitignore_contents())?;
     write_file(&root.join(".gitattributes"), gitattributes_contents())?;
-    write_file(&root.join("shared/styles/base.css"), base_css_contents())?;
+    write_style_scaffold(&root.join("shared/styles"), template, scaffold.profile)?;
     write_agent_skill_template(root, template, RepoTemplate::Series)?;
     Ok(())
 }
@@ -487,7 +485,7 @@ fn outputs_block(scaffold: &InitScaffoldConfig) -> String {
         && matches!(preset, OutputPreset::Print | OutputPreset::Both)
     {
         lines.push("pdf:".to_string());
-        lines.push("  engine: weasyprint".to_string());
+        lines.push(format!("  engine: {}", default_pdf_engine(profile)));
         match profile {
             ProjectProfile::Paper => {
                 lines.push("  toc: false".to_string());
@@ -548,6 +546,16 @@ fn outputs_block(scaffold: &InitScaffoldConfig) -> String {
     format!("{}\n", lines.join("\n"))
 }
 
+fn default_pdf_engine(profile: ProjectProfile) -> &'static str {
+    match profile {
+        ProjectProfile::Novel | ProjectProfile::LightNovel => "chromium",
+        ProjectProfile::Business
+        | ProjectProfile::Paper
+        | ProjectProfile::ConferencePreprint
+        | ProjectProfile::Manga => "weasyprint",
+    }
+}
+
 fn indent_block(block: &str, spaces: usize) -> String {
     let prefix = " ".repeat(spaces);
     block
@@ -605,8 +613,79 @@ fn gitattributes_contents() -> &'static str {
     "*.psd filter=lfs diff=lfs merge=lfs -text lockable\n*.clip filter=lfs diff=lfs merge=lfs -text lockable\n*.kra filter=lfs diff=lfs merge=lfs -text lockable\n*.tif filter=lfs diff=lfs merge=lfs -text lockable\n"
 }
 
-fn base_css_contents() -> &'static str {
-    "body {\n  font-family: sans-serif;\n  line-height: 1.8;\n}\n"
+fn write_style_scaffold(
+    root: &Path,
+    template: ProjectTemplate,
+    profile: ProjectProfile,
+) -> Result<(), InitProjectError> {
+    ensure_dir(root)?;
+    write_file(&root.join("base.css"), base_css_contents(template))?;
+    write_file(&root.join("epub.css"), epub_css_contents(template))?;
+    write_file(&root.join("print.css"), print_css_contents(profile))?;
+    Ok(())
+}
+
+fn base_css_contents(template: ProjectTemplate) -> &'static str {
+    match template {
+        ProjectTemplate::Business => {
+            "html {\n  line-height: 1.7;\n}\n\nbody {\n  font-family: sans-serif;\n  line-height: 1.7;\n  writing-mode: horizontal-tb;\n  direction: ltr;\n}\n\np {\n  margin: 0 0 1em;\n}\n\nh1, h2, h3 {\n  line-height: 1.3;\n  margin: 1.4em 0 0.6em;\n}\n\nimg, svg {\n  max-width: 100%;\n  height: auto;\n}\n\nfigure, table, pre, blockquote {\n  margin: 1.2em 0;\n}\n"
+        }
+        ProjectTemplate::Paper => {
+            "html {\n  line-height: 1.65;\n}\n\nbody {\n  font-family: serif;\n  line-height: 1.65;\n  writing-mode: horizontal-tb;\n  direction: ltr;\n}\n\np {\n  margin: 0 0 0.9em;\n}\n\nh1, h2, h3 {\n  line-height: 1.3;\n  margin: 1.3em 0 0.5em;\n}\n\nimg, svg {\n  max-width: 100%;\n  height: auto;\n}\n\nfigure, table, pre, blockquote {\n  margin: 1em 0;\n}\n\nfigcaption {\n  font-size: 0.9em;\n}\n"
+        }
+        ProjectTemplate::Novel => {
+            "html {\n  line-height: 1.9;\n}\n\nbody {\n  font-family: serif;\n  line-height: 1.9;\n  writing-mode: vertical-rl;\n  -epub-writing-mode: vertical-rl;\n  -webkit-writing-mode: vertical-rl;\n  text-orientation: mixed;\n}\n\np {\n  margin: 0;\n  margin-block-end: 1em;\n}\n\nh1, h2, h3 {\n  line-height: 1.4;\n  margin: 0;\n  margin-block-end: 1em;\n}\n\nimg, svg {\n  max-width: 100%;\n  height: auto;\n}\n\nfigure, table, pre, blockquote {\n  margin: 0;\n  margin-block-end: 1em;\n}\n"
+        }
+        ProjectTemplate::LightNovel => {
+            "html {\n  line-height: 1.9;\n}\n\nbody {\n  font-family: serif;\n  line-height: 1.9;\n  writing-mode: vertical-rl;\n  -epub-writing-mode: vertical-rl;\n  -webkit-writing-mode: vertical-rl;\n  text-orientation: mixed;\n}\n\np {\n  margin: 0;\n  margin-block-end: 1em;\n}\n\nh1, h2, h3 {\n  line-height: 1.4;\n  margin: 0;\n  margin-block-end: 1em;\n}\n\nfigure {\n  margin: 0;\n  margin-block-end: 1em;\n  text-align: center;\n}\n\nimg, svg {\n  display: block;\n  margin: 0 auto;\n  max-width: 100%;\n  height: auto;\n}\n"
+        }
+        ProjectTemplate::Manga => {
+            "body {\n  font-family: sans-serif;\n  line-height: 1.6;\n}\n\nimg {\n  display: block;\n  max-width: 100%;\n  height: auto;\n}\n"
+        }
+    }
+}
+
+fn epub_css_contents(template: ProjectTemplate) -> &'static str {
+    match template {
+        ProjectTemplate::Business => {
+            "body {\n  margin: 5%;\n}\n\nnav ol {\n  padding-left: 1.2em;\n}\n\nblockquote {\n  margin-left: 1.5em;\n}\n"
+        }
+        ProjectTemplate::Paper => {
+            "body {\n  margin: 6%;\n}\n\nnav ol {\n  padding-left: 1.2em;\n}\n\nfigcaption {\n  font-size: 0.9em;\n}\n\ntable {\n  width: 100%;\n  border-collapse: collapse;\n}\n\nth,\ntd {\n  padding: 0.25em 0.5em;\n  border-bottom: 1px solid #999;\n}\n"
+        }
+        ProjectTemplate::Novel => {
+            "body {\n  margin: 4%;\n}\n\nruby rt {\n  font-size: 0.5em;\n}\n\nimg {\n  display: block;\n  margin: 0 auto;\n}\n"
+        }
+        ProjectTemplate::LightNovel => {
+            "body {\n  margin: 4%;\n}\n\nfigure {\n  break-inside: avoid;\n  text-align: center;\n}\n\nfigcaption {\n  font-size: 0.9em;\n}\n"
+        }
+        ProjectTemplate::Manga => {
+            "/* Manga fixed-layout EPUB styles are generated by the build pipeline. */\n"
+        }
+    }
+}
+
+fn print_css_contents(profile: ProjectProfile) -> &'static str {
+    match profile {
+        ProjectProfile::Business => {
+            "body {\n  font-family: serif;\n}\n\np {\n  orphans: 2;\n  widows: 2;\n}\n\nfigure,\ntable,\npre,\nblockquote {\n  break-inside: avoid;\n}\n\ntable {\n  width: 100%;\n  border-collapse: collapse;\n}\n\nth,\ntd {\n  padding: 0.25em 0.5em;\n  border-bottom: 0.3pt solid #888;\n}\n"
+        }
+        ProjectProfile::Paper => {
+            "body {\n  font-family: serif;\n}\n\np {\n  text-align: justify;\n}\n\nfigure,\ntable,\npre,\nblockquote {\n  break-inside: avoid;\n}\n\nfigcaption {\n  font-size: 0.9em;\n}\n\ntable {\n  width: 100%;\n  border-collapse: collapse;\n}\n\nth,\ntd {\n  padding: 0.2em 0.4em;\n  border-bottom: 0.3pt solid #888;\n}\n"
+        }
+        ProjectProfile::ConferencePreprint => {
+            "body {\n  font-family: serif;\n}\n\np {\n  text-align: justify;\n}\n\n.abstract,\n.keywords,\nfigure,\ntable,\npre,\nblockquote {\n  break-inside: avoid;\n}\n\nfigcaption {\n  font-size: 0.9em;\n}\n\ntable {\n  width: 100%;\n  border-collapse: collapse;\n}\n\nth,\ntd {\n  padding: 0.2em 0.4em;\n  border-bottom: 0.3pt solid #888;\n}\n"
+        }
+        ProjectProfile::Novel => {
+            "html {\n  font-size: 10.5pt;\n  line-height: 1.7;\n}\n\nbody {\n  font-family: serif;\n  line-height: 1.7;\n}\n\nheader#title-block-header {\n  margin: 0;\n}\n\nheader#title-block-header .title {\n  font-size: 1.55em;\n  line-height: 1.15;\n  margin: 0;\n}\n\nnav#TOC {\n  font-size: 0.9em;\n  line-height: 1.45;\n  margin: 0;\n}\n\nnav#TOC ul {\n  margin: 0;\n  padding: 0;\n}\n\nnav#TOC li {\n  margin: 0 0 0.35em;\n}\n\nnav#TOC li > ul {\n  margin-inline-start: 0.6em;\n}\n\nnav#TOC a {\n  color: inherit;\n  text-decoration: none;\n}\n\nh1 {\n  font-size: 1.5em;\n}\n\nh2 {\n  font-size: 1.25em;\n}\n\nh3 {\n  font-size: 1.1em;\n}\n\np {\n  orphans: 1;\n  widows: 1;\n}\n\nfigure,\ntable,\npre,\nblockquote {\n  break-inside: avoid;\n}\n"
+        }
+        ProjectProfile::LightNovel => {
+            "html {\n  font-size: 10pt;\n  line-height: 1.7;\n}\n\nbody {\n  font-family: serif;\n  line-height: 1.7;\n}\n\nheader#title-block-header {\n  margin: 0;\n}\n\nheader#title-block-header .title {\n  font-size: 1.5em;\n  line-height: 1.15;\n  margin: 0;\n}\n\nnav#TOC {\n  font-size: 0.88em;\n  line-height: 1.4;\n  margin: 0;\n}\n\nnav#TOC ul {\n  margin: 0;\n  padding: 0;\n}\n\nnav#TOC li {\n  margin: 0 0 0.3em;\n}\n\nnav#TOC li > ul {\n  margin-inline-start: 0.6em;\n}\n\nnav#TOC a {\n  color: inherit;\n  text-decoration: none;\n}\n\nh1 {\n  font-size: 1.45em;\n}\n\nh2 {\n  font-size: 1.2em;\n}\n\nh3 {\n  font-size: 1.05em;\n}\n\nfigure {\n  break-inside: avoid;\n  text-align: center;\n}\n\nimg {\n  display: block;\n  margin: 0 auto;\n}\n\nfigcaption {\n  font-size: 0.9em;\n}\n"
+        }
+        ProjectProfile::Manga => {
+            "/* Manga fixed-layout and image print styling is handled by the build pipeline. */\n"
+        }
+    }
 }
 
 fn write_agent_skill_template(
@@ -776,7 +855,7 @@ mod tests {
             title: None,
             author: None,
             language: None,
-            output_preset: None,
+            output_preset: Some("both".to_string()),
         })
         .unwrap();
 
@@ -787,8 +866,17 @@ mod tests {
         assert!(root.join("editorial/figures.yml").is_file());
         assert!(root.join("editorial/freshness.yml").is_file());
         assert!(root.join("styles/base.css").is_file());
+        assert!(root.join("styles/epub.css").is_file());
+        assert!(root.join("styles/print.css").is_file());
         let book = fs::read_to_string(root.join("book.yml")).unwrap();
         assert!(book.contains("editorial:\n  style: editorial/style.yml"));
+        assert!(book.contains("engine: chromium"));
+        let base_css = fs::read_to_string(root.join("styles/base.css")).unwrap();
+        assert!(base_css.contains("writing-mode: vertical-rl"));
+        let print_css = fs::read_to_string(root.join("styles/print.css")).unwrap();
+        assert!(print_css.contains("font-size: 10.5pt"));
+        assert!(print_css.contains("nav#TOC a"));
+        assert!(!print_css.contains("page-break-after: always;"));
         let skill =
             fs::read_to_string(root.join(".agents/skills/shosei-project/SKILL.md")).unwrap();
         assert!(skill.contains("name: \"shosei-project\""));
@@ -820,6 +908,8 @@ mod tests {
         assert!(root.join("series.yml").is_file());
         assert!(root.join("books/vol-01/book.yml").is_file());
         assert!(root.join("shared/styles/base.css").is_file());
+        assert!(root.join("shared/styles/epub.css").is_file());
+        assert!(root.join("shared/styles/print.css").is_file());
         assert!(root.join("books/vol-01/manga/pages").is_dir());
         let skill =
             fs::read_to_string(root.join(".agents/skills/shosei-project/SKILL.md")).unwrap();
@@ -933,8 +1023,13 @@ mod tests {
         assert!(root.join("books/vol-01/editorial/claims.yml").is_file());
         assert!(root.join("books/vol-01/editorial/figures.yml").is_file());
         assert!(root.join("books/vol-01/editorial/freshness.yml").is_file());
+        assert!(root.join("shared/styles/base.css").is_file());
+        assert!(root.join("shared/styles/epub.css").is_file());
+        assert!(root.join("shared/styles/print.css").is_file());
         let book = fs::read_to_string(root.join("books/vol-01/book.yml")).unwrap();
         assert!(book.contains("editorial:\n  style: books/vol-01/editorial/style.yml"));
+        let base_css = fs::read_to_string(root.join("shared/styles/base.css")).unwrap();
+        assert!(base_css.contains("writing-mode: horizontal-tb"));
         let skill =
             fs::read_to_string(root.join(".agents/skills/shosei-project/SKILL.md")).unwrap();
         assert!(skill.contains("books/<book-id>/editorial/"));
@@ -989,9 +1084,36 @@ mod tests {
         assert!(book.contains("type: paper"));
         assert!(book.contains("profile: conference-preprint"));
         assert!(book.contains("target: print-jp-pdfx4"));
+        assert!(book.contains("engine: weasyprint"));
         assert!(book.contains("column_count: 2"));
         assert!(book.contains("trim_size: A4"));
         assert!(book.contains("sides: duplex"));
+        let print_css = fs::read_to_string(root.join("styles/print.css")).unwrap();
+        assert!(print_css.contains(".abstract"));
         assert!(result.summary.contains("conference-preprint"));
+    }
+
+    #[test]
+    fn initializes_light_novel_print_css_with_tighter_default_scale() {
+        let root = temp_dir("light-novel-print-css");
+        init_project(InitProjectOptions {
+            root: root.clone(),
+            non_interactive: true,
+            force: false,
+            config_template: Some("light-novel".to_string()),
+            config_profile: None,
+            repo_mode: None,
+            title: None,
+            author: None,
+            language: None,
+            output_preset: Some("print".to_string()),
+        })
+        .unwrap();
+
+        let print_css = fs::read_to_string(root.join("styles/print.css")).unwrap();
+        assert!(print_css.contains("font-size: 10pt"));
+        assert!(print_css.contains("h1 {\n  font-size: 1.45em;"));
+        assert!(print_css.contains("nav#TOC a"));
+        assert!(!print_css.contains("page-break-after: always;"));
     }
 }

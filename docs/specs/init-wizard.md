@@ -125,6 +125,7 @@ v0.1 で残す引数:
 - 既定 `writing_mode = horizontal-ltr`
 - 既定 `binding = left`
 - 既定 profile は `paper`
+- print を含む scaffold では `pdf.engine = weasyprint`
 - 追加質問:
   - `paper`
   - `conference-preprint`
@@ -135,6 +136,8 @@ v0.1 で残す引数:
 - 既定 `writing_mode = vertical-rl`
 - 既定 `binding = right`
 - 既定 profile は `novel`
+- print を含む scaffold では `pdf.engine = chromium`
+- scaffold する `styles/print.css` は PDF 向けに本文 10.5pt を既定とし、扉と目次を本文より控えめに整える
 - サンプルは `prologue`, `chapter`, `colophon`
 
 ### `project.type = light-novel`
@@ -142,6 +145,8 @@ v0.1 で残す引数:
 - 既定 `writing_mode = vertical-rl`
 - 既定 `binding = right`
 - 既定 profile は `light-novel`
+- print を含む scaffold では `pdf.engine = chromium`
+- scaffold する `styles/print.css` は PDF 向けに本文 10pt を既定とし、扉と目次を本文より控えめに整える
 - 画像方針確認を追加
   - `full-page`
   - `spread`
@@ -309,7 +314,12 @@ v0.1 で残す引数:
 - `single-book` では `styles/base.css`, `styles/epub.css`, `styles/print.css`
 - `series` では `books/<book-id>/manuscript/01-chapter-1.md`
 - `series` では `books/<book-id>/editorial/style.yml`, `books/<book-id>/editorial/claims.yml`, `books/<book-id>/editorial/figures.yml`, `books/<book-id>/editorial/freshness.yml`
-- `series` では `shared/styles/base.css`
+- `series` では `shared/styles/base.css`, `shared/styles/epub.css`, `shared/styles/print.css`
+- prose の style file は template/profile ごとの既定見た目を持つ
+  - `business`, `paper`: 横組み prose 向け
+  - `novel`, `light-novel`: 縦組み prose 向け
+    - `print.css` では PDF 用の本文サイズを半段締め、扉と目次を base / EPUB より控えめにする
+  - `conference-preprint`: `paper` 系 style を継承し、強い layout 差分は config-generated print stylesheet 側で表す
 - `conference-preprint` では `book.yml` に A4 / 2 段組 / 両面 preset を出力する
 
 ### manga

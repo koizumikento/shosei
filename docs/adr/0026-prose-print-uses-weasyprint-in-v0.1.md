@@ -1,6 +1,6 @@
 # ADR-0026: prose print の v0.1 PDF backend は weasyprint を正式採用する
 
-- Status: Accepted
+- Status: Superseded by ADR-0028
 - Date: 2026-04-14
 
 ## Context

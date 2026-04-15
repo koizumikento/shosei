@@ -298,6 +298,26 @@ fn schema_warning_issues(resolved: &config::ResolvedBookConfig) -> Vec<Validatio
         );
     }
 
+    if project_type.is_prose()
+        && resolved.effective.outputs.print.is_some()
+        && resolved.effective.book.writing_mode == config::WritingMode::VerticalRl
+        && resolved
+            .effective
+            .pdf
+            .as_ref()
+            .map(|settings| settings.engine == config::PdfEngine::Weasyprint)
+            .unwrap_or(false)
+    {
+        issues.push(
+            ValidationIssue::error(
+                "print",
+                "pdf.engine = weasyprint does not support vertical-rl prose print".to_string(),
+                "縦組み prose の print build では pdf.engine を chromium にしてください。",
+            )
+            .at(config_path.clone()),
+        );
+    }
+
     if resolved.effective.book.profile == "conference-preprint" {
         let pdf = resolved.effective.pdf.as_ref();
         let print = resolved.effective.print.as_ref();
@@ -1603,12 +1623,18 @@ mod tests {
     }
 
     fn fake_toolchain(epubcheck: ToolStatus) -> ToolchainReport {
-        fake_toolchain_with_engines(epubcheck, ToolStatus::Available, ToolStatus::Available)
+        fake_toolchain_with_engines(
+            epubcheck,
+            ToolStatus::Available,
+            ToolStatus::Available,
+            ToolStatus::Available,
+        )
     }
 
     fn fake_toolchain_with_engines(
         epubcheck: ToolStatus,
         weasyprint: ToolStatus,
+        chromium: ToolStatus,
         typst: ToolStatus,
     ) -> ToolchainReport {
         ToolchainReport {
@@ -1643,6 +1669,17 @@ mod tests {
                         .to_string(),
                 },
                 ToolRecord {
+                    key: "chromium",
+                    display_name: "Chromium PDF",
+                    status: chromium,
+                    detected_as: Some("chromium".to_string()),
+                    resolved_path: None,
+                    version: None,
+                    install_hint:
+                        "Install a Chromium-based browser and ensure its executable is available."
+                            .to_string(),
+                },
+                ToolRecord {
                     key: "typst",
                     display_name: "typst",
                     status: typst,
@@ -1659,7 +1696,7 @@ mod tests {
                     resolved_path: None,
                     version: None,
                     install_hint:
-                        "Install one supported PDF engine such as weasyprint, typst, or lualatex."
+                        "Install one supported PDF engine such as weasyprint, Chromium, typst, or lualatex."
                             .to_string(),
                 },
             ],
@@ -2328,6 +2365,7 @@ git:
             &fake_toolchain_with_engines(
                 ToolStatus::Missing,
                 ToolStatus::Available,
+                ToolStatus::Available,
                 ToolStatus::Missing,
             ),
         )
@@ -2336,6 +2374,55 @@ git:
         assert!(result.has_errors);
         let report = fs::read_to_string(result.report_path).unwrap();
         assert!(report.contains("required validation tool is missing: typst"));
+    }
+
+    #[test]
+    fn validate_rejects_vertical_weasyprint_print() {
+        let root = temp_dir("vertical-weasyprint");
+        fs::create_dir_all(root.join("manuscript")).unwrap();
+        fs::write(root.join("manuscript/01.md"), "# Chapter 1\n").unwrap();
+        fs::write(
+            root.join("book.yml"),
+            r#"
+project:
+  type: novel
+  vcs: git
+book:
+  title: "Sample"
+  authors:
+    - "Author"
+  reading_direction: rtl
+layout:
+  binding: right
+manuscript:
+  chapters:
+    - manuscript/01.md
+outputs:
+  print:
+    enabled: true
+    target: print-jp-pdfx1a
+pdf:
+  engine: weasyprint
+validation:
+  strict: true
+git:
+  lfs: true
+"#,
+        )
+        .unwrap();
+
+        let result = validate_book_with_toolchain(
+            &CommandContext::new(&root, None, None),
+            &fake_toolchain(ToolStatus::Available),
+        )
+        .unwrap();
+
+        assert!(result.has_errors);
+        let report = fs::read_to_string(result.report_path).unwrap();
+        assert!(
+            report.contains("pdf.engine = weasyprint does not support vertical-rl prose print")
+        );
+        assert!(report.contains("pdf.engine を chromium にしてください"));
     }
 
     #[test]
