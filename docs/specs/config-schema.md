@@ -294,9 +294,9 @@ pdf:
 - `weasyprint` は現行 v0.1 経路では `vertical-rl` prose print を表現できないため、`book.writing_mode: vertical-rl` と組み合わせる場合は error とする
 - `typst`, `lualatex` は将来拡張・検証候補として値は受け付けるが、v0.1 の doctor / CI の必須サポート対象には含めない
 - `toc: true` は prose の導出済み navigation structure から目次を生成する
-- `book.writing_mode: vertical-rl` の generated page style は左右ページの外側を既定にする
-  - `page_number: true` の場合は page number を左右ページの外側下に置く
-  - `running_header != none` の場合は running header を左右ページの外側上に置く
+- `book.writing_mode: vertical-rl` の generated page style は Chromium の margin box 挙動に合わせて中央寄せを既定にする
+  - `page_number: true` の場合は page number を各ページの下中央に置く
+  - `running_header != none` の場合は running header を各ページの上中央に置く
   - title / TOC など frontmatter では page number と running header を抑制する
 - `running_header: chapter` は prose 本文の chapter title を参照する
 - `running_header: auto` は profile ごとの既定を使い、必要に応じて chapter title を参照する

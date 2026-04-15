@@ -1,6 +1,7 @@
 use std::{
     env,
     ffi::OsString,
+    fs,
     path::{Path, PathBuf},
     process::{Command, ExitStatus},
 };
@@ -162,19 +163,7 @@ const TOOL_SPECS: &[ToolSpec] = &[
     ToolSpec {
         key: "chromium",
         display_name: "Chromium PDF",
-        candidates: &[
-            "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-            "/Applications/Chromium.app/Contents/MacOS/Chromium",
-            "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
-            "google-chrome",
-            "google-chrome-stable",
-            "chromium",
-            "chromium-browser",
-            "microsoft-edge",
-            "microsoft-edge-stable",
-            "msedge",
-            "chrome",
-        ],
+        candidates: &[],
         version_args: &["--version"],
         install_hint: chromium_install_hint,
     },
@@ -420,9 +409,10 @@ fn inspect_tool(
     host_os: HostOs,
     allow_direct_candidates: bool,
 ) -> ToolRecord {
-    let resolved = spec.candidates.iter().find_map(|candidate| {
+    let candidates = tool_candidates(spec, host_os);
+    let resolved = candidates.iter().find_map(|candidate| {
         find_candidate(candidate, path_var, pathext, allow_direct_candidates)
-            .map(|path| ((*candidate).to_string(), path))
+            .map(|path| (candidate.clone(), path))
     });
     let (detected_as, resolved_path) = match resolved {
         Some((candidate, path)) => (Some(candidate), Some(path)),
@@ -444,6 +434,106 @@ fn inspect_tool(
         resolved_path,
         version,
         install_hint: (spec.install_hint)(host_os),
+    }
+}
+
+fn tool_candidates(spec: &ToolSpec, host_os: HostOs) -> Vec<String> {
+    match spec.key {
+        "chromium" => chromium_candidates(host_os),
+        _ => spec
+            .candidates
+            .iter()
+            .map(|candidate| (*candidate).to_string())
+            .collect(),
+    }
+}
+
+fn chromium_candidates(host_os: HostOs) -> Vec<String> {
+    chromium_candidates_with_home(host_os, tool_home_dir(host_os).as_deref())
+}
+
+fn chromium_candidates_with_home(host_os: HostOs, home_dir: Option<&Path>) -> Vec<String> {
+    let mut candidates = vec![
+        "chrome-headless-shell".to_string(),
+        "chromium-headless-shell".to_string(),
+    ];
+    candidates.extend(playwright_headless_shell_candidates(host_os, home_dir));
+    candidates.extend(
+        [
+            "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+            "/Applications/Chromium.app/Contents/MacOS/Chromium",
+            "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
+            "google-chrome",
+            "google-chrome-stable",
+            "chromium",
+            "chromium-browser",
+            "microsoft-edge",
+            "microsoft-edge-stable",
+            "msedge",
+            "chrome",
+        ]
+        .into_iter()
+        .map(str::to_string),
+    );
+    candidates
+}
+
+fn playwright_headless_shell_candidates(host_os: HostOs, home_dir: Option<&Path>) -> Vec<String> {
+    let Some(cache_root) = playwright_cache_root(host_os, home_dir) else {
+        return Vec::new();
+    };
+    let Ok(entries) = fs::read_dir(cache_root) else {
+        return Vec::new();
+    };
+
+    let mut installs = entries
+        .filter_map(Result::ok)
+        .map(|entry| entry.path())
+        .filter(|path| {
+            path.is_dir()
+                && path
+                    .file_name()
+                    .and_then(|name| name.to_str())
+                    .is_some_and(|name| name.starts_with("chromium_headless_shell-"))
+        })
+        .collect::<Vec<_>>();
+    installs.sort();
+    installs.reverse();
+
+    let suffixes: &[&str] = match host_os {
+        HostOs::Macos => &[
+            "chrome-headless-shell-mac-arm64/chrome-headless-shell",
+            "chrome-headless-shell-mac-x64/chrome-headless-shell",
+        ],
+        HostOs::Windows => &["chrome-headless-shell-win64/chrome-headless-shell.exe"],
+        HostOs::Linux => &["chrome-headless-shell-linux64/chrome-headless-shell"],
+        HostOs::Other => &[],
+    };
+
+    installs
+        .into_iter()
+        .flat_map(|install| {
+            suffixes
+                .iter()
+                .map(move |suffix| install.join(suffix).to_string_lossy().into_owned())
+        })
+        .collect()
+}
+
+fn playwright_cache_root(host_os: HostOs, home_dir: Option<&Path>) -> Option<PathBuf> {
+    let home_dir = home_dir?;
+    let path = match host_os {
+        HostOs::Macos => home_dir.join("Library/Caches/ms-playwright"),
+        HostOs::Windows => home_dir.join("AppData/Local/ms-playwright"),
+        HostOs::Linux | HostOs::Other => home_dir.join(".cache/ms-playwright"),
+    };
+    Some(path)
+}
+
+fn tool_home_dir(host_os: HostOs) -> Option<PathBuf> {
+    match host_os {
+        HostOs::Windows => env::var_os("USERPROFILE").map(PathBuf::from),
+        HostOs::Macos | HostOs::Linux | HostOs::Other => env::var_os("HOME").map(PathBuf::from),
     }
 }
 
@@ -523,16 +613,16 @@ fn weasyprint_install_hint(host_os: HostOs) -> String {
 fn chromium_install_hint(host_os: HostOs) -> String {
     match host_os {
         HostOs::Macos => {
-            "Install Google Chrome, Chromium, or Microsoft Edge and ensure the browser executable is available.".to_string()
+            "Install chrome-headless-shell, Google Chrome, Chromium, or Microsoft Edge and ensure a compatible executable is available.".to_string()
         }
         HostOs::Windows => {
-            "Install a Chromium-based browser such as Google Chrome or Microsoft Edge and ensure it is available.".to_string()
+            "Install chrome-headless-shell or a Chromium-based browser such as Google Chrome or Microsoft Edge and ensure it is available.".to_string()
         }
         HostOs::Linux => {
-            "Install a Chromium-based browser such as chromium or Google Chrome and ensure it is on PATH.".to_string()
+            "Install chrome-headless-shell or a Chromium-based browser such as chromium or Google Chrome and ensure it is on PATH.".to_string()
         }
         HostOs::Other => {
-            "Install a headless-capable Chromium-based browser and ensure its executable is available.".to_string()
+            "Install chrome-headless-shell or another headless-capable Chromium executable and ensure it is available.".to_string()
         }
     }
 }
@@ -821,6 +911,31 @@ mod tests {
         let pdf_engine = report.tool("pdf-engine").unwrap();
         assert_eq!(pdf_engine.status, ToolStatus::Available);
         assert_eq!(pdf_engine.detected_as.as_deref(), Some("typst"));
+    }
+
+    #[test]
+    fn chromium_candidates_prefer_playwright_headless_shells_before_browser_apps() {
+        let home_dir = temp_dir("playwright-headless-shell-home");
+        let shell_path = home_dir.join(
+            "Library/Caches/ms-playwright/chromium_headless_shell-1208/chrome-headless-shell-mac-arm64/chrome-headless-shell",
+        );
+        fs::create_dir_all(shell_path.parent().unwrap()).unwrap();
+        fs::write(&shell_path, "").unwrap();
+
+        let candidates = chromium_candidates_with_home(HostOs::Macos, Some(&home_dir));
+        let shell = shell_path.to_string_lossy().into_owned();
+        let shell_index = candidates
+            .iter()
+            .position(|candidate| candidate == &shell)
+            .unwrap();
+        let chrome_app_index = candidates
+            .iter()
+            .position(|candidate| {
+                candidate == "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+            })
+            .unwrap();
+
+        assert!(shell_index < chrome_app_index);
     }
 
     #[test]

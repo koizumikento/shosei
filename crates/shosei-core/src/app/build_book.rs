@@ -504,13 +504,26 @@ fn render_generated_print_stylesheet(
     if has_page_style_content {
         let mut left_page_lines = Vec::new();
         let mut right_page_lines = Vec::new();
-        if pdf.page_number {
-            left_page_lines.push("  @bottom-left { content: counter(page); }".to_string());
-            right_page_lines.push("  @bottom-right { content: counter(page); }".to_string());
-        }
-        if let Some(content) = &running_header {
-            left_page_lines.push(format!("  @top-left {{ content: {content}; }}"));
-            right_page_lines.push(format!("  @top-right {{ content: {content}; }}"));
+        if writing_mode == config::WritingMode::VerticalRl {
+            // Chromium clips right-side corner margin boxes under vertical-rl, so keep
+            // vertical prose page styles in center margin boxes for stable output.
+            if pdf.page_number {
+                left_page_lines.push("  @bottom-center { content: counter(page); }".to_string());
+                right_page_lines.push("  @bottom-center { content: counter(page); }".to_string());
+            }
+            if let Some(content) = &running_header {
+                left_page_lines.push(format!("  @top-center {{ content: {content}; }}"));
+                right_page_lines.push(format!("  @top-center {{ content: {content}; }}"));
+            }
+        } else {
+            if pdf.page_number {
+                left_page_lines.push("  @bottom-left { content: counter(page); }".to_string());
+                right_page_lines.push("  @bottom-right { content: counter(page); }".to_string());
+            }
+            if let Some(content) = &running_header {
+                left_page_lines.push(format!("  @top-left {{ content: {content}; }}"));
+                right_page_lines.push(format!("  @top-right {{ content: {content}; }}"));
+            }
         }
         push_page_rule(&mut css, Some(":left"), left_page_lines);
         push_page_rule(&mut css, Some(":right"), right_page_lines);
@@ -1925,12 +1938,13 @@ printf 'fake pdf' > "$out"
         assert!(generated_css.contains("header#title-block-header { break-after: avoid;"));
         assert!(generated_css.contains("nav#TOC { break-after: page;"));
         assert!(generated_css.contains("@page :left {"));
-        assert!(generated_css.contains("@bottom-left { content: counter(page); }"));
-        assert!(generated_css.contains("@top-left { content: string(shosei-heading); }"));
+        assert!(generated_css.contains("@bottom-center { content: counter(page); }"));
+        assert!(generated_css.contains("@top-center { content: string(shosei-heading); }"));
         assert!(generated_css.contains("@page :right {"));
-        assert!(generated_css.contains("@bottom-right { content: counter(page); }"));
-        assert!(generated_css.contains("@top-right { content: string(shosei-heading); }"));
-        assert!(!generated_css.contains("@bottom-center { content: counter(page); }"));
+        assert!(!generated_css.contains("@bottom-left { content: counter(page); }"));
+        assert!(!generated_css.contains("@bottom-right { content: counter(page); }"));
+        assert!(!generated_css.contains("@top-left { content: string(shosei-heading); }"));
+        assert!(!generated_css.contains("@top-right { content: string(shosei-heading); }"));
         assert!(
             generated_css
                 .contains("header#title-block-header, nav#TOC { page: shosei-frontmatter; }")
@@ -2033,10 +2047,10 @@ printf 'fake pdf' > "$out"
         assert!(generated_css.contains("header#title-block-header { break-after: page;"));
         assert!(!generated_css.contains("nav#TOC { break-after: page;"));
         assert!(generated_css.contains("@page :left {"));
-        assert!(generated_css.contains("@bottom-left { content: counter(page); }"));
+        assert!(generated_css.contains("@bottom-center { content: counter(page); }"));
         assert!(generated_css.contains("@page :right {"));
-        assert!(generated_css.contains("@bottom-right { content: counter(page); }"));
-        assert!(!generated_css.contains("@bottom-center { content: counter(page); }"));
+        assert!(!generated_css.contains("@bottom-left { content: counter(page); }"));
+        assert!(!generated_css.contains("@bottom-right { content: counter(page); }"));
         assert!(generated_css.contains("header#title-block-header { page: shosei-frontmatter; }"));
         assert!(generated_css.contains("@page shosei-frontmatter:first {"));
     }
