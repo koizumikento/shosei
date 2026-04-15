@@ -54,7 +54,7 @@ VS Code 拡張は `shosei` を外部プロセスとして実行する。
   "shosei.cli.args": [
     "run",
     "--manifest-path",
-    "/path/to/cb-tools/crates/shosei-cli/Cargo.toml",
+    "/path/to/shosei/crates/shosei-cli/Cargo.toml",
     "--bin",
     "shosei",
     "--"

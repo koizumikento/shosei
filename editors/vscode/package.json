@@ -171,7 +171,7 @@
           "items": {
             "type": "string"
           },
-          "description": "Extra arguments inserted before shosei subcommands. Example: [\"run\", \"--manifest-path\", \"/path/to/cb-tools/crates/shosei-cli/Cargo.toml\", \"--bin\", \"shosei\", \"--\"]."
+          "description": "Extra arguments inserted before shosei subcommands. Example: [\"run\", \"--manifest-path\", \"/path/to/shosei/crates/shosei-cli/Cargo.toml\", \"--bin\", \"shosei\", \"--\"]."
         },
         "shosei.series.defaultBookId": {
           "type": "string",

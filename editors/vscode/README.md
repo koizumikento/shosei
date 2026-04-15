@@ -71,7 +71,7 @@ reference surface は command palette と sidebar action から使う。`referen
   "shosei.cli.args": [
     "run",
     "--manifest-path",
-    "/path/to/cb-tools/crates/shosei-cli/Cargo.toml",
+    "/path/to/shosei/crates/shosei-cli/Cargo.toml",
     "--bin",
     "shosei",
     "--"
@@ -148,7 +148,7 @@ Extension Development Host 側でこの source tree の CLI を使うときは�
   "shosei.cli.args": [
     "run",
     "--manifest-path",
-    "/path/to/cb-tools/crates/shosei-cli/Cargo.toml",
+    "/path/to/shosei/crates/shosei-cli/Cargo.toml",
     "--bin",
     "shosei",
     "--"

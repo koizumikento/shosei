@@ -126,6 +126,10 @@ jobs:
             rust_target: x86_64-apple-darwin
             archive_suffix: x86_64-apple-darwin
             archive_format: tar.gz
+          - runner: macos-14
+            rust_target: aarch64-apple-darwin
+            archive_suffix: aarch64-apple-darwin
+            archive_format: tar.gz
           - runner: windows-latest
             rust_target: x86_64-pc-windows-msvc
             archive_suffix: x86_64-pc-windows-msvc
@@ -155,9 +159,12 @@ jobs:
         if: runner.os != 'Windows'
         shell: bash
         run: |
+          set -euo pipefail
           mkdir -p release-assets
           cp target/${{ matrix.rust_target }}/release/shosei release-assets/
-          tar -C release-assets -czf "${ARCHIVE_NAME}" shosei
+          cp LICENSE README.md release-assets/
+          tar -C release-assets -czf "${ARCHIVE_NAME}" shosei LICENSE README.md
+          shasum -a 256 "${ARCHIVE_NAME}" > "${ARCHIVE_NAME}.sha256"
 
       - name: Package CLI archive (Windows)
         if: runner.os == 'Windows'
@@ -165,13 +172,18 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force -Path release-assets | Out-Null
           Copy-Item target/${{ matrix.rust_target }}/release/shosei.exe release-assets/shosei.exe
-          Compress-Archive -Path release-assets/shosei.exe -DestinationPath $env:ARCHIVE_NAME -Force
+          Copy-Item LICENSE, README.md release-assets
+          Compress-Archive -Path release-assets/shosei.exe, release-assets/LICENSE, release-assets/README.md -DestinationPath $env:ARCHIVE_NAME -Force
+          $hash = (Get-FileHash -Algorithm SHA256 $env:ARCHIVE_NAME).Hash.ToLower()
+          "$hash  $env:ARCHIVE_NAME" | Out-File -FilePath "$env:ARCHIVE_NAME.sha256" -Encoding ascii
 
       - name: Upload CLI artifact
         uses: actions/upload-artifact@v4
         with:
           name: shosei-${{ needs.meta.outputs.tag }}-${{ matrix.archive_suffix }}.${{ matrix.archive_format }}
-          path: shosei-${{ needs.meta.outputs.tag }}-${{ matrix.archive_suffix }}.${{ matrix.archive_format }}
+          path: |
+            shosei-${{ needs.meta.outputs.tag }}-${{ matrix.archive_suffix }}.${{ matrix.archive_format }}
+            shosei-${{ needs.meta.outputs.tag }}-${{ matrix.archive_suffix }}.${{ matrix.archive_format }}.sha256
           if-no-files-found: error
 
   build-vscode:
@@ -235,3 +247,101 @@ jobs:
           fi
 
           gh release upload "${RELEASE_TAG}" "${assets[@]}" --clobber
+
+  publish-package-repo:
+    needs:
+      - meta
+      - build-cli
+      - release
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve package repository
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ -n "${{ vars.TAP_REPO }}" ]]; then
+            echo "PACKAGE_REPO=${{ vars.TAP_REPO }}" >> "$GITHUB_ENV"
+          else
+            echo "PACKAGE_REPO=${GITHUB_REPOSITORY_OWNER}/stray-tools" >> "$GITHUB_ENV"
+          fi
+
+      - name: Download release artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Generate package manager manifests
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ needs.meta.outputs.tag }}
+          SOURCE_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          x86_sha_file="$(find dist -type f -name "shosei-${RELEASE_TAG}-x86_64-apple-darwin.tar.gz.sha256" -print -quit)"
+          arm_sha_file="$(find dist -type f -name "shosei-${RELEASE_TAG}-aarch64-apple-darwin.tar.gz.sha256" -print -quit)"
+          win_sha_file="$(find dist -type f -name "shosei-${RELEASE_TAG}-x86_64-pc-windows-msvc.zip.sha256" -print -quit)"
+
+          if [[ -z "${x86_sha_file}" || -z "${arm_sha_file}" || -z "${win_sha_file}" ]]; then
+            echo "required checksum assets were not found for ${RELEASE_TAG}" >&2
+            exit 1
+          fi
+
+          x86_sha="$(awk '{print $1}' "${x86_sha_file}")"
+          arm_sha="$(awk '{print $1}' "${arm_sha_file}")"
+          win_sha="$(awk '{print $1}' "${win_sha_file}")"
+
+          ./scripts/generate-homebrew-formula.sh \
+            --tag "${RELEASE_TAG}" \
+            --repo "${SOURCE_REPO}" \
+            --x86_64-macos-sha "${x86_sha}" \
+            --arm64-macos-sha "${arm_sha}" \
+            --output dist/shosei.rb
+
+          ./scripts/generate-scoop-manifest.sh \
+            --tag "${RELEASE_TAG}" \
+            --repo "${SOURCE_REPO}" \
+            --windows-sha "${win_sha}" \
+            --output dist/shosei.json
+
+      - name: Push manifests to package repository
+        shell: bash
+        env:
+          STRAY_TOOLS_TOKEN: ${{ secrets.STRAY_TOOLS_TOKEN }}
+          RELEASE_TAG: ${{ needs.meta.outputs.tag }}
+        run: |
+          set -euo pipefail
+
+          if [[ -z "${STRAY_TOOLS_TOKEN:-}" ]]; then
+            echo "STRAY_TOOLS_TOKEN is not set; skipping package repository publish."
+            exit 0
+          fi
+
+          if ! git clone "https://x-access-token:${STRAY_TOOLS_TOKEN}@github.com/${PACKAGE_REPO}.git" package-repo; then
+            echo "Could not access ${PACKAGE_REPO}; skipping package repository publish."
+            exit 0
+          fi
+
+          mkdir -p package-repo/Formula package-repo/bucket
+          cp dist/shosei.rb package-repo/Formula/shosei.rb
+          cp dist/shosei.json package-repo/bucket/shosei.json
+
+          cd package-repo
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add Formula/shosei.rb bucket/shosei.json
+
+          if git diff --cached --quiet; then
+            echo "Package manifests are already up to date"
+            exit 0
+          fi
+
+          git commit -m "shosei ${RELEASE_TAG}"
+          git push origin HEAD

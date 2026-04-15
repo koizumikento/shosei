@@ -47,11 +47,29 @@ README のコマンド例は、今の CLI surface に合わせています。`ca
 
 ## インストール
 
-現時点では source install 前提です。
+tag 付き GitHub Release 以降は Homebrew / Scoop から install できます。source install も引き続き使えます。
+
+### Homebrew (macOS)
 
 ```bash
-git clone <your-fork-or-repo-url>
-cd cb-tools
+brew tap koizumikento/stray-tools https://github.com/koizumikento/stray-tools.git
+brew install koizumikento/stray-tools/shosei
+```
+
+### Scoop (Windows)
+
+```bash
+scoop bucket add stray-tools https://github.com/koizumikento/stray-tools
+scoop install stray-tools/shosei
+```
+
+Linux では GitHub Release の archive を使うか、次の source install を使います。
+
+### Source install
+
+```bash
+git clone https://github.com/koizumikento/shosei.git
+cd shosei
 cargo install --path crates/shosei-cli
 ```
 

@@ -6,7 +6,7 @@
     <title>shosei | Install</title>
     <meta
       name="description"
-      content="Install shosei from source and run a smoke check."
+      content="Install shosei with Homebrew, Scoop, or from source and run a smoke check."
     />
     <link rel="stylesheet" href="assets/style.css" />
   </head>
@@ -22,30 +22,46 @@
         <a href="usage.html">Usage</a>
         <a href="quickstart.html">Quickstart</a>
         <a href="contributing.html">Contributing</a>
-        <a href="https://github.com/koizumikento/cb-tools">GitHub</a>
+        <a href="https://github.com/koizumikento/shosei">GitHub</a>
       </nav>
     </header>
 
     <main class="content">
       <article class="page">
         <h1>Install</h1>
-        <p class="lead">現時点では source install 前提です。配布済みバイナリや package manager 経由の install はまだ前提にしていません。</p>
+        <p class="lead">tag 付き GitHub Release 以降は Homebrew / Scoop / source install で導入できます。</p>
 
         <section>
           <h2>Requirements</h2>
           <ul>
-            <li>Git</li>
-            <li>Rust toolchain と `cargo`</li>
+            <li>macOS では Homebrew、Windows では Scoop、または source install 用の Rust toolchain と `cargo`</li>
             <li>対象 platform: macOS / Windows / Linux</li>
           </ul>
         </section>
 
         <section>
+          <h2>Install with Homebrew (macOS)</h2>
+          <pre><code>brew tap koizumikento/stray-tools https://github.com/koizumikento/stray-tools.git
+brew install koizumikento/stray-tools/shosei</code></pre>
+        </section>
+
+        <section>
+          <h2>Install with Scoop (Windows)</h2>
+          <pre><code>scoop bucket add stray-tools https://github.com/koizumikento/stray-tools
+scoop install stray-tools/shosei</code></pre>
+        </section>
+
+        <section>
           <h2>Install from source</h2>
           <p>リポジトリを clone して `shosei` バイナリを install します。</p>
-          <pre><code>git clone https://github.com/koizumikento/cb-tools.git
-cd cb-tools
+          <pre><code>git clone https://github.com/koizumikento/shosei.git
+cd shosei
 cargo install --path crates/shosei-cli</code></pre>
+        </section>
+
+        <section>
+          <h2>Release archives</h2>
+          <p>Linux では GitHub Release の `x86_64-unknown-linux-gnu` archive をそのまま展開して使えます。</p>
         </section>
 
         <section>
@@ -56,8 +72,8 @@ cargo install --path crates/shosei-cli</code></pre>
 
         <section>
           <h2>What gets installed</h2>
+          <p>Homebrew / Scoop / GitHub Release archive は release asset の `shosei` binary を使います。</p>
           <p>`cargo install --path crates/shosei-cli` は workspace 内の CLI crate から `shosei` バイナリを build して install します。</p>
-          <p>core library や docs は別配布ではなく、このリポジトリに同居しています。</p>
         </section>
 
         <section>
@@ -71,7 +87,7 @@ cargo install --path crates/shosei-cli</code></pre>
     </main>
     <footer class="site-footer">
       <p>MIT licensed.</p>
-      <a href="https://github.com/koizumikento/cb-tools">github.com/koizumikento/cb-tools</a>
+      <a href="https://github.com/koizumikento/shosei">github.com/koizumikento/shosei</a>
     </footer>
   </body>
 </html>
