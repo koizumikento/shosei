@@ -394,6 +394,8 @@ function buildStructureItems(vscode, snapshot) {
     );
   }
 
+  pushReferenceStructureItems(vscode, items, explain);
+
   if (hasEditorialContent(explain.editorial)) {
     const editorialItems = [];
     pushEditorialPathItem(
@@ -436,6 +438,38 @@ function buildStructureItems(vscode, snapshot) {
   }
 
   return items;
+}
+
+function pushReferenceStructureItems(vscode, items, explain) {
+  if (!hasReferenceStructure(explain.references)) {
+    return;
+  }
+
+  if (explain.references.shared) {
+    pushReferenceWorkspaceItem(
+      vscode,
+      items,
+      explain.repo_root,
+      "Book References",
+      explain.references.current
+    );
+    pushReferenceWorkspaceItem(
+      vscode,
+      items,
+      explain.repo_root,
+      "Shared References",
+      explain.references.shared
+    );
+    return;
+  }
+
+  pushReferenceWorkspaceItem(
+    vscode,
+    items,
+    explain.repo_root,
+    "Reference Files",
+    explain.references.current
+  );
 }
 
 function buildActionItems(vscode, snapshot) {
@@ -502,6 +536,53 @@ function pushEditorialPathItem(vscode, items, repoRoot, label, repoPath) {
   );
 }
 
+function pushReferenceWorkspaceItem(vscode, items, repoRoot, label, workspace) {
+  if (!workspace?.initialized) {
+    return;
+  }
+
+  const children = [];
+  if (workspace.readme_path) {
+    children.push(
+      createPathItem(
+        vscode,
+        path.basename(workspace.readme_path),
+        workspace.readme_path,
+        path.resolve(repoRoot, workspace.readme_path),
+        "markdown"
+      )
+    );
+  }
+
+  for (const entry of workspace.entries || []) {
+    children.push(
+      createPathItem(
+        vscode,
+        path.basename(entry),
+        entry,
+        path.resolve(repoRoot, entry),
+        "markdown"
+      )
+    );
+  }
+
+  if (children.length === 0) {
+    children.push(
+      createInfoItem(vscode, "No reference entries yet", workspace.entries_root, "info")
+    );
+  }
+
+  items.push(
+    createNestedGroupItem(
+      vscode,
+      label,
+      `${(workspace.entries || []).length} entry(s)`,
+      "bookmark",
+      children
+    )
+  );
+}
+
 function formatWithOrigin(value, origin) {
   return origin ? `${value} [${origin}]` : value;
 }
@@ -525,6 +606,16 @@ function hasEditorialContent(editorial) {
       editorial.claim_count ||
       editorial.figure_count ||
       editorial.freshness_count
+  );
+}
+
+function hasReferenceStructure(references) {
+  if (!references) {
+    return false;
+  }
+
+  return Boolean(
+    references.current?.initialized || references.shared?.initialized
   );
 }
 

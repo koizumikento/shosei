@@ -236,12 +236,14 @@ v0.1 の現行質問項目:
 - 各値が `book.yml`、`series.yml` の `defaults`、または built-in default のどれで決まったかの表示
 - `series` の `shared.*` 探索パスの表示
 - editorial sidecar の参照先と件数の表示
+- 初期化済み reference workspace の scope と entry 一覧の表示
 - editor integration 向けに `--json` で機械可読 snapshot を返せること
 
 v0.1 の最小要件:
 
 - text 出力でよい
 - `--json` で title / type / outputs / origins / structure を返せる
+- `--json` の structure には、初期化済み reference workspace の `README.md` と `entries/*.md` を含めてよい
 - `single-book` / `series` の両方に対応する
 - prose / manga の差分設定を表示する
 

@@ -246,6 +246,8 @@ git:
 #[test]
 fn explain_shows_single_book_origins() {
     let root = temp_dir("explain-single");
+    fs::create_dir_all(root.join("manuscript")).unwrap();
+    fs::write(root.join("manuscript/01.md"), "# Chapter 1\n").unwrap();
     fs::write(
         root.join("book.yml"),
         r#"
@@ -265,6 +267,24 @@ outputs:
   kindle:
     enabled: true
     target: kindle-ja
+"#,
+    )
+    .unwrap();
+    app::reference_scaffold(
+        &CommandContext::new(&root, None, None),
+        app::ReferenceScaffoldOptions {
+            shared: false,
+            force: false,
+        },
+    )
+    .unwrap();
+    fs::write(
+        root.join("references/entries/market.md"),
+        r#"---
+title: Market
+---
+
+notes
 "#,
     )
     .unwrap();
@@ -290,12 +310,29 @@ outputs:
         result.snapshot.manuscript.as_ref().unwrap().chapters,
         vec!["manuscript/01.md"]
     );
+    assert!(result.summary.contains("reference summary:"));
+    assert!(
+        result
+            .summary
+            .contains("- references = 1 entry(s) at references/entries")
+    );
+    assert!(result.snapshot.references.current.initialized);
+    assert_eq!(
+        result.snapshot.references.current.references_root,
+        "references"
+    );
+    assert_eq!(
+        result.snapshot.references.current.entries,
+        vec!["references/entries/market.md"]
+    );
 }
 
 #[test]
 fn explain_shows_series_default_origins_and_shared_paths() {
     let root = temp_dir("explain-series");
     fs::create_dir_all(root.join("books/vol-01")).unwrap();
+    fs::create_dir_all(root.join("books/vol-01/manuscript")).unwrap();
+    fs::write(root.join("books/vol-01/manuscript/01.md"), "# Chapter 1\n").unwrap();
     fs::write(
         root.join("series.yml"),
         r#"
@@ -336,6 +373,32 @@ manuscript:
 "#,
     )
     .unwrap();
+    app::reference_scaffold(
+        &CommandContext::new(&root, Some("vol-01".to_string()), None),
+        app::ReferenceScaffoldOptions {
+            shared: false,
+            force: false,
+        },
+    )
+    .unwrap();
+    app::reference_scaffold(
+        &CommandContext::new(&root, None, None),
+        app::ReferenceScaffoldOptions {
+            shared: true,
+            force: false,
+        },
+    )
+    .unwrap();
+    fs::write(
+        root.join("books/vol-01/references/entries/local.md"),
+        "book note\n",
+    )
+    .unwrap();
+    fs::write(
+        root.join("shared/metadata/references/entries/shared.md"),
+        "shared note\n",
+    )
+    .unwrap();
 
     let result = app::explain_config(&CommandContext::new(
         &root,
@@ -355,6 +418,25 @@ manuscript:
     );
     assert!(result.summary.contains("shared search paths:"));
     assert!(result.summary.contains("assets = shared/assets"));
+    assert!(result.summary.contains("reference summary:"));
+    assert!(
+        result
+            .summary
+            .contains("- book references = 1 entry(s) at books/vol-01/references/entries")
+    );
+    assert!(
+        result
+            .summary
+            .contains("- shared references = 1 entry(s) at shared/metadata/references/entries")
+    );
+    assert_eq!(
+        result.snapshot.references.current.entries,
+        vec!["books/vol-01/references/entries/local.md"]
+    );
+    assert_eq!(
+        result.snapshot.references.shared.as_ref().unwrap().entries,
+        vec!["shared/metadata/references/entries/shared.md"]
+    );
 }
 
 #[test]
