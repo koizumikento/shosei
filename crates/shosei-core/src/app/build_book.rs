@@ -491,23 +491,60 @@ fn render_generated_print_stylesheet(
             page_lines.push("  marks: crop;".to_string());
         }
     }
-    if pdf.page_number {
-        page_lines.push("  @bottom-center { content: counter(page); }".to_string());
-    }
-    match pdf.running_header {
-        config::PdfRunningHeader::None => {}
-        config::PdfRunningHeader::Title => page_lines.push(format!(
-            "  @top-center {{ content: \"{}\"; }}",
-            escape_css_string(title)
-        )),
+    push_page_rule(&mut css, None, page_lines);
+
+    let running_header = match pdf.running_header {
+        config::PdfRunningHeader::None => None,
+        config::PdfRunningHeader::Title => Some(format!("\"{}\"", escape_css_string(title))),
         config::PdfRunningHeader::Chapter | config::PdfRunningHeader::Auto => {
-            page_lines.push("  @top-center { content: string(shosei-heading); }".to_string())
+            Some("string(shosei-heading)".to_string())
         }
-    }
-    if !page_lines.is_empty() {
-        css.push("@page {".to_string());
-        css.extend(page_lines);
-        css.push("}".to_string());
+    };
+    let has_page_style_content = pdf.page_number || running_header.is_some();
+    if has_page_style_content {
+        let mut left_page_lines = Vec::new();
+        let mut right_page_lines = Vec::new();
+        if pdf.page_number {
+            left_page_lines.push("  @bottom-left { content: counter(page); }".to_string());
+            right_page_lines.push("  @bottom-right { content: counter(page); }".to_string());
+        }
+        if let Some(content) = &running_header {
+            left_page_lines.push(format!("  @top-left {{ content: {content}; }}"));
+            right_page_lines.push(format!("  @top-right {{ content: {content}; }}"));
+        }
+        push_page_rule(&mut css, Some(":left"), left_page_lines);
+        push_page_rule(&mut css, Some(":right"), right_page_lines);
+
+        if writing_mode == config::WritingMode::VerticalRl {
+            if pdf.toc {
+                css.push(
+                    "header#title-block-header, nav#TOC { page: shosei-frontmatter; }".to_string(),
+                );
+            } else {
+                css.push("header#title-block-header { page: shosei-frontmatter; }".to_string());
+            }
+            let suppressed_page_style = suppressed_page_style_lines();
+            push_page_rule(
+                &mut css,
+                Some("shosei-frontmatter"),
+                suppressed_page_style.clone(),
+            );
+            push_page_rule(
+                &mut css,
+                Some("shosei-frontmatter:first"),
+                suppressed_page_style.clone(),
+            );
+            push_page_rule(
+                &mut css,
+                Some("shosei-frontmatter:left"),
+                suppressed_page_style.clone(),
+            );
+            push_page_rule(
+                &mut css,
+                Some("shosei-frontmatter:right"),
+                suppressed_page_style,
+            );
+        }
     }
 
     if profile == "conference-preprint" && pdf.column_count > 1 {
@@ -532,6 +569,32 @@ fn escape_css_string(value: &str) -> String {
         .replace('\\', "\\\\")
         .replace('"', "\\\"")
         .replace('\n', "\\A ")
+}
+
+fn push_page_rule(css: &mut Vec<String>, selector: Option<&str>, lines: Vec<String>) {
+    if lines.is_empty() {
+        return;
+    }
+
+    let mut rule = "@page".to_string();
+    if let Some(selector) = selector {
+        rule.push(' ');
+        rule.push_str(selector);
+    }
+    css.push(format!("{rule} {{"));
+    css.extend(lines);
+    css.push("}".to_string());
+}
+
+fn suppressed_page_style_lines() -> Vec<String> {
+    vec![
+        "  @top-left { content: none; }".to_string(),
+        "  @top-center { content: none; }".to_string(),
+        "  @top-right { content: none; }".to_string(),
+        "  @bottom-left { content: none; }".to_string(),
+        "  @bottom-center { content: none; }".to_string(),
+        "  @bottom-right { content: none; }".to_string(),
+    ]
 }
 
 fn apply_typst_print_variables(
@@ -1861,6 +1924,21 @@ printf 'fake pdf' > "$out"
         let generated_css = fs::read_to_string(generated).unwrap();
         assert!(generated_css.contains("header#title-block-header { break-after: avoid;"));
         assert!(generated_css.contains("nav#TOC { break-after: page;"));
+        assert!(generated_css.contains("@page :left {"));
+        assert!(generated_css.contains("@bottom-left { content: counter(page); }"));
+        assert!(generated_css.contains("@top-left { content: string(shosei-heading); }"));
+        assert!(generated_css.contains("@page :right {"));
+        assert!(generated_css.contains("@bottom-right { content: counter(page); }"));
+        assert!(generated_css.contains("@top-right { content: string(shosei-heading); }"));
+        assert!(!generated_css.contains("@bottom-center { content: counter(page); }"));
+        assert!(
+            generated_css
+                .contains("header#title-block-header, nav#TOC { page: shosei-frontmatter; }")
+        );
+        assert!(generated_css.contains("@page shosei-frontmatter:left {"));
+        assert!(generated_css.contains("@page shosei-frontmatter:right {"));
+        assert!(generated_css.contains("@bottom-left { content: none; }"));
+        assert!(generated_css.contains("@bottom-right { content: none; }"));
 
         let chromium_args = fs::read_to_string(chromium_args_path).unwrap();
         assert!(chromium_args.lines().any(|arg| arg == "--headless=new"));
@@ -1954,6 +2032,13 @@ printf 'fake pdf' > "$out"
         let generated_css = fs::read_to_string(generated).unwrap();
         assert!(generated_css.contains("header#title-block-header { break-after: page;"));
         assert!(!generated_css.contains("nav#TOC { break-after: page;"));
+        assert!(generated_css.contains("@page :left {"));
+        assert!(generated_css.contains("@bottom-left { content: counter(page); }"));
+        assert!(generated_css.contains("@page :right {"));
+        assert!(generated_css.contains("@bottom-right { content: counter(page); }"));
+        assert!(!generated_css.contains("@bottom-center { content: counter(page); }"));
+        assert!(generated_css.contains("header#title-block-header { page: shosei-frontmatter; }"));
+        assert!(generated_css.contains("@page shosei-frontmatter:first {"));
     }
 
     #[test]

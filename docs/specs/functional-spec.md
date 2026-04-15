@@ -70,6 +70,10 @@ CLI バイナリ名は `shosei` とする。
 - PDF:
   - `book.writing_mode: horizontal-ltr` と `conference-preprint` は Pandoc + `weasyprint`
   - `book.writing_mode: vertical-rl` は Pandoc で self-contained HTML を生成し、headless `chromium` で PDF 化する
+    - generated page style は見開きの外側を既定にする
+      - page number は左右ページの外側下に置く
+      - running header は有効な場合だけ左右ページの外側上に置く
+      - title / TOC など frontmatter では page number と running header を出さない
 - ツール本体の責務:
   - プロジェクト構成管理
   - profile 解決
@@ -221,6 +225,10 @@ v0.1 の現行質問項目:
   - build-generated print stylesheet は vertical prose print の frontmatter pagination を持つ
     - TOC がある場合は title と TOC を同じ前付けに保ったまま本文だけを次ページに送る
     - TOC がない場合は title の後で本文へ入る前に改ページする
+    - page style は見開きの外側を既定にする
+      - page number は左右ページの外側下に置く
+      - running header は有効な場合だけ左右ページの外側上に置く
+      - title / TOC など frontmatter では page number と running header を出さない
 
 ### 7.2 `shosei build`
 

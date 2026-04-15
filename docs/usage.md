@@ -409,7 +409,7 @@ pdf:
 
 prose の Kindle / EPUB build では `styles/base.css` と `styles/epub.css` を Pandoc に渡す。`series` repo では対応する `shared/styles/base.css`, `shared/styles/epub.css` を使う。
 
-`chromium` を使う print build では `styles/base.css`, `styles/print.css`, generated layout stylesheet を含む self-contained HTML を Pandoc で作り、その HTML を headless Chromium で PDF 化する。`series` repo では対応する `shared/styles/base.css`, `shared/styles/print.css` を使う。縦組み prose print では、この generated layout stylesheet が frontmatter の改ページを持ち、TOC があれば本文は TOC 後の次ページ、TOC がなければ本文は title 後の次ページから始まる。
+`chromium` を使う print build では `styles/base.css`, `styles/print.css`, generated layout stylesheet を含む self-contained HTML を Pandoc で作り、その HTML を headless Chromium で PDF 化する。`series` repo では対応する `shared/styles/base.css`, `shared/styles/print.css` を使う。縦組み prose print では、この generated layout stylesheet が frontmatter の改ページを持ち、TOC があれば本文は TOC 後の次ページ、TOC がなければ本文は title 後の次ページから始まる。page number は左右ページの外側下、running header は有効な場合だけ左右ページの外側上へ寄せ、title / TOC など frontmatter では両方を抑制する。
 
 `weasyprint` を使う print build では `styles/base.css`, `styles/print.css` と、`pdf` / `print` 設定から生成した layout stylesheet を合わせて Pandoc に渡す。`conference-preprint` では A4、余白、2 段組、本文サイズがこの generated stylesheet に反映される。`weasyprint` は `vertical-rl` prose print には使えない。
 
