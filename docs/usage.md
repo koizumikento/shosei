@@ -417,7 +417,7 @@ prose の Kindle / EPUB build では `styles/base.css` と `styles/epub.css` を
 
 ## Generated scaffold
 
-`init` は標準では短い対話式で、作品カテゴリ、`paper` の場合は profile、repo mode、タイトル、著者名、言語、出力先を確認してから scaffold を生成する。`--non-interactive --config-template <template>` を使うと既定値で生成できる。`--title`, `--author`, `--language`, `--output-preset`, `--repo-mode` で対話項目を explicit に上書きできる。`paper` では追加で `--config-profile paper|conference-preprint` を受け付ける。
+`init` は標準では短い対話式で、作品カテゴリ、`paper` の場合は profile、repo mode、タイトル、著者名、言語、出力先を確認してから scaffold plan の summary を表示し、確認後に生成する。`--non-interactive --config-template <template>` を使うと既定値で生成できる。`--title`, `--author`, `--language`, `--output-preset`, `--repo-mode` で対話項目を explicit に上書きできる。`paper` では追加で `--config-profile paper|conference-preprint` を受け付ける。
 
 テンプレートに応じて、次のような土台を生成する。
 
@@ -436,7 +436,7 @@ prose 系テンプレートでは、最初の原稿ファイルとして `paper`
 
 ## Preview and doctor
 
-`preview` は one-shot と `--watch` をサポートする。`--watch` では `book.yml` / `series.yml`、原稿、styles、assets、`shared/` の変更を監視し、再生成失敗時も監視を継続する。
+`preview` は one-shot と `--watch` をサポートする。`--watch` では `book.yml` / `series.yml`、原稿、styles、assets、`shared/` の変更を監視し、変更を検知した path の要約を表示した上で再生成する。再生成失敗時も監視は継続する。
 
 ```bash
 shosei preview --watch
@@ -455,7 +455,7 @@ summary には page order と spread candidates も出る。
 
 CLI では summary の後に、先頭最大 5 件の issue を `原因 / 発生箇所 / 修正例` の形で続けて表示する。
 
-`doctor` は required / optional を分けて表示し、PATH 解決結果、バージョン、導入ヒントを返す。
+`doctor` は required / optional を分けて表示し、PATH 解決結果、バージョン、導入ヒントを返す。初期化済み repo の内側で実行した場合は、検出した repo mode / book / project type / enabled outputs と、その book で重点的に確認すべき tool 群も続けて表示する。
 
 ```bash
 shosei doctor
@@ -474,6 +474,6 @@ required tool は `git`, `pandoc`, `weasyprint`, `chromium`。optional tool は 
 
 `typst`, `lualatex` は将来拡張候補として config 値では受け付けるが、v0.1 の doctor の必須確認対象には含めない。
 
-`--json` は editor integration 向けで、host OS、required / optional ごとの available / missing / pending 件数、各 tool の category / status / path / version / install hint を機械可読で返す。
+`--json` は editor integration 向けで、host OS、required / optional ごとの available / missing / pending 件数、各 tool の category / status / path / version / install hint に加えて、検出できた current project の repo mode / book / outputs / focused tools も機械可読で返す。
 
 `handoff proof` は validate report に加えて、`review-notes.md`、`reports/review-packet.json`、editorial sidecar のコピーも package に含める。`manifest.json` には review packet の path と editorial summary 件数も入る。

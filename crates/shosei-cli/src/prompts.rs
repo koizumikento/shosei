@@ -1,4 +1,7 @@
-use std::io::{self, Write};
+use std::{
+    io::{self, Write},
+    path::Path,
+};
 
 #[derive(Debug, Clone)]
 pub struct InitWizardAnswers {
@@ -70,6 +73,31 @@ pub fn prompt_init_wizard() -> io::Result<InitWizardAnswers> {
         output_preset,
         run_doctor,
     })
+}
+
+pub fn render_init_summary(target: &Path, answers: &InitWizardAnswers) -> String {
+    let profile = answers
+        .config_profile
+        .as_deref()
+        .unwrap_or(&answers.config_template);
+    let run_doctor = if answers.run_doctor { "yes" } else { "no" };
+
+    format!(
+        "init plan:\n- path: {}\n- template: {}\n- profile: {}\n- repo mode: {}\n- title: {}\n- author: {}\n- language: {}\n- outputs: {}\n- run doctor after init: {}",
+        target.display(),
+        answers.config_template,
+        profile,
+        answers.repo_mode,
+        answers.title,
+        answers.author,
+        answers.language,
+        answers.output_preset,
+        run_doctor
+    )
+}
+
+pub fn confirm_init_plan() -> io::Result<bool> {
+    prompt_yes_no("この内容で scaffold を生成しますか", true)
 }
 
 fn prompt_with_default(label: &str, default: &str) -> io::Result<String> {

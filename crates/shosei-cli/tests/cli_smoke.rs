@@ -1,7 +1,8 @@
 use std::{
     env, fs,
+    io::Write,
     path::{Path, PathBuf},
-    process::Command,
+    process::{Command, Stdio},
     time::{SystemTime, UNIX_EPOCH},
 };
 
@@ -140,6 +141,44 @@ outputs:
   kindle:
     enabled: true
     target: kindle-ja
+"#,
+    )
+    .unwrap();
+}
+
+fn write_doctor_fixture(root: &Path) {
+    fs::create_dir_all(root.join("manuscript")).unwrap();
+    fs::write(root.join("manuscript/01.md"), "# Chapter 1\n").unwrap();
+    fs::write(
+        root.join("book.yml"),
+        r#"
+project:
+  type: novel
+  vcs: git
+book:
+  title: "Doctor Sample"
+  authors:
+    - "Author"
+  reading_direction: rtl
+layout:
+  binding: right
+manuscript:
+  chapters:
+    - manuscript/01.md
+outputs:
+  kindle:
+    enabled: true
+    target: kindle-ja
+  print:
+    enabled: true
+    target: print-jp-pdfx1a
+pdf:
+  engine: chromium
+validation:
+  strict: true
+  epubcheck: true
+git:
+  lfs: true
 "#,
     )
     .unwrap();
@@ -368,6 +407,58 @@ fn validate_cli_prints_issue_preview() {
 }
 
 #[test]
+fn init_cli_interactive_shows_summary_and_writes_after_confirmation() {
+    let root = temp_dir("init-interactive-confirm");
+
+    let mut child = Command::new(env!("CARGO_BIN_EXE_shosei"))
+        .args(["init", root.to_str().unwrap()])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .spawn()
+        .unwrap();
+    child
+        .stdin
+        .as_mut()
+        .unwrap()
+        .write_all(b"novel\nsingle-book\nSample Title\nSample Author\nja\nboth\nn\ny\n")
+        .unwrap();
+
+    let output = child.wait_with_output().unwrap();
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("init plan:"));
+    assert!(stdout.contains("- title: Sample Title"));
+    assert!(stdout.contains("initialized single-book scaffold"));
+    assert!(root.join("book.yml").is_file());
+}
+
+#[test]
+fn init_cli_interactive_can_cancel_before_writing_files() {
+    let root = temp_dir("init-interactive-cancel");
+
+    let mut child = Command::new(env!("CARGO_BIN_EXE_shosei"))
+        .args(["init", root.to_str().unwrap()])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .spawn()
+        .unwrap();
+    child
+        .stdin
+        .as_mut()
+        .unwrap()
+        .write_all(b"novel\nsingle-book\nCanceled Title\nSample Author\nja\nkindle\nn\nn\n")
+        .unwrap();
+
+    let output = child.wait_with_output().unwrap();
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("init canceled before writing files"));
+    assert!(!root.join("book.yml").exists());
+}
+
+#[test]
 fn page_check_cli_prints_summary_and_issue_preview() {
     let root = temp_dir("page-check-preview");
     write_page_check_fixture(&root);
@@ -391,6 +482,36 @@ fn page_check_cli_prints_summary_and_issue_preview() {
     assert!(stdout.contains(
         "remedy: ページ順はファイル名の辞書順で決まります。ゼロ埋めした連番へ揃えてください。"
     ));
+}
+
+#[test]
+fn doctor_json_cli_includes_detected_project_context() {
+    let root = temp_dir("doctor-json");
+    write_doctor_fixture(&root);
+
+    let output = Command::new(env!("CARGO_BIN_EXE_shosei"))
+        .args(["doctor", "--json"])
+        .current_dir(&root)
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let json: Value = serde_json::from_str(&stdout).unwrap();
+    assert_eq!(json["detected_project"]["repo_mode"], "single-book");
+    assert_eq!(json["detected_project"]["book_id"], "default");
+    assert_eq!(json["detected_project"]["project_type"], "novel");
+    assert_eq!(json["detected_project"]["enabled_outputs"][0], "kindle");
+    assert_eq!(json["detected_project"]["enabled_outputs"][1], "print");
+    assert_eq!(json["detected_project"]["focused_required_tools"][0], "git");
+    assert_eq!(
+        json["detected_project"]["focused_required_tools"][1],
+        "pandoc"
+    );
+    assert_eq!(
+        json["detected_project"]["focused_required_tools"][2],
+        "chromium"
+    );
 }
 
 #[test]

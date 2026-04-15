@@ -45,6 +45,13 @@ fn run() -> Result<i32> {
             } else {
                 Some(prompts::prompt_init_wizard()?)
             };
+            if let Some(answers) = wizard_answers.as_ref() {
+                output::print_line(&prompts::render_init_summary(&target, answers));
+                if !prompts::confirm_init_plan()? {
+                    output::print_line("init canceled before writing files");
+                    return Ok(exit_code::OK);
+                }
+            }
             let result = app::init_project(app::InitProjectOptions {
                 root: target,
                 non_interactive,

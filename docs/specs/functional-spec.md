@@ -310,6 +310,8 @@ v0.1 の最小要件:
 - `--target kindle|print` を受け付けられる
 - 生成した preview 成果物のパスを端末に表示する
 - `--watch` を受け付け、原稿・設定・styles・assets・shared の変化で再生成できる
+- `--watch` は変更を検知した path の要約を端末に表示する
+- 再生成失敗時も、どの変更を起点に失敗したかを端末に表示する
 
 確認対象:
 
@@ -347,6 +349,7 @@ v0.1 の最小要件:
 - `typst`, `lualatex` は将来拡張候補として config 値では受け付けても、v0.1 の doctor の必須確認対象には含めない
 - PATH 解決結果、バージョン、導入ヒントを text 出力で返せる
 - editor integration 向けに machine-readable な `--json` 出力を返せる
+- 初期化済み repo の内側で実行した場合は、検出できた current book の project type / enabled outputs と、その book で特に重要な tool 群を追加表示できる
 - OS 別の詳細導入案内は将来拡張でよい
 
 ### 7.7 `shosei handoff`
