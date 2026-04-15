@@ -705,6 +705,80 @@ outputs:
 }
 
 #[test]
+fn reference_check_keeps_repeated_missing_claim_refs_on_distinct_lines() {
+    let root = temp_dir("check-claim-ref-repeated-missing");
+    write_single_book(&root);
+    app::reference_scaffold(
+        &CommandContext::new(&root, None, None),
+        app::ReferenceScaffoldOptions {
+            shared: false,
+            force: false,
+        },
+    )
+    .unwrap();
+    write_claims(
+        &root,
+        "editorial/claims.yml",
+        r#"claims:
+  - id: claim-one
+    summary: "Summary"
+    section: manuscript/01.md
+    sources:
+      - "ref:missing"
+  - id: claim-two
+    summary: "Summary"
+    section: manuscript/01.md
+    sources:
+      - "ref:missing"
+"#,
+    );
+    fs::write(
+        root.join("book.yml"),
+        r#"
+project:
+  type: novel
+  vcs: git
+book:
+  title: "Sample"
+  authors:
+    - "Author"
+  reading_direction: rtl
+layout:
+  binding: right
+editorial:
+  claims: editorial/claims.yml
+manuscript:
+  chapters:
+    - manuscript/01.md
+outputs:
+  kindle:
+    enabled: true
+    target: kindle-ja
+"#,
+    )
+    .unwrap();
+
+    let result = app::reference_check(
+        &CommandContext::new(&root, None, None),
+        app::ReferenceCheckOptions { shared: false },
+    )
+    .unwrap();
+
+    let lines = result
+        .issues
+        .iter()
+        .filter(|issue| {
+            issue
+                .cause
+                .contains("references missing source `ref:missing`")
+        })
+        .filter_map(|issue| issue.location.as_ref().and_then(|location| location.line))
+        .collect::<Vec<_>>();
+
+    assert_eq!(lines, vec![6, 11]);
+}
+
+#[test]
 fn reference_drift_reports_shared_reference_drift() {
     let root = temp_dir("drift-diverged");
     write_series_repo(&root);

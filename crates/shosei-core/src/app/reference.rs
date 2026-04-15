@@ -1112,18 +1112,22 @@ fn collect_claim_source_reference_issues(
     }
 
     let mut issues = Vec::new();
+    let mut source_occurrences = HashMap::<String, usize>::new();
     for claim in &claims.data.claims {
         for source in &claim.sources {
             let trimmed = source.trim();
             let Some(reference_id) = trimmed.strip_prefix(CLAIM_SOURCE_REFERENCE_PREFIX) else {
                 continue;
             };
+            let occurrence_index = source_occurrences.entry(trimmed.to_string()).or_insert(0);
             let location = yaml_sequence_item_location(
                 &claims.path,
                 claims_contents.as_deref(),
                 "sources",
                 trimmed,
+                *occurrence_index,
             );
+            *occurrence_index += 1;
             let reference_id = reference_id.trim();
             if reference_id.is_empty() {
                 issues.push(
@@ -1859,6 +1863,7 @@ fn yaml_sequence_item_location(
     contents: Option<&str>,
     field: &str,
     value: &str,
+    occurrence_index: usize,
 ) -> IssueLocation {
     let patterns = [
         format!("- {value}"),
@@ -1868,15 +1873,19 @@ fn yaml_sequence_item_location(
         format!("{field}: \"{value}\""),
         format!("{field}: '{value}'"),
     ];
-    location_for_patterns(path, contents, &patterns)
+    location_for_patterns(path, contents, &patterns, occurrence_index)
 }
 
 fn location_for_patterns(
     path: &Path,
     contents: Option<&str>,
     patterns: &[String],
+    occurrence_index: usize,
 ) -> IssueLocation {
     if let Some(contents) = contents {
+        if let Some(line) = nth_line_number_for_patterns(contents, patterns, occurrence_index) {
+            return IssueLocation::with_line(path.to_path_buf(), line);
+        }
         for pattern in patterns {
             if let Some(line) = line_number_of_substring(contents, pattern) {
                 return IssueLocation::with_line(path.to_path_buf(), line);
@@ -1884,6 +1893,24 @@ fn location_for_patterns(
         }
     }
     path.to_path_buf().into()
+}
+
+fn nth_line_number_for_patterns(
+    contents: &str,
+    patterns: &[String],
+    occurrence_index: usize,
+) -> Option<usize> {
+    let mut matches_seen = 0usize;
+    for (index, line) in contents.lines().enumerate() {
+        if !patterns.iter().any(|pattern| line.contains(pattern)) {
+            continue;
+        }
+        if matches_seen == occurrence_index {
+            return Some(index + 1);
+        }
+        matches_seen += 1;
+    }
+    None
 }
 
 fn line_number_of_substring(contents: &str, needle: &str) -> Option<usize> {
