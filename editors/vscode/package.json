@@ -5,6 +5,11 @@
   "version": "0.0.1",
   "publisher": "koizumikento",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/koizumikento/shosei.git",
+    "directory": "editors/vscode"
+  },
   "engines": {
     "vscode": "^1.90.0"
   },
@@ -20,6 +25,13 @@
   ],
   "extensionKind": [
     "workspace"
+  ],
+  "files": [
+    "extension.js",
+    "src/**",
+    "media/**",
+    "README.md",
+    "LICENSE.txt"
   ],
   "main": "./extension.js",
   "activationEvents": [
@@ -197,6 +209,7 @@
   },
   "scripts": {
     "check": "node --check extension.js && node --check src/core.js && node --check src/view.js",
-    "test": "node --test ./test/**/*.test.js"
+    "test": "node --test ./test/**/*.test.js",
+    "package": "npx @vscode/vsce@3.8.0 package"
   }
 }

@@ -81,6 +81,55 @@ reference surface は command palette と sidebar action から使う。`referen
 
 `series` repo で active file が `books/<book-id>/` 配下にない場合は、`shosei.series.defaultBookId` を設定できる。
 
+## Local install
+
+Marketplace に公開しなくても、手元の VS Code にだけ拡張を入れられる。
+
+VSIX を作る:
+
+```bash
+cd editors/vscode
+npm run package
+```
+
+生成物:
+
+```text
+editors/vscode/shosei-vscode-0.0.1.vsix
+```
+
+インストール方法:
+
+- VS Code で `Extensions: Install from VSIX...` を実行して上の `.vsix` を選ぶ
+- `code` CLI が使える場合は `code --install-extension editors/vscode/shosei-vscode-0.0.1.vsix`
+
+ローカル install 後も、実処理は `shosei` CLI に委譲する。source tree の CLI を使いたい場合は、下の `shosei.cli.command` / `shosei.cli.args` 設定を使う。
+
+## GitHub Release
+
+GitHub Release に VSIX を載せる workflow は `.github/workflows/release.yml` にある。
+
+- repo release tag は `shosei-cli` の version に合わせた `v<cli-version>` を使う
+- その tag を push すると VSIX と CLI binary archive を package して同名 release に asset として添付する
+- `workflow_dispatch` でも実行でき、tag 未指定なら `v<shosei-cli-version>` を使う
+- VSIX asset 名は `editors/vscode/package.json` の version を使う
+
+例:
+
+```bash
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+release に載る asset:
+
+```text
+shosei-vscode-0.0.1.vsix
+shosei-v0.1.0-x86_64-unknown-linux-gnu.tar.gz
+shosei-v0.1.0-x86_64-apple-darwin.tar.gz
+shosei-v0.1.0-x86_64-pc-windows-msvc.zip
+```
+
 ## Development
 
 VS Code で repo root を開けば、`.vscode/launch.json` の `shosei: Extension Development Host` からそのまま `F5` で拡張を起動できる。開発ホストは `--disable-extensions` 付きで立ち上げ、手元の他拡張の activation error を切り離す。

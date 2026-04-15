@@ -1,4 +1,5 @@
 /target/
+editors/vscode/*.vsix
 
 # OS / editor noise
 .DS_Store
