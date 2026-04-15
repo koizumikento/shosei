@@ -795,7 +795,11 @@ fn read_version(path: &Path, args: &[&str]) -> Option<String> {
 
 #[cfg(test)]
 mod tests {
-    use std::{fs, path::PathBuf};
+    use std::{
+        ffi::OsStr,
+        fs,
+        path::{Path, PathBuf},
+    };
 
     use super::*;
 
@@ -916,17 +920,27 @@ mod tests {
     #[test]
     fn chromium_candidates_prefer_playwright_headless_shells_before_browser_apps() {
         let home_dir = temp_dir("playwright-headless-shell-home");
-        let shell_path = home_dir.join(
-            "Library/Caches/ms-playwright/chromium_headless_shell-1208/chrome-headless-shell-mac-arm64/chrome-headless-shell",
-        );
+        let shell_path = playwright_cache_root(HostOs::Macos, Some(&home_dir))
+            .unwrap()
+            .join("chromium_headless_shell-1208")
+            .join("chrome-headless-shell-mac-arm64")
+            .join("chrome-headless-shell");
         fs::create_dir_all(shell_path.parent().unwrap()).unwrap();
         fs::write(&shell_path, "").unwrap();
 
         let candidates = chromium_candidates_with_home(HostOs::Macos, Some(&home_dir));
-        let shell = shell_path.to_string_lossy().into_owned();
         let shell_index = candidates
             .iter()
-            .position(|candidate| candidate == &shell)
+            .position(|candidate| {
+                let path = Path::new(candidate);
+                path.file_name() == Some(OsStr::new("chrome-headless-shell"))
+                    && path.components().any(|component| {
+                        component.as_os_str() == OsStr::new("chromium_headless_shell-1208")
+                    })
+                    && path.components().any(|component| {
+                        component.as_os_str() == OsStr::new("chrome-headless-shell-mac-arm64")
+                    })
+            })
             .unwrap();
         let chrome_app_index = candidates
             .iter()
