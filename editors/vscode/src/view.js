@@ -21,27 +21,7 @@ class ShoseiViewProvider {
   async getChildren(element) {
     const snapshot = await this.getSnapshot();
     if (!element) {
-      if (!snapshot.repoRoot) {
-        return [
-          createInfoItem(
-            this.vscode,
-            "No shosei repo found",
-            "Open a folder with book.yml or series.yml",
-            "warning"
-          ),
-          createGroupItem(this.vscode, "Toolchain", "toolchain", "tools"),
-          createActionItem(this.vscode, "Init", "shosei.init", "new-folder"),
-          createActionItem(this.vscode, "Doctor", "shosei.doctor", "tools")
-        ];
-      }
-
-      return [
-        createGroupItem(this.vscode, "Context", "context", "info"),
-        createGroupItem(this.vscode, "Toolchain", "toolchain", "tools"),
-        createGroupItem(this.vscode, "Resolved Config", "config", "settings-gear"),
-        createGroupItem(this.vscode, "Structure", "structure", "list-tree"),
-        createGroupItem(this.vscode, "Actions", "actions", "play")
-      ];
+      return buildRootItems(this.vscode, snapshot);
     }
 
     if (Array.isArray(element.children)) {
@@ -51,17 +31,17 @@ class ShoseiViewProvider {
     if (element.group === "context") {
       return buildContextItems(this.vscode, snapshot);
     }
-    if (element.group === "toolchain") {
-      return buildToolchainItems(this.vscode, snapshot);
-    }
-    if (element.group === "config") {
-      return buildConfigItems(this.vscode, snapshot);
-    }
     if (element.group === "structure") {
       return buildStructureItems(this.vscode, snapshot);
     }
     if (element.group === "actions") {
       return buildActionItems(this.vscode, snapshot);
+    }
+    if (element.group === "config") {
+      return buildConfigItems(this.vscode, snapshot);
+    }
+    if (element.group === "toolchain") {
+      return buildToolchainItems(this.vscode, snapshot);
     }
 
     return [];
@@ -155,6 +135,30 @@ function createToolItem(vscode, tool) {
   item.contextValue = "shosei.tool";
   item.tooltip = buildToolTooltip(tool);
   return item;
+}
+
+function buildRootItems(vscode, snapshot) {
+  if (!snapshot.repoRoot) {
+    return [
+      createInfoItem(
+        vscode,
+        "No shosei repo found",
+        "Open a folder with book.yml or series.yml",
+        "warning"
+      ),
+      createGroupItem(vscode, "Toolchain", "toolchain", "tools"),
+      createActionItem(vscode, "Init", "shosei.init", "new-folder"),
+      createActionItem(vscode, "Doctor", "shosei.doctor", "tools")
+    ];
+  }
+
+  return [
+    createGroupItem(vscode, "Context", "context", "info"),
+    createGroupItem(vscode, "Structure", "structure", "list-tree"),
+    createGroupItem(vscode, "Actions", "actions", "play"),
+    createGroupItem(vscode, "Resolved Config", "config", "settings-gear"),
+    createGroupItem(vscode, "Toolchain", "toolchain", "tools")
+  ];
 }
 
 function buildContextItems(vscode, snapshot) {
@@ -675,6 +679,7 @@ function toolStatusIcon(status) {
 module.exports = {
   ShoseiViewProvider,
   __test: {
+    buildRootItems,
     buildActionItems,
     buildStructureItems
   }
