@@ -31,7 +31,9 @@ prose の default design は template/profile が所有し、scaffolded styleshe
   - `novel`, `light-novel`: 縦組み prose の既定
     - `base.css` で組方向と本文の基本 rhythm を持つ
     - `print.css` で PDF 向けの本文サイズと frontmatter の見た目を整える
-    - build-generated print stylesheet は vertical prose print の frontmatter pagination を持ち、title と TOC は同じ前付けに保ったまま、本文だけを次ページに送る
+    - build-generated print stylesheet は vertical prose print の frontmatter pagination を持つ
+      - TOC がある場合は title と TOC を同じ前付けに保ったまま、本文だけを次ページに送る
+      - TOC が無効な場合は title の後で本文へ入る前に改ページする
   - `conference-preprint`: `paper` 系 style を継承しつつ、2 段組や余白などの強い layout 差分は config-generated print stylesheet で表す
 - `manga` は fixed-layout EPUB を別原稿モデルとして扱い、見た目の source of truth は引き続き manga build pipeline 内の CSS と metadata に置く
 

@@ -461,11 +461,18 @@ fn render_generated_print_stylesheet(
     css.push("figure, table, pre, blockquote { break-inside: avoid; }".to_string());
     css.push("h1 { string-set: shosei-heading content(text); }".to_string());
     if writing_mode == config::WritingMode::VerticalRl {
-        css.push(
-            "header#title-block-header { break-after: avoid; page-break-after: avoid; }"
-                .to_string(),
-        );
-        css.push("nav#TOC { break-after: page; page-break-after: always; }".to_string());
+        if pdf.toc {
+            css.push(
+                "header#title-block-header { break-after: avoid; page-break-after: avoid; }"
+                    .to_string(),
+            );
+            css.push("nav#TOC { break-after: page; page-break-after: always; }".to_string());
+        } else {
+            css.push(
+                "header#title-block-header { break-after: page; page-break-after: always; }"
+                    .to_string(),
+            );
+        }
     }
 
     let mut page_lines = Vec::new();
@@ -1057,6 +1064,13 @@ git:
         write_vertical_print_book_with_pdf(
             root,
             "pdf:\n  engine: chromium\n  toc: true\n  page_number: true\n  running_header: auto\n",
+        );
+    }
+
+    fn write_chromium_print_book_without_toc(root: &std::path::Path) {
+        write_vertical_print_book_with_pdf(
+            root,
+            "pdf:\n  engine: chromium\n  toc: false\n  page_number: true\n  running_header: auto\n",
         );
     }
 
@@ -1858,6 +1872,88 @@ printf 'fake pdf' > "$out"
         assert!(chromium_args.contains("--print-to-pdf="));
         assert!(chromium_args.contains("file://"));
         assert!(result.artifacts[0].with_extension("print.html").is_file());
+    }
+
+    #[test]
+    fn build_breaks_after_title_when_vertical_print_disables_toc() {
+        if !cfg!(unix) {
+            return;
+        }
+
+        let root = temp_dir("chromium-print-no-toc");
+        write_chromium_print_book_without_toc(&root);
+        fs::create_dir_all(root.join("styles")).unwrap();
+        fs::write(
+            root.join("styles/base.css"),
+            "body { writing-mode: vertical-rl; }\n",
+        )
+        .unwrap();
+        fs::write(root.join("styles/print.css"), "body { color: black; }\n").unwrap();
+
+        let pandoc = root.join("pandoc");
+        let pandoc_args_path = root.join("pandoc-args.txt");
+        fs::write(
+            &pandoc,
+            format!(
+                r#"#!/bin/sh
+printf '%s\n' "$@" > "{}"
+out=""
+prev=""
+for arg in "$@"; do
+  if [ "$prev" = "--output" ]; then
+    out="$arg"
+  fi
+  prev="$arg"
+done
+mkdir -p "$(dirname "$out")"
+printf '<!doctype html><html><body>fake</body></html>' > "$out"
+"#,
+                pandoc_args_path.display()
+            ),
+        )
+        .unwrap();
+
+        let chromium = root.join("chromium");
+        fs::write(
+            &chromium,
+            r#"#!/bin/sh
+out=""
+for arg in "$@"; do
+  case "$arg" in
+    --print-to-pdf=*)
+      out="${arg#--print-to-pdf=}"
+      ;;
+  esac
+done
+mkdir -p "$(dirname "$out")"
+printf 'fake pdf' > "$out"
+"#,
+        )
+        .unwrap();
+
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            for tool in [&pandoc, &chromium] {
+                let mut permissions = fs::metadata(tool).unwrap().permissions();
+                permissions.set_mode(0o755);
+                fs::set_permissions(tool, permissions).unwrap();
+            }
+        }
+
+        let result = build_book_with_toolchain(
+            &CommandContext::new(&root, None, None),
+            &fake_toolchain_with_chromium(Some(pandoc), Some(chromium)),
+        )
+        .unwrap();
+
+        assert!(result.artifacts[0].is_file());
+        let pandoc_args = fs::read_to_string(pandoc_args_path).unwrap();
+        assert!(!pandoc_args.lines().any(|arg| arg == "--toc"));
+        let generated = result.artifacts[0].with_extension("layout.css");
+        let generated_css = fs::read_to_string(generated).unwrap();
+        assert!(generated_css.contains("header#title-block-header { break-after: page;"));
+        assert!(!generated_css.contains("nav#TOC { break-after: page;"));
     }
 
     #[test]

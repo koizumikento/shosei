@@ -215,7 +215,9 @@ v0.1 の現行質問項目:
 - prose project では `editorial/style.yml`, `claims.yml`, `figures.yml`, `freshness.yml` も scaffold に含める
 - prose project では template/profile が所有する `base.css`, `epub.css`, `print.css` を scaffold し、`series` では `shared/styles/` に置く
   - `novel`, `light-novel` の `print.css` は PDF 向けに本文サイズを半段締め、扉と目次まわりの見た目を整える
-  - build-generated print stylesheet は vertical prose print の frontmatter pagination を持ち、title と TOC は同じ前付けに保ったまま本文だけを次ページに送る
+  - build-generated print stylesheet は vertical prose print の frontmatter pagination を持つ
+    - TOC がある場合は title と TOC を同じ前付けに保ったまま本文だけを次ページに送る
+    - TOC がない場合は title の後で本文へ入る前に改ページする
 
 ### 7.2 `shosei build`
 

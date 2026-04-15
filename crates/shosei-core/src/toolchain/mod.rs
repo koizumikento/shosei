@@ -260,13 +260,28 @@ pub fn run_pandoc_html(
     inputs: &[PathBuf],
     options: &PandocHtmlOptions<'_>,
 ) -> std::io::Result<ToolRunOutput> {
+    let output =
+        run_pandoc_html_with_resource_flag(executable, inputs, options, "--embed-resources")?;
+    if output.status.success() || !pandoc_embed_resources_unsupported(&output) {
+        return Ok(output);
+    }
+
+    run_pandoc_html_with_resource_flag(executable, inputs, options, "--self-contained")
+}
+
+fn run_pandoc_html_with_resource_flag(
+    executable: &Path,
+    inputs: &[PathBuf],
+    options: &PandocHtmlOptions<'_>,
+    resource_flag: &str,
+) -> std::io::Result<ToolRunOutput> {
     let mut command = Command::new(executable);
     command
         .current_dir(options.working_dir)
         .arg("--to")
         .arg("html5")
         .arg("--standalone")
-        .arg("--embed-resources")
+        .arg(resource_flag)
         .arg("--metadata")
         .arg(format!("title={}", options.title))
         .arg("--metadata")
@@ -288,6 +303,19 @@ pub fn run_pandoc_html(
         stdout: String::from_utf8_lossy(&command_output.stdout).into_owned(),
         stderr: String::from_utf8_lossy(&command_output.stderr).into_owned(),
     })
+}
+
+fn pandoc_embed_resources_unsupported(output: &ToolRunOutput) -> bool {
+    if output.status.success() {
+        return false;
+    }
+
+    let combined = format!("{}\n{}", output.stdout, output.stderr).to_ascii_lowercase();
+    combined.contains("embed-resources")
+        && (combined.contains("unknown option")
+            || combined.contains("unrecognized option")
+            || combined.contains("did you mean")
+            || combined.contains("invalid option"))
 }
 
 pub fn run_pandoc_pdf(
@@ -793,5 +821,69 @@ mod tests {
         let pdf_engine = report.tool("pdf-engine").unwrap();
         assert_eq!(pdf_engine.status, ToolStatus::Available);
         assert_eq!(pdf_engine.detected_as.as_deref(), Some("typst"));
+    }
+
+    #[test]
+    fn run_pandoc_html_falls_back_to_self_contained_when_embed_resources_is_unsupported() {
+        if !cfg!(unix) {
+            return;
+        }
+
+        let dir = temp_dir("pandoc-html-fallback");
+        let pandoc = dir.join("pandoc");
+        let args_path = dir.join("pandoc-args.txt");
+        let output = dir.join("out.html");
+        let input = dir.join("chapter.md");
+        fs::write(&input, "# Chapter\n").unwrap();
+        fs::write(
+            &pandoc,
+            format!(
+                r#"#!/bin/sh
+printf '%s\n' "$@" >> "{}"
+if printf '%s\n' "$@" | grep -q -- '--embed-resources'; then
+  echo 'Unknown option --embed-resources' >&2
+  exit 64
+fi
+out=""
+prev=""
+for arg in "$@"; do
+  if [ "$prev" = "--output" ]; then
+    out="$arg"
+  fi
+  prev="$arg"
+done
+printf '<!doctype html><html></html>' > "$out"
+"#,
+                args_path.display()
+            ),
+        )
+        .unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mut permissions = fs::metadata(&pandoc).unwrap().permissions();
+            permissions.set_mode(0o755);
+            fs::set_permissions(&pandoc, permissions).unwrap();
+        }
+
+        let result = run_pandoc_html(
+            &pandoc,
+            &[input],
+            &PandocHtmlOptions {
+                working_dir: &dir,
+                output: &output,
+                title: "Sample",
+                language: "ja",
+                stylesheets: &[],
+                table_of_contents: true,
+            },
+        )
+        .unwrap();
+
+        assert!(result.status.success());
+        let args = fs::read_to_string(args_path).unwrap();
+        assert!(args.contains("--embed-resources"));
+        assert!(args.contains("--self-contained"));
+        assert!(output.is_file());
     }
 }
