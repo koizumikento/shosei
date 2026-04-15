@@ -363,7 +363,9 @@ shosei explain --json
 
 editorial sidecar が設定されている場合、`explain` は rule / claim / figure / freshness item の件数も summary に出す。
 
-editor integration 向けには `--json` も使える。resolved config の要約、主要 field の origin、chapter list などを機械可読で返す。
+reference workspace が初期化済みなら、`explain` は current scope の `references/README.md` と `entries/*.md`、`series` では shared scope 側の reference file も structure summary と `--json` に含める。
+
+editor integration 向けには `--json` も使える。resolved config の要約、主要 field の origin、chapter list、初期化済み reference workspace file などを機械可読で返す。
 
 ## Editorial sidecars
 

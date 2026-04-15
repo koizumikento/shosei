@@ -389,7 +389,8 @@ shosei explain --json</code></pre>
             <li><code>print.pdf_standard</code></li>
           </ul>
           <p>editorial sidecar が設定されている場合、<code>explain</code> は rule / claim / figure / freshness item の件数も summary に出します。</p>
-          <p>editor integration 向けには <code>--json</code> も使えます。resolved config の要約、主要 field の origin、chapter list などを機械可読で返します。</p>
+          <p>reference workspace が初期化済みなら、<code>explain</code> は current scope の <code>references/README.md</code> と <code>entries/*.md</code>、<code>series</code> では shared scope 側の reference file も structure summary と <code>--json</code> に含めます。</p>
+          <p>editor integration 向けには <code>--json</code> も使えます。resolved config の要約、主要 field の origin、chapter list、初期化済み reference workspace file などを機械可読で返します。</p>
         </section>
 
         <section>

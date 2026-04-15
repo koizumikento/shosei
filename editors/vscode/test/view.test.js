@@ -97,6 +97,79 @@ test("buildStructureItems creates frontmatter and backmatter nested groups when 
   );
 });
 
+test("buildStructureItems includes single-book reference files when the workspace is initialized", () => {
+  const vscode = createFakeVscode();
+  const items = view.__test.buildStructureItems(vscode, {
+    explain: {
+      repo_root: "/tmp/book",
+      manuscript: {
+        chapters: ["manuscript/01.md"],
+        frontmatter: [],
+        backmatter: []
+      },
+      references: {
+        current: {
+          initialized: true,
+          entries_root: "references/entries",
+          readme_path: "references/README.md",
+          entries: ["references/entries/market.md"]
+        },
+        shared: null
+      },
+      editorial: null
+    }
+  });
+
+  assert.deepEqual(
+    items.map((item) => item.label),
+    ["Chapters", "Reference Files"]
+  );
+  assert.equal(items[1].description, "1 entry(s)");
+  assert.equal(items[1].children[0].label, "README.md");
+  assert.equal(items[1].children[1].label, "market.md");
+  assert.equal(items[1].children[1].description, "references/entries/market.md");
+  assert.equal(
+    items[1].children[1].command.arguments[0].fsPath,
+    path.resolve("/tmp/book", "references/entries/market.md")
+  );
+});
+
+test("buildStructureItems includes book and shared reference groups for series repos", () => {
+  const vscode = createFakeVscode();
+  const items = view.__test.buildStructureItems(vscode, {
+    explain: {
+      repo_root: "/tmp/series",
+      manuscript: {
+        chapters: ["books/vol-01/manuscript/01.md"],
+        frontmatter: [],
+        backmatter: []
+      },
+      references: {
+        current: {
+          initialized: true,
+          entries_root: "books/vol-01/references/entries",
+          readme_path: "books/vol-01/references/README.md",
+          entries: ["books/vol-01/references/entries/local.md"]
+        },
+        shared: {
+          initialized: true,
+          entries_root: "shared/metadata/references/entries",
+          readme_path: "shared/metadata/references/README.md",
+          entries: ["shared/metadata/references/entries/shared.md"]
+        }
+      },
+      editorial: null
+    }
+  });
+
+  assert.deepEqual(
+    items.map((item) => item.label),
+    ["Chapters", "Book References", "Shared References"]
+  );
+  assert.equal(items[1].children[1].label, "local.md");
+  assert.equal(items[2].children[1].label, "shared.md");
+});
+
 test("buildActionItems includes reference actions for single-book repos", () => {
   const vscode = createFakeVscode();
   const items = view.__test.buildActionItems(vscode, {

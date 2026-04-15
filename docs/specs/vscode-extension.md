@@ -86,13 +86,13 @@ VS Code 側で template / repo mode / title / author / language / output preset 
 - `Context`: repo mode / repo root / target book
 - `Toolchain`: host OS / required・optional summary / individual tool status
 - `Resolved Config`: title / project type / language / outputs / writing mode / binding / editorial summary
-- `Structure`: config file、prose の chapter list、editorial sidecar file
+- `Structure`: config file、prose の chapter list、初期化済み reference workspace file、editorial sidecar file
 - `Actions`: explain / validate / build / preview / doctor / reference surface
 - prose では chapter add / move / remove / renumber を command palette と chapter item context menu から起動してよい
 - reference surface は command palette と sidebar action から起動してよい
 - `reference map` / `reference check` の対象 workspace が未初期化なら、拡張は `reference scaffold` 実行を提案してよい
 
-chapter や sidecar file はクリックで open してよい。
+chapter、reference file、sidecar file はクリックで open してよい。
 
 ## 5. repo context 解決
 

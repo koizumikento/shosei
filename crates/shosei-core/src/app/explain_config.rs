@@ -1,3 +1,5 @@
+use std::{fs, path::Path};
+
 use crate::{
     cli_api::CommandContext,
     config::{self, ExplainedConfig},
@@ -31,6 +33,7 @@ pub struct ExplainConfigSnapshot {
     pub values: Vec<ExplainConfigSnapshotValue>,
     pub manuscript: Option<ExplainConfigSnapshotManuscript>,
     pub editorial: Option<ExplainConfigSnapshotEditorial>,
+    pub references: ExplainConfigSnapshotReferences,
     pub manga: Option<ExplainConfigSnapshotManga>,
     pub shared_paths: Option<ExplainConfigSnapshotSharedPaths>,
 }
@@ -59,6 +62,23 @@ pub struct ExplainConfigSnapshotEditorial {
     pub claim_count: usize,
     pub figure_count: usize,
     pub freshness_count: usize,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct ExplainConfigSnapshotReferences {
+    pub current: ExplainConfigSnapshotReferenceWorkspace,
+    pub shared: Option<ExplainConfigSnapshotReferenceWorkspace>,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct ExplainConfigSnapshotReferenceWorkspace {
+    pub scope: String,
+    pub references_root: String,
+    pub entries_root: String,
+    pub initialized: bool,
+    pub readme_path: Option<String>,
+    pub entries_readme_path: Option<String>,
+    pub entries: Vec<String>,
 }
 
 #[derive(Debug, Clone, serde::Serialize)]
@@ -111,6 +131,12 @@ pub fn explain_config(command: &CommandContext) -> Result<ExplainConfigResult, E
         &explained,
         editorial.as_ref(),
     );
+    let has_initialized_references = snapshot.references.current.initialized
+        || snapshot
+            .references
+            .shared
+            .as_ref()
+            .is_some_and(|workspace| workspace.initialized);
 
     let mut lines = vec![
         format!("explain for {}", book.id),
@@ -150,6 +176,29 @@ pub fn explain_config(command: &CommandContext) -> Result<ExplainConfigResult, E
             "- freshness items = {}",
             editorial.freshness_count()
         ));
+    }
+
+    if has_initialized_references {
+        lines.push("".to_string());
+        lines.push("reference summary:".to_string());
+        if snapshot.references.current.initialized {
+            lines.push(reference_workspace_summary_line(
+                if context.mode == RepoMode::Series {
+                    "book references"
+                } else {
+                    "references"
+                },
+                &snapshot.references.current,
+            ));
+        }
+        if let Some(shared) = &snapshot.references.shared
+            && shared.initialized
+        {
+            lines.push(reference_workspace_summary_line(
+                "shared references",
+                shared,
+            ));
+        }
     }
 
     if context.mode == RepoMode::Series {
@@ -292,6 +341,7 @@ fn build_snapshot(
                 .map(|bundle| bundle.freshness_count())
                 .unwrap_or(0),
         }),
+        references: build_reference_snapshot(context),
         manga: effective
             .manga
             .as_ref()
@@ -351,4 +401,105 @@ fn build_snapshot(
             None
         },
     }
+}
+
+fn build_reference_snapshot(
+    context: &crate::domain::RepoContext,
+) -> ExplainConfigSnapshotReferences {
+    let book = context.book.as_ref().expect("selected book must exist");
+    let current = match context.mode {
+        RepoMode::SingleBook => build_reference_workspace_snapshot(
+            &context.repo_root,
+            &context.repo_root.join("references"),
+            "single-book",
+        ),
+        RepoMode::Series => build_reference_workspace_snapshot(
+            &context.repo_root,
+            &book.root.join("references"),
+            "book",
+        ),
+    };
+    let shared = if context.mode == RepoMode::Series {
+        Some(build_reference_workspace_snapshot(
+            &context.repo_root,
+            &context.repo_root.join("shared/metadata/references"),
+            "shared",
+        ))
+    } else {
+        None
+    };
+
+    ExplainConfigSnapshotReferences { current, shared }
+}
+
+fn build_reference_workspace_snapshot(
+    repo_root: &Path,
+    references_root: &Path,
+    scope: &str,
+) -> ExplainConfigSnapshotReferenceWorkspace {
+    let entries_root = references_root.join("entries");
+    let initialized = references_root.is_dir();
+
+    ExplainConfigSnapshotReferenceWorkspace {
+        scope: scope.to_string(),
+        references_root: relative_snapshot_path(repo_root, references_root),
+        entries_root: relative_snapshot_path(repo_root, &entries_root),
+        initialized,
+        readme_path: optional_snapshot_path(repo_root, &references_root.join("README.md")),
+        entries_readme_path: optional_snapshot_path(repo_root, &entries_root.join("README.md")),
+        entries: collect_reference_entry_snapshot_paths(repo_root, &entries_root),
+    }
+}
+
+fn collect_reference_entry_snapshot_paths(repo_root: &Path, entries_root: &Path) -> Vec<String> {
+    let Ok(entries) = fs::read_dir(entries_root) else {
+        return Vec::new();
+    };
+
+    let mut paths = Vec::new();
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if !path.is_file() {
+            continue;
+        }
+        let Some(file_name) = path.file_name().and_then(|value| value.to_str()) else {
+            continue;
+        };
+        if file_name.eq_ignore_ascii_case("README.md") {
+            continue;
+        }
+        if path
+            .extension()
+            .and_then(|value| value.to_str())
+            .is_some_and(|value| value.eq_ignore_ascii_case("md"))
+        {
+            paths.push(relative_snapshot_path(repo_root, &path));
+        }
+    }
+    paths.sort();
+    paths
+}
+
+fn optional_snapshot_path(repo_root: &Path, path: &Path) -> Option<String> {
+    path.is_file()
+        .then(|| relative_snapshot_path(repo_root, path))
+}
+
+fn relative_snapshot_path(repo_root: &Path, path: &Path) -> String {
+    path.strip_prefix(repo_root)
+        .unwrap_or(path)
+        .to_string_lossy()
+        .replace('\\', "/")
+}
+
+fn reference_workspace_summary_line(
+    label: &str,
+    workspace: &ExplainConfigSnapshotReferenceWorkspace,
+) -> String {
+    format!(
+        "- {} = {} entry(s) at {}",
+        label,
+        workspace.entries.len(),
+        workspace.entries_root
+    )
 }
