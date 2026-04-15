@@ -30,6 +30,7 @@ Rules in this file apply to `docs/` and documentation changes that update the pu
 - When command behavior, config fields, or user-visible output changes, update the affected usage docs in the same change.
 - Keep `docs/usage.md` and `../site/usage.html` in sync.
 - Keep command status labels aligned across `../README.md`, `usage.md`, and `../site/usage.html`.
+- Keep install and release guidance aligned across `../README.md` and `../editors/vscode/README.md` when GitHub Release assets, Homebrew / Scoop distribution, or VSIX packaging flow changes.
 - Keep `specs/vscode-extension.md` and `../editors/vscode/README.md` aligned when the extension flow, scope, or ownership changes.
 
 ## Review Checklist

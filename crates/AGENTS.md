@@ -44,7 +44,9 @@ Keep examples and command handling aligned with the actually implemented surface
 - `explain` is the supported way to inspect resolved config and origin data before running output commands.
 - `shosei chapter <subcommand>` is for prose books only and updates `manuscript.chapters`; it does not manage manga page order.
 - `shosei reference <subcommand>` and `shosei story <subcommand>` are explicit opt-in workspace flows. Start from `scaffold`, then use `map` / `check` before `drift` / `sync`.
+- `shosei story sync --report <path> --force` and `shosei reference sync --report <path> --force` are the batch replay flows; do not describe report-driven sync without the explicit reviewed report and `--force`.
 - `shosei page check` is for manga books only and inspects page order and spread-related issues without mutating prose chapter config.
+- `shosei handoff print` and `shosei handoff proof` are the supported handoff destinations. Keep package contents and docs aligned with the implemented destination behavior.
 
 ## Validation
 
@@ -57,6 +59,7 @@ Use these exact commands when validating Rust changes:
 - tests: `cargo test --workspace`
 - CLI smoke tests: `cargo test -p shosei-cli --test cli_smoke`
 - focused repo discovery checks: `cargo test -p shosei-core --test repo_discovery`
+- focused build / validate / handoff checks: `cargo test -p shosei-core --test book_commands`
 - focused chapter workflow checks:
   - `cargo test -p shosei-core --test chapter_commands`
   - `cargo test -p shosei-core --test chapter_renumber`
