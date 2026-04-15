@@ -71,6 +71,10 @@ pub enum Commands {
         #[command(subcommand)]
         command: ChapterCommands,
     },
+    Reference {
+        #[command(subcommand)]
+        command: ReferenceCommands,
+    },
     Story {
         #[command(subcommand)]
         command: StoryCommands,
@@ -141,6 +145,58 @@ pub enum ChapterCommands {
         width: usize,
         #[arg(long)]
         dry_run: bool,
+        #[arg(long)]
+        book: Option<String>,
+        #[arg(long, value_name = "PATH", default_value = ".")]
+        path: PathBuf,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+pub enum ReferenceCommands {
+    Check {
+        #[arg(long)]
+        shared: bool,
+        #[arg(long)]
+        book: Option<String>,
+        #[arg(long, value_name = "PATH", default_value = ".")]
+        path: PathBuf,
+    },
+    Drift {
+        #[arg(long)]
+        book: Option<String>,
+        #[arg(long, value_name = "PATH", default_value = ".")]
+        path: PathBuf,
+    },
+    Sync {
+        #[arg(long)]
+        book: Option<String>,
+        #[arg(long = "from", value_name = "SOURCE", value_parser = ["shared"])]
+        source: Option<String>,
+        #[arg(long = "to", value_name = "DESTINATION", value_parser = ["shared"])]
+        destination: Option<String>,
+        #[arg(long, value_name = "ID")]
+        id: Option<String>,
+        #[arg(long, value_name = "REPORT")]
+        report: Option<PathBuf>,
+        #[arg(long)]
+        force: bool,
+        #[arg(long, value_name = "PATH", default_value = ".")]
+        path: PathBuf,
+    },
+    Map {
+        #[arg(long)]
+        shared: bool,
+        #[arg(long)]
+        book: Option<String>,
+        #[arg(long, value_name = "PATH", default_value = ".")]
+        path: PathBuf,
+    },
+    Scaffold {
+        #[arg(long)]
+        shared: bool,
+        #[arg(long)]
+        force: bool,
         #[arg(long)]
         book: Option<String>,
         #[arg(long, value_name = "PATH", default_value = ".")]
@@ -222,7 +278,7 @@ mod tests {
 
     use clap::Parser;
 
-    use super::{ChapterCommands, Cli, Commands, SeriesCommands, StoryCommands};
+    use super::{ChapterCommands, Cli, Commands, ReferenceCommands, SeriesCommands, StoryCommands};
 
     #[test]
     fn parses_chapter_add_command() {
@@ -439,6 +495,176 @@ mod tests {
                 assert!(shared);
                 assert!(force);
                 assert_eq!(path, PathBuf::from("books/vol-01"));
+            }
+            other => panic!("unexpected command: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_reference_scaffold_command() {
+        let cli = Cli::parse_from([
+            "shosei",
+            "reference",
+            "scaffold",
+            "--shared",
+            "--force",
+            "--path",
+            "books/vol-01",
+        ]);
+
+        match cli.command {
+            Commands::Reference {
+                command:
+                    ReferenceCommands::Scaffold {
+                        shared,
+                        force,
+                        path,
+                        ..
+                    },
+            } => {
+                assert!(shared);
+                assert!(force);
+                assert_eq!(path, PathBuf::from("books/vol-01"));
+            }
+            other => panic!("unexpected command: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_reference_map_command() {
+        let cli = Cli::parse_from([
+            "shosei",
+            "reference",
+            "map",
+            "--shared",
+            "--path",
+            "books/vol-01",
+        ]);
+
+        match cli.command {
+            Commands::Reference {
+                command: ReferenceCommands::Map { shared, path, .. },
+            } => {
+                assert!(shared);
+                assert_eq!(path, PathBuf::from("books/vol-01"));
+            }
+            other => panic!("unexpected command: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_reference_check_command() {
+        let cli = Cli::parse_from([
+            "shosei",
+            "reference",
+            "check",
+            "--book",
+            "vol-01",
+            "--path",
+            "books/vol-01",
+        ]);
+
+        match cli.command {
+            Commands::Reference {
+                command: ReferenceCommands::Check { book, path, .. },
+            } => {
+                assert_eq!(book.as_deref(), Some("vol-01"));
+                assert_eq!(path, PathBuf::from("books/vol-01"));
+            }
+            other => panic!("unexpected command: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_reference_drift_command() {
+        let cli = Cli::parse_from([
+            "shosei",
+            "reference",
+            "drift",
+            "--book",
+            "vol-01",
+            "--path",
+            ".",
+        ]);
+
+        match cli.command {
+            Commands::Reference {
+                command: ReferenceCommands::Drift { book, path },
+            } => {
+                assert_eq!(book.as_deref(), Some("vol-01"));
+                assert_eq!(path, PathBuf::from("."));
+            }
+            other => panic!("unexpected command: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_reference_sync_command() {
+        let cli = Cli::parse_from([
+            "shosei",
+            "reference",
+            "sync",
+            "--book",
+            "vol-01",
+            "--from",
+            "shared",
+            "--id",
+            "market",
+            "--path",
+            ".",
+        ]);
+
+        match cli.command {
+            Commands::Reference {
+                command:
+                    ReferenceCommands::Sync {
+                        book,
+                        source,
+                        id,
+                        path,
+                        ..
+                    },
+            } => {
+                assert_eq!(book.as_deref(), Some("vol-01"));
+                assert_eq!(source.as_deref(), Some("shared"));
+                assert_eq!(id.as_deref(), Some("market"));
+                assert_eq!(path, PathBuf::from("."));
+            }
+            other => panic!("unexpected command: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_reference_sync_report_command() {
+        let cli = Cli::parse_from([
+            "shosei",
+            "reference",
+            "sync",
+            "--book",
+            "vol-01",
+            "--to",
+            "shared",
+            "--report",
+            "dist/reports/vol-01-reference-drift.json",
+            "--force",
+        ]);
+
+        match cli.command {
+            Commands::Reference {
+                command:
+                    ReferenceCommands::Sync {
+                        destination,
+                        report,
+                        force,
+                        ..
+                    },
+            } => {
+                assert_eq!(destination.as_deref(), Some("shared"));
+                assert_eq!(
+                    report,
+                    Some(PathBuf::from("dist/reports/vol-01-reference-drift.json"))
+                );
+                assert!(force);
             }
             other => panic!("unexpected command: {other:?}"),
         }

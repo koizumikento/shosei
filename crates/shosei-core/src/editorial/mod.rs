@@ -249,6 +249,15 @@ pub fn load_bundle(resolved: &ResolvedBookConfig) -> Result<EditorialBundle, Edi
     })
 }
 
+pub fn load_claims(
+    resolved: &ResolvedBookConfig,
+) -> Result<Option<LoadedClaimLedger>, EditorialError> {
+    Ok(
+        load_optional::<ClaimLedger>(resolved, resolved.effective.editorial.claims.as_ref())?
+            .map(|(path, data)| LoadedClaimLedger { path, data }),
+    )
+}
+
 pub fn configured_files(resolved: &ResolvedBookConfig) -> Vec<(RepoPath, PathBuf)> {
     let editorial = &resolved.effective.editorial;
     [

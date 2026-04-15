@@ -449,12 +449,15 @@ claims:
     section: manuscript/02-market.md
     sources:
       - https://example.com/report
+      - "ref:market-report-2026"
     reviewer_note: 数値の更新を release 前に確認
 ```
 
 - `id` は file 内で一意
 - `section` は prose manuscript 内の file path
 - `sources` は 1 件以上を推奨する
+- `sources` の `ref:<id>` は reference entry id を表す明示記法
+- `single-book` では `references/entries/`、`series` の巻固有 scope では book 側と shared 側の reference id に解決できる
 
 ### 16.3 `figures.yml`
 

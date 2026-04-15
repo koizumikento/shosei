@@ -29,6 +29,7 @@ The current CLI surface wired in `shosei-cli` is:
 - `validate`
 - `preview`
 - `chapter`
+- `reference`
 - `story`
 - `series`
 - `page`
@@ -42,6 +43,7 @@ Keep examples and command handling aligned with the actually implemented surface
 - For current user flows, prefer examples in the order `init` -> `explain` -> `build` / `validate`.
 - `explain` is the supported way to inspect resolved config and origin data before running output commands.
 - `shosei chapter <subcommand>` is for prose books only and updates `manuscript.chapters`; it does not manage manga page order.
+- `shosei reference <subcommand>` and `shosei story <subcommand>` are explicit opt-in workspace flows. Start from `scaffold`, then use `map` / `check` before `drift` / `sync`.
 - `shosei page check` is for manga books only and inspects page order and spread-related issues without mutating prose chapter config.
 
 ## Validation
@@ -58,6 +60,9 @@ Use these exact commands when validating Rust changes:
 - focused chapter workflow checks:
   - `cargo test -p shosei-core --test chapter_commands`
   - `cargo test -p shosei-core --test chapter_renumber`
+- focused reference/story workflow checks:
+  - `cargo test -p shosei-core --test reference_commands`
+  - `cargo test -p shosei-core --test story_commands`
 - smoke checks: `cargo run -p shosei-cli --bin shosei -- --help`
 
 ## Safety Checks

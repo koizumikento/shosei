@@ -11,6 +11,8 @@
 - [VS Code 拡張仕様](specs/vscode-extension.md)
 - [init ウィザード仕様](specs/init-wizard.md)
 - [物語補助仕様](specs/story-support.md)
+- [参考資料ワークスペース仕様](specs/reference-workspace.md)
+- [参考資料ワークスペース採用判断ポイント](specs/reference-workspace-decision-points.md)
 - [ADR 一覧](adr/README.md)
 
 このディレクトリでは、実装前の仕様整理と意思決定の履歴を分けて管理する。

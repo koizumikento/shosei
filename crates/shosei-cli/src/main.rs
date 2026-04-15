@@ -7,7 +7,9 @@ use anyhow::Result;
 use clap::Parser;
 use shosei_core::{app, cli_api::CommandContext};
 
-use crate::args::{ChapterCommands, Cli, Commands, PageCommands, SeriesCommands, StoryCommands};
+use crate::args::{
+    ChapterCommands, Cli, Commands, PageCommands, ReferenceCommands, SeriesCommands, StoryCommands,
+};
 
 fn main() {
     let code = match run() {
@@ -197,6 +199,78 @@ fn run() -> Result<i32> {
                         width,
                         dry_run,
                     },
+                )?;
+                output::print_line(&result.summary);
+                Ok(exit_code::OK)
+            }
+        },
+        Commands::Reference { command } => match command {
+            ReferenceCommands::Check { shared, book, path } => {
+                let result = app::reference_check(
+                    &CommandContext::new(path, book, None),
+                    app::ReferenceCheckOptions { shared },
+                )?;
+                output::print_line(&result.summary);
+                if let Some(preview) = output::format_issue_preview(&result.issues) {
+                    output::print_line(&preview);
+                }
+                Ok(if result.has_errors {
+                    exit_code::FAILURE
+                } else {
+                    exit_code::OK
+                })
+            }
+            ReferenceCommands::Drift { book, path } => {
+                let result = app::reference_drift(
+                    &CommandContext::new(path, book, None),
+                    app::ReferenceDriftOptions::default(),
+                )?;
+                output::print_line(&result.summary);
+                Ok(if result.has_errors {
+                    exit_code::FAILURE
+                } else {
+                    exit_code::OK
+                })
+            }
+            ReferenceCommands::Sync {
+                book,
+                source,
+                destination,
+                id,
+                report,
+                force,
+                path,
+            } => {
+                let result = app::reference_sync(
+                    &CommandContext::new(path, book, None),
+                    app::ReferenceSyncOptions {
+                        source,
+                        destination,
+                        id,
+                        report,
+                        force,
+                    },
+                )?;
+                output::print_line(&result.summary);
+                Ok(exit_code::OK)
+            }
+            ReferenceCommands::Map { shared, book, path } => {
+                let result = app::reference_map(
+                    &CommandContext::new(path, book, None),
+                    app::ReferenceMapOptions { shared },
+                )?;
+                output::print_line(&result.summary);
+                Ok(exit_code::OK)
+            }
+            ReferenceCommands::Scaffold {
+                shared,
+                force,
+                book,
+                path,
+            } => {
+                let result = app::reference_scaffold(
+                    &CommandContext::new(path, book, None),
+                    app::ReferenceScaffoldOptions { shared, force },
                 )?;
                 output::print_line(&result.summary);
                 Ok(exit_code::OK)

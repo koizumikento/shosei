@@ -34,6 +34,11 @@
     "onCommand:shosei.build",
     "onCommand:shosei.preview",
     "onCommand:shosei.previewWatch",
+    "onCommand:shosei.referenceScaffold",
+    "onCommand:shosei.referenceMap",
+    "onCommand:shosei.referenceCheck",
+    "onCommand:shosei.referenceDrift",
+    "onCommand:shosei.referenceSync",
     "onCommand:shosei.doctor",
     "onCommand:shosei.pageCheck",
     "onCommand:shosei.seriesSync",
@@ -106,6 +111,26 @@
       {
         "command": "shosei.previewWatch",
         "title": "Shosei: Preview (Watch)"
+      },
+      {
+        "command": "shosei.referenceScaffold",
+        "title": "Shosei: Reference Scaffold"
+      },
+      {
+        "command": "shosei.referenceMap",
+        "title": "Shosei: Reference Map"
+      },
+      {
+        "command": "shosei.referenceCheck",
+        "title": "Shosei: Reference Check"
+      },
+      {
+        "command": "shosei.referenceDrift",
+        "title": "Shosei: Reference Drift"
+      },
+      {
+        "command": "shosei.referenceSync",
+        "title": "Shosei: Reference Sync"
       },
       {
         "command": "shosei.doctor",

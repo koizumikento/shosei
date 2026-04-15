@@ -95,6 +95,11 @@ shosei build --target print</code></pre>
                 <td>利用可能</td>
               </tr>
               <tr>
+                <td><code>shosei reference &lt;subcommand&gt;</code></td>
+                <td>参考資料 workspace と entry 一覧 / check / drift / sync を扱う</td>
+                <td>利用可能</td>
+              </tr>
+              <tr>
                 <td><code>shosei story &lt;subcommand&gt;</code></td>
                 <td>story workspace と scene map を扱う</td>
                 <td>利用可能</td>
@@ -143,6 +148,20 @@ shosei series sync --path ./my-series</code></pre>
           <p><code>page check</code> は manga project 向けで、ページ順や見開き候補を確認します。</p>
           <pre><code>shosei page check
 shosei page check --book vol-01</code></pre>
+          <p><code>reference scaffold</code> は参考リンクや作業メモの workspace を生成します。<code>single-book</code> では <code>references/</code>、<code>series</code> では共有用の <code>shared/metadata/references/</code> か巻固有の <code>books/&lt;book-id&gt;/references/</code> を作ります。</p>
+          <pre><code>shosei reference scaffold
+shosei reference scaffold --book vol-01
+shosei reference scaffold --shared
+shosei reference map
+shosei reference map --book vol-01
+shosei reference map --shared
+shosei reference check
+shosei reference check --book vol-01
+shosei reference check --shared
+shosei reference drift --book vol-01
+shosei reference sync --book vol-01 --from shared --id market
+shosei reference sync --book vol-01 --to shared --id market
+shosei reference sync --book vol-01 --from shared --report dist/reports/vol-01-reference-drift.json --force</code></pre>
           <p><code>story scaffold</code> は物語補助の workspace を生成します。<code>single-book</code> では <code>story/</code>、<code>series</code> では共有 canon 用の <code>shared/metadata/story/</code> か巻固有の <code>books/&lt;book-id&gt;/story/</code> を作ります。</p>
           <pre><code>shosei story scaffold
 shosei story scaffold --book vol-01
@@ -168,6 +187,83 @@ shosei chapter renumber
 shosei chapter add books/vol-01/manuscript/02.md --book vol-01 --title "Chapter 2"</code></pre>
           <p><code>page check</code> とは別系統で、<code>manga/pages/</code> や manga metadata には触れません。</p>
           <p><code>renumber</code> は章順を変えずに filename prefix だけを整えます。<code>book.yml</code> の <code>manuscript.chapters</code> と対応する <code>sections.file</code> は更新しますが、Markdown 本文中の link destination は自動 rewrite しません。</p>
+        </section>
+
+        <section>
+          <h2>Reference scaffold</h2>
+          <p><code>reference scaffold</code> は manual-first の参考資料 workspace を作ります。</p>
+          <ul>
+            <li><code>single-book</code>: <code>references/</code></li>
+            <li><code>series --shared</code>: <code>shared/metadata/references/</code></li>
+            <li><code>series --book &lt;book-id&gt;</code>: <code>books/&lt;book-id&gt;/references/</code></li>
+          </ul>
+          <p>生成するのは <code>README.md</code> と <code>entries/README.md</code> です。</p>
+          <p>既定では既存 file を保持し、template を上書きしたい場合だけ <code>--force</code> を付けます。</p>
+        </section>
+
+        <section>
+          <h2>Reference map</h2>
+          <p><code>reference map</code> は reference workspace の <code>entries/</code> を読み、entry 一覧と JSON report を出します。</p>
+          <ul>
+            <li><code>single-book</code>: <code>references/entries/</code></li>
+            <li><code>series --shared</code>: <code>shared/metadata/references/entries/</code></li>
+            <li><code>series --book &lt;book-id&gt;</code>: <code>books/&lt;book-id&gt;/references/entries/</code></li>
+            <li>report: <code>single-book</code> は <code>dist/reports/default-reference-map.json</code>、<code>series --shared</code> は <code>dist/reports/shared-reference-map.json</code>、<code>series --book &lt;book-id&gt;</code> は <code>dist/reports/&lt;book-id&gt;-reference-map.json</code></li>
+          </ul>
+          <pre><code>id: market-report-2026
+title: 2026年国内市場レポート
+links:
+  - https://example.com/report
+tags:
+  - market
+status: unread</code></pre>
+          <p><code>id</code> は frontmatter 優先、未指定時は filename stem を使います。<code>README.md</code> は scan 対象外です。</p>
+        </section>
+
+        <section>
+          <h2>Reference check</h2>
+          <p><code>reference check</code> は reference workspace の <code>entries/</code> を読み、frontmatter shape、duplicate <code>id</code>、local path を軽く検査して JSON report を出します。prose book では、<code>editorial.claims.yml</code> の <code>sources</code> にある <code>ref:&lt;id&gt;</code> も照合します。</p>
+          <ul>
+            <li><code>single-book</code>: <code>references/entries/</code></li>
+            <li><code>series --shared</code>: <code>shared/metadata/references/entries/</code></li>
+            <li><code>series --book &lt;book-id&gt;</code>: <code>books/&lt;book-id&gt;/references/entries/</code></li>
+            <li>report: <code>single-book</code> は <code>dist/reports/default-reference-check.json</code>、<code>series --shared</code> は <code>dist/reports/shared-reference-check.json</code>、<code>series --book &lt;book-id&gt;</code> は <code>dist/reports/&lt;book-id&gt;-reference-check.json</code></li>
+          </ul>
+          <p>v0.1 では invalid / unclosed frontmatter、<code>id</code> の空文字や duplicate、<code>links</code> と <code>related_sections</code> の local path、<code>claims.yml</code> の <code>ref:&lt;id&gt;</code> を対象にします。local path が存在しない場合は warning にし、解決できない <code>ref:&lt;id&gt;</code> は error にします。<code>claims.yml</code> の <code>ref:&lt;id&gt;</code> は <code>single-book</code> では current book、<code>series --book &lt;book-id&gt;</code> では current book と shared の reference id に解決します。<code>https://</code>、<code>http://</code>、<code>mailto:</code>、<code>tel:</code>、<code>#anchor</code> は存在確認しません。</p>
+        </section>
+
+        <section>
+          <h2>Reference drift</h2>
+          <p><code>reference drift</code> は <code>series</code> の shared reference と巻固有 reference の衝突と gap を JSON report に出します。</p>
+          <ul>
+            <li>対象: <code>shared/metadata/references/entries/</code> と <code>books/&lt;book-id&gt;/references/entries/</code></li>
+            <li>report: <code>dist/reports/&lt;book-id&gt;-reference-drift.json</code></li>
+            <li>同じ <code>id</code> が shared と book の両方にある entry だけを比較します</li>
+            <li>同じ内容なら <code>redundant-copy</code> として warning、異なる内容なら <code>drift</code> として error にします</li>
+            <li>shared にだけある entry は <code>shared-only</code>、book にだけある entry は <code>book-only</code> として <code>gaps</code> 配列に出します</li>
+            <li>invalid frontmatter や same-scope duplicate <code>id</code> も issue に含めます</li>
+            <li><code>entries/</code> directory が存在しない scope は empty として扱います</li>
+          </ul>
+        </section>
+
+        <section>
+          <h2>Reference sync</h2>
+          <p><code>reference sync</code> は <code>series</code> で shared reference と巻固有 reference の間を明示コピーします。単体 sync と、<code>reference drift</code> report からの batch sync を持ちます。</p>
+          <ul>
+            <li>例: <code>shosei reference sync --book vol-01 --from shared --id market</code></li>
+            <li>例: <code>shosei reference sync --book vol-01 --to shared --id market</code></li>
+            <li>例: <code>shosei reference sync --book vol-01 --from shared --report dist/reports/vol-01-reference-drift.json --force</code></li>
+            <li><code>--from shared</code> か <code>--to shared</code> のどちらか一方を使います</li>
+            <li>単体 mode では <code>id</code> を 1 件指定します</li>
+            <li>report mode では <code>--report</code> を使い、<code>--id</code> は使いません</li>
+            <li>report mode は <code>--force</code> 必須です</li>
+            <li>report mode では <code>drifts</code> に加えて source 側にある <code>gaps</code> も適用します</li>
+            <li><code>--from shared</code> は <code>shared-only</code> gap を適用し、<code>book-only</code> gap は skip します</li>
+            <li><code>--to shared</code> は <code>book-only</code> gap を適用し、<code>shared-only</code> gap は skip します</li>
+            <li>destination 側に同じ <code>id</code> があり内容が違う場合は error にし、<code>--force</code> を付けた場合だけ上書きします</li>
+            <li>destination 側に同じ内容があれば no-op です</li>
+            <li>destination 側に同じ <code>id</code> が無い場合は source filename を引き継いで新規作成します</li>
+          </ul>
         </section>
 
         <section>

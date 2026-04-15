@@ -90,6 +90,7 @@ repo/
     skills/
       shosei-project/
         SKILL.md
+  [opt-in] references/
   [opt-in] story/
   [prose] editorial/
   [prose] manuscript/
@@ -104,6 +105,7 @@ repo/
 備考:
 
 - `project.type` に応じて prose では `editorial/` と `manuscript/` を、manga では `manga/` を使う
+- 参考資料を使う場合は `shosei reference scaffold` で root に `references/` を追加する
 - 物語補助を使う場合は `shosei story scaffold` で root に `story/` を追加する
 - 使わないディレクトリは空でもよい
 
@@ -121,9 +123,12 @@ repo/
     styles/
     fonts/
     metadata/
+      [opt-in] references/
+      [opt-in] story/
   books/
     vol-01/
       book.yml
+      [opt-in] references/
       [opt-in] story/
       [prose] editorial/
       [prose] manuscript/
@@ -131,6 +136,7 @@ repo/
       assets/
     vol-02/
       book.yml
+      [opt-in] references/
       [opt-in] story/
       [prose] editorial/
       [prose] manuscript/
@@ -144,8 +150,10 @@ repo/
 備考:
 
 - `shared/` には共通資産だけを置く
+- 共通で再利用したい参考資料は `shosei reference scaffold --shared` を実行したときだけ `shared/metadata/references/` に置く
 - 共通の worldbuilding / canon は `shosei story scaffold --shared` を実行したときだけ `shared/metadata/story/` に置く
 - 巻固有資産は `books/<book-id>/assets/` に置く
+- 巻固有の調査メモや参考リンクは `shosei reference scaffold --book <book-id>` を実行したときだけ `books/<book-id>/references/` に置く
 - 巻固有の scene / note / codex は `shosei story scaffold --book <book-id>` を実行したときだけ `books/<book-id>/story/` に置く
 - `dist/` は repo root で共通でも、巻ごとに分けてもよい
 

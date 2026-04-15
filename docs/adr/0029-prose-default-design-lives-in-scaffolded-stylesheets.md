@@ -1,4 +1,4 @@
-# ADR-0027: prose の default design は scaffolded stylesheet で持ち、build 時に適用する
+# ADR-0029: prose の default design は scaffolded stylesheet で持ち、build 時に適用する
 
 - Status: Accepted
 - Date: 2026-04-14

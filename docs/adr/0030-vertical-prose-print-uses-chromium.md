@@ -1,4 +1,4 @@
-# ADR-0028: 縦組み prose print は Chromium backend を使う
+# ADR-0030: 縦組み prose print は Chromium backend を使う
 
 ## Status
 

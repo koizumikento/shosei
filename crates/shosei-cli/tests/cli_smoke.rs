@@ -111,6 +111,90 @@ manga:
     .unwrap();
 }
 
+fn write_reference_fixture(root: &Path) {
+    fs::create_dir_all(root.join("manuscript")).unwrap();
+    fs::write(root.join("manuscript/01.md"), "# Chapter 1\n").unwrap();
+    fs::write(
+        root.join("book.yml"),
+        r#"
+project:
+  type: novel
+  vcs: git
+book:
+  title: "Sample"
+  authors:
+    - "Author"
+  reading_direction: rtl
+layout:
+  binding: right
+manuscript:
+  chapters:
+    - manuscript/01.md
+outputs:
+  kindle:
+    enabled: true
+    target: kindle-ja
+"#,
+    )
+    .unwrap();
+}
+
+fn write_series_reference_fixture(root: &Path) {
+    fs::create_dir_all(root.join("books/vol-01/manuscript")).unwrap();
+    fs::write(root.join("books/vol-01/manuscript/01.md"), "# Chapter 1\n").unwrap();
+    fs::write(
+        root.join("series.yml"),
+        r#"
+series:
+  id: sample
+  title: Sample Series
+  type: novel
+books:
+  - id: vol-01
+    path: books/vol-01
+"#,
+    )
+    .unwrap();
+    fs::write(
+        root.join("books/vol-01/book.yml"),
+        r#"
+project:
+  type: novel
+book:
+  title: "Vol 1"
+  authors:
+    - "Author"
+  reading_direction: rtl
+layout:
+  binding: right
+manuscript:
+  chapters:
+    - books/vol-01/manuscript/01.md
+outputs:
+  kindle:
+    enabled: true
+    target: kindle-ja
+"#,
+    )
+    .unwrap();
+}
+
+fn write_reference_entry(root: &Path, relative: &str, contents: &str) {
+    let path = root.join(relative);
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).unwrap();
+    }
+    fs::write(path, contents).unwrap();
+}
+
+fn write_claims(root: &Path, relative: &str, contents: &str) {
+    let path = root.join(relative);
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).unwrap();
+    }
+    fs::write(path, contents).unwrap();
+}
+
 fn write_handoff_proof_fixture(root: &Path) {
     fs::create_dir_all(root.join("manuscript")).unwrap();
     fs::create_dir_all(root.join("editorial")).unwrap();
@@ -301,6 +385,388 @@ fn page_check_cli_prints_summary_and_issue_preview() {
     assert!(stdout.contains(
         "remedy: ページ順はファイル名の辞書順で決まります。ゼロ埋めした連番へ揃えてください。"
     ));
+}
+
+#[test]
+fn reference_scaffold_cli_creates_workspace() {
+    let root = temp_dir("reference-scaffold");
+    write_reference_fixture(&root);
+
+    let output = Command::new(env!("CARGO_BIN_EXE_shosei"))
+        .args(["reference", "scaffold", "--path", root.to_str().unwrap()])
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("reference scaffold: initialized single-book reference workspace"));
+    assert!(root.join("references/README.md").is_file());
+    assert!(root.join("references/entries/README.md").is_file());
+}
+
+#[test]
+fn reference_map_cli_prints_summary_and_writes_report() {
+    let root = temp_dir("reference-map");
+    write_reference_fixture(&root);
+
+    Command::new(env!("CARGO_BIN_EXE_shosei"))
+        .args(["reference", "scaffold", "--path", root.to_str().unwrap()])
+        .output()
+        .unwrap();
+    write_reference_entry(
+        &root,
+        "references/entries/source.md",
+        r#"---
+title: Source Note
+links:
+  - https://example.com/source
+status: summarized
+---
+"#,
+    );
+
+    let output = Command::new(env!("CARGO_BIN_EXE_shosei"))
+        .args(["reference", "map", "--path", root.to_str().unwrap()])
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("reference map: 1 entry(s)"));
+    assert!(stdout.contains("source"));
+    assert!(
+        root.join("dist/reports/default-reference-map.json")
+            .is_file()
+    );
+}
+
+#[test]
+fn reference_map_cli_suggests_scaffold_when_workspace_is_missing() {
+    let root = temp_dir("reference-map-missing-workspace");
+    write_reference_fixture(&root);
+
+    let output = Command::new(env!("CARGO_BIN_EXE_shosei"))
+        .args(["reference", "map", "--path", root.to_str().unwrap()])
+        .output()
+        .unwrap();
+
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("reference entries directory not found"));
+    assert!(stderr.contains("run `shosei reference scaffold` first"));
+}
+
+#[test]
+fn reference_check_cli_prints_issue_preview_and_fails_on_errors() {
+    let root = temp_dir("reference-check");
+    write_reference_fixture(&root);
+
+    Command::new(env!("CARGO_BIN_EXE_shosei"))
+        .args(["reference", "scaffold", "--path", root.to_str().unwrap()])
+        .output()
+        .unwrap();
+    write_reference_entry(
+        &root,
+        "references/entries/source-a.md",
+        r#"---
+id: duplicate-source
+links:
+  - missing.md
+---
+"#,
+    );
+    write_reference_entry(
+        &root,
+        "references/entries/source-b.md",
+        r#"---
+id: duplicate-source
+---
+"#,
+    );
+
+    let output = Command::new(env!("CARGO_BIN_EXE_shosei"))
+        .args(["reference", "check", "--path", root.to_str().unwrap()])
+        .output()
+        .unwrap();
+
+    assert!(!output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("reference check completed for default"));
+    assert!(stdout.contains("issues:"));
+    assert!(stdout.contains("[warn] reference link target not found: missing.md"));
+    assert!(stdout.contains("[error] duplicate reference id `duplicate-source`"));
+    assert!(stdout.contains(&format!(
+        "location: {}",
+        root.join("references/entries/source-b.md").display()
+    )));
+    assert!(
+        root.join("dist/reports/default-reference-check.json")
+            .is_file()
+    );
+}
+
+#[test]
+fn reference_check_cli_reports_missing_claim_reference_source() {
+    let root = temp_dir("reference-check-claims");
+    write_reference_fixture(&root);
+    write_claims(
+        &root,
+        "editorial/claims.yml",
+        r#"
+claims:
+  - id: claim-market
+    summary: "Summary"
+    section: manuscript/01.md
+    sources:
+      - "ref:missing"
+"#,
+    );
+    fs::write(
+        root.join("book.yml"),
+        r#"
+project:
+  type: novel
+  vcs: git
+book:
+  title: "Sample"
+  authors:
+    - "Author"
+  reading_direction: rtl
+layout:
+  binding: right
+editorial:
+  claims: editorial/claims.yml
+manuscript:
+  chapters:
+    - manuscript/01.md
+outputs:
+  kindle:
+    enabled: true
+    target: kindle-ja
+"#,
+    )
+    .unwrap();
+
+    let output = Command::new(env!("CARGO_BIN_EXE_shosei"))
+        .args(["reference", "scaffold", "--path", root.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+
+    let output = Command::new(env!("CARGO_BIN_EXE_shosei"))
+        .args(["reference", "check", "--path", root.to_str().unwrap()])
+        .output()
+        .unwrap();
+
+    assert!(!output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("reference check completed for default"));
+    assert!(stdout.contains("issues:"));
+    assert!(stdout.contains("claim `claim-market` references missing source `ref:missing`"));
+    assert!(stdout.contains(&format!(
+        "location: {}",
+        root.join("editorial/claims.yml").display()
+    )));
+}
+
+#[test]
+fn reference_drift_cli_writes_report_and_fails_on_drift() {
+    let root = temp_dir("reference-drift");
+    write_series_reference_fixture(&root);
+
+    Command::new(env!("CARGO_BIN_EXE_shosei"))
+        .args([
+            "reference",
+            "scaffold",
+            "--shared",
+            "--path",
+            root.to_str().unwrap(),
+        ])
+        .output()
+        .unwrap();
+    Command::new(env!("CARGO_BIN_EXE_shosei"))
+        .args([
+            "reference",
+            "scaffold",
+            "--book",
+            "vol-01",
+            "--path",
+            root.to_str().unwrap(),
+        ])
+        .output()
+        .unwrap();
+    write_reference_entry(
+        &root,
+        "shared/metadata/references/entries/market.md",
+        "---\nid: market\n---\nshared note\n",
+    );
+    write_reference_entry(
+        &root,
+        "books/vol-01/references/entries/market.md",
+        "---\nid: market\n---\nbook note\n",
+    );
+
+    let output = Command::new(env!("CARGO_BIN_EXE_shosei"))
+        .args([
+            "reference",
+            "drift",
+            "--book",
+            "vol-01",
+            "--path",
+            root.to_str().unwrap(),
+        ])
+        .output()
+        .unwrap();
+
+    assert!(!output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("reference drift completed for vol-01"));
+    assert!(
+        root.join("dist/reports/vol-01-reference-drift.json")
+            .is_file()
+    );
+}
+
+#[test]
+fn reference_sync_cli_copies_shared_entry_into_book_scope() {
+    let root = temp_dir("reference-sync");
+    write_series_reference_fixture(&root);
+
+    Command::new(env!("CARGO_BIN_EXE_shosei"))
+        .args([
+            "reference",
+            "scaffold",
+            "--shared",
+            "--path",
+            root.to_str().unwrap(),
+        ])
+        .output()
+        .unwrap();
+    Command::new(env!("CARGO_BIN_EXE_shosei"))
+        .args([
+            "reference",
+            "scaffold",
+            "--book",
+            "vol-01",
+            "--path",
+            root.to_str().unwrap(),
+        ])
+        .output()
+        .unwrap();
+    write_reference_entry(
+        &root,
+        "shared/metadata/references/entries/market.md",
+        "---\nid: market\n---\nshared note\n",
+    );
+
+    let output = Command::new(env!("CARGO_BIN_EXE_shosei"))
+        .args([
+            "reference",
+            "sync",
+            "--book",
+            "vol-01",
+            "--from",
+            "shared",
+            "--id",
+            "market",
+            "--path",
+            root.to_str().unwrap(),
+        ])
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("reference sync: copied shared reference `market`"));
+    assert_eq!(
+        fs::read_to_string(root.join("books/vol-01/references/entries/market.md")).unwrap(),
+        "---\nid: market\n---\nshared note\n"
+    );
+}
+
+#[test]
+fn reference_sync_cli_report_applies_shared_gap_and_skips_book_only_gap() {
+    let root = temp_dir("reference-sync-report");
+    let report_path = root.join("dist/reports/vol-01-reference-drift.json");
+    write_series_reference_fixture(&root);
+
+    Command::new(env!("CARGO_BIN_EXE_shosei"))
+        .args([
+            "reference",
+            "scaffold",
+            "--shared",
+            "--path",
+            root.to_str().unwrap(),
+        ])
+        .output()
+        .unwrap();
+    Command::new(env!("CARGO_BIN_EXE_shosei"))
+        .args([
+            "reference",
+            "scaffold",
+            "--book",
+            "vol-01",
+            "--path",
+            root.to_str().unwrap(),
+        ])
+        .output()
+        .unwrap();
+    write_reference_entry(
+        &root,
+        "shared/metadata/references/entries/market.md",
+        "---\nid: market\n---\nshared note\n",
+    );
+    write_reference_entry(
+        &root,
+        "books/vol-01/references/entries/local.md",
+        "---\nid: local\n---\nbook note\n",
+    );
+
+    let drift = Command::new(env!("CARGO_BIN_EXE_shosei"))
+        .args([
+            "reference",
+            "drift",
+            "--book",
+            "vol-01",
+            "--path",
+            root.to_str().unwrap(),
+        ])
+        .output()
+        .unwrap();
+
+    assert!(drift.status.success());
+    assert!(report_path.is_file());
+
+    let output = Command::new(env!("CARGO_BIN_EXE_shosei"))
+        .args([
+            "reference",
+            "sync",
+            "--book",
+            "vol-01",
+            "--from",
+            "shared",
+            "--report",
+            report_path.to_str().unwrap(),
+            "--force",
+            "--path",
+            root.to_str().unwrap(),
+        ])
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("reference sync: applied 1 applicable report entries"));
+    assert!(stdout.contains("skipped: 1"));
+    assert_eq!(
+        fs::read_to_string(root.join("books/vol-01/references/entries/market.md")).unwrap(),
+        "---\nid: market\n---\nshared note\n"
+    );
+    assert!(
+        !root
+            .join("shared/metadata/references/entries/local.md")
+            .exists()
+    );
 }
 
 #[cfg(any(unix, windows))]
