@@ -1479,7 +1479,9 @@ struct ContentReviewSkillTemplateContext {
     validate_command: String,
     page_check_command: String,
     story_check_command: String,
+    reference_map_command: String,
     reference_check_command: String,
+    reference_alignment_command: String,
 }
 
 impl ContentReviewSkillTemplateContext {
@@ -1497,7 +1499,9 @@ impl ContentReviewSkillTemplateContext {
             validate_command: validate_command(repo_mode, initial_book_id),
             page_check_command: page_check_command(template, repo_mode, initial_book_id),
             story_check_command: story_check_command(repo_mode, initial_book_id),
+            reference_map_command: reference_map_command(repo_mode, initial_book_id),
             reference_check_command: reference_check_command(repo_mode, initial_book_id),
+            reference_alignment_command: reference_alignment_command(repo_mode, initial_book_id),
         }
     }
 
@@ -1516,8 +1520,16 @@ impl ContentReviewSkillTemplateContext {
             ("{{PAGE_CHECK_COMMAND}}", self.page_check_command.as_str()),
             ("{{STORY_CHECK_COMMAND}}", self.story_check_command.as_str()),
             (
+                "{{REFERENCE_MAP_COMMAND}}",
+                self.reference_map_command.as_str(),
+            ),
+            (
                 "{{REFERENCE_CHECK_COMMAND}}",
                 self.reference_check_command.as_str(),
+            ),
+            (
+                "{{REFERENCE_ALIGNMENT_COMMAND}}",
+                self.reference_alignment_command.as_str(),
             ),
         ];
         render_skill_template(SHOSEI_CONTENT_REVIEW_SKILL_TEMPLATE, &replacements)
@@ -1634,6 +1646,17 @@ fn story_check_command(repo_mode: RepoTemplate, initial_book_id: &str) -> String
     }
 }
 
+fn reference_map_command(repo_mode: RepoTemplate, initial_book_id: &str) -> String {
+    match repo_mode {
+        RepoTemplate::SingleBook => {
+            "Use `shosei reference map` to inventory available reference entries before reviewing source-backed sections, claim support, or release-readiness when reference sidecars are present.".to_string()
+        }
+        RepoTemplate::Series => format!(
+            "Use `shosei reference map --book {initial_book_id}` for book-scoped entries and `shosei reference map --shared` for shared reference entries before reviewing source-backed sections, claim support, or release-readiness."
+        ),
+    }
+}
+
 fn reference_check_command(repo_mode: RepoTemplate, initial_book_id: &str) -> String {
     match repo_mode {
         RepoTemplate::SingleBook => {
@@ -1642,6 +1665,17 @@ fn reference_check_command(repo_mode: RepoTemplate, initial_book_id: &str) -> St
         }
         RepoTemplate::Series => format!(
             "Use `shosei reference check --book {initial_book_id}` for book-scoped reference sidecars or `shosei reference check --shared` for shared reference sidecars."
+        ),
+    }
+}
+
+fn reference_alignment_command(repo_mode: RepoTemplate, initial_book_id: &str) -> String {
+    match repo_mode {
+        RepoTemplate::SingleBook => {
+            "After `shosei reference map` or `shosei reference check`, read the relevant files under `references/entries/` directly instead of relying on report shape alone when claim support is in question.".to_string()
+        }
+        RepoTemplate::Series => format!(
+            "When both shared and book-scoped reference sidecars may matter, use `shosei reference drift --book {initial_book_id}` before assuming either scope is the source of truth, then read the relevant files under `books/<book-id>/references/entries/` or `shared/metadata/references/entries/` directly."
         ),
     }
 }
@@ -1842,6 +1876,8 @@ mod tests {
         assert!(content_review_skill.contains("shosei validate"));
         assert!(content_review_skill.contains("findings first"));
         assert!(content_review_skill.contains("scene-by-scene causality"));
+        assert!(content_review_skill.contains("shosei reference map"));
+        assert!(content_review_skill.contains("primary review aids"));
         assert!(content_review_skill.contains("rewrite"));
         assert!(result.summary.contains("single-book scaffold"));
         assert!(result.summary.contains("config reference:"));
@@ -2229,8 +2265,11 @@ mod tests {
         assert!(skill.contains("books/<book-id>/editorial/"));
         let content_review_skill = read_skill(&root, "shosei-content-review");
         assert!(content_review_skill.contains("books/<book-id>/manuscript/"));
+        assert!(content_review_skill.contains("shosei reference map --book vol-01"));
+        assert!(content_review_skill.contains("shosei reference map --shared"));
         assert!(content_review_skill.contains("shosei reference check --book vol-01"));
         assert!(content_review_skill.contains("shosei reference check --shared"));
+        assert!(content_review_skill.contains("shosei reference drift --book vol-01"));
         assert!(content_review_skill.contains("claim support"));
         assert!(content_review_skill.contains("release-readiness"));
         assert!(result.summary.contains("series scaffold"));
@@ -2284,8 +2323,11 @@ mod tests {
         assert!(project_skill.contains("shosei explain --book pilot"));
         let content_review_skill = read_skill(&root, "shosei-content-review");
         assert!(content_review_skill.contains("shosei story check --book pilot"));
+        assert!(content_review_skill.contains("shosei reference map --book pilot"));
+        assert!(content_review_skill.contains("shosei reference map --shared"));
         assert!(content_review_skill.contains("shosei reference check --book pilot"));
         assert!(content_review_skill.contains("shosei reference check --shared"));
+        assert!(content_review_skill.contains("shosei reference drift --book pilot"));
     }
 
     #[test]

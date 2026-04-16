@@ -44,10 +44,15 @@ Use this skill for reviewing content in this repository instead of implementing 
 3. Pull in adjacent review aids when they exist.
    - Use `{{VALIDATE_COMMAND}}` for schema or repository checks that affect the review.
    - {{PAGE_CHECK_COMMAND}}
+   - {{REFERENCE_MAP_COMMAND}}
    - Use `{{STORY_CHECK_COMMAND}}` when story or canon sidecars are present.
    - {{REFERENCE_CHECK_COMMAND}}
+   - {{REFERENCE_ALIGNMENT_COMMAND}}
 4. Review for substantive issues first.
    - confirm whether the text matches the requested `project.type`
+   - for source-backed sections, treat the relevant reference entries and editorial claims as the primary review aids before judging wording, structure, or release-readiness
+   - call out source-to-text mismatch, unsupported claims, stale support, and conclusions that outrun the available notes
+   - in `series`, distinguish book-scoped references from shared references and flag source-of-truth ambiguity when the same topic appears in both scopes
    - compare the content against the relevant sidecars, proofs, and repo conventions
    - separate confirmed defects from editorial suggestions
 5. Return findings first.
@@ -69,5 +74,7 @@ Use this skill for reviewing content in this repository instead of implementing 
 - do not pretend the repo has story/reference support unless those sidecars exist
 - do not rewrite the content as part of review unless explicitly asked
 - do not use `page check`, `story check`, or `reference check` unless the relevant sidecars or media are actually present
+- do not treat `reference check` as a substitute for reading the relevant reference entries when judging claim support or release-readiness
+- in `series`, do not assume book-scoped and shared reference entries agree; call out drift or source-of-truth ambiguity explicitly
 - keep the findings ordered by severity and anchored to the repo files or sections under review
 - do not turn a review request into a rewrite request

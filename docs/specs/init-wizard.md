@@ -443,6 +443,8 @@ dist/
   - config path を repo-relative かつ `/` 区切りで保つルール
 - `shosei-content-review` の本文には少なくとも次を含める
   - manuscript, editorial, story, reference, proof packet を対象にすること
+  - reference workspace がある場合は `reference map` を先に使い、source-backed review では reference entry を主要な review aid として扱うこと
+  - `series` で reference を使う review では book-scoped と shared の scope を見分け、必要なら `reference drift` で source of truth の衝突を確認すること
   - findings-first で内容上の問題や review readiness を見ること
   - コードレビューや CLI 実装レビューではないこと
   - rewrite ではなく指摘を返すこと
