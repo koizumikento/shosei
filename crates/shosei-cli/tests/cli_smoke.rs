@@ -224,6 +224,89 @@ outputs:
     .unwrap();
 }
 
+fn write_preview_fixture(root: &Path) {
+    fs::create_dir_all(root.join("manuscript")).unwrap();
+    fs::write(root.join("manuscript/01.md"), "# Chapter 1\n").unwrap();
+    fs::write(
+        root.join("book.yml"),
+        r#"
+project:
+  type: novel
+  vcs: git
+book:
+  title: "Preview Sample"
+  authors:
+    - "Author"
+  reading_direction: rtl
+layout:
+  binding: right
+manuscript:
+  chapters:
+    - manuscript/01.md
+outputs:
+  kindle:
+    enabled: true
+    target: kindle-ja
+git:
+  lfs: true
+"#,
+    )
+    .unwrap();
+}
+
+fn write_series_sync_fixture(root: &Path) {
+    fs::create_dir_all(root.join("books/vol-01/manuscript")).unwrap();
+    fs::create_dir_all(root.join("books/vol-02/manuscript")).unwrap();
+    fs::write(
+        root.join("series.yml"),
+        r#"
+series:
+  id: demo
+  title: "Demo Series"
+  language: ja
+  type: novel
+shared:
+  metadata:
+    - shared/metadata
+books:
+  - id: vol-01
+    path: books/vol-01
+    number: 1
+    title: "Volume 1"
+  - id: vol-02
+    path: books/vol-02
+    number: 2
+    title: "Volume 2"
+"#,
+    )
+    .unwrap();
+    for book_id in ["vol-01", "vol-02"] {
+        fs::write(
+            root.join(format!("books/{book_id}/book.yml")),
+            format!(
+                r#"
+project:
+  type: novel
+  vcs: git
+book:
+  title: "{book_id}"
+  authors:
+    - "Author"
+manuscript:
+  chapters:
+    - books/{book_id}/manuscript/01.md
+"#
+            ),
+        )
+        .unwrap();
+        fs::write(
+            root.join(format!("books/{book_id}/manuscript/01.md")),
+            "# Chapter 1\n",
+        )
+        .unwrap();
+    }
+}
+
 fn write_reference_entry(root: &Path, relative: &str, contents: &str) {
     let path = root.join(relative);
     if let Some(parent) = path.parent() {
@@ -420,7 +503,9 @@ fn init_cli_interactive_shows_summary_and_writes_after_confirmation() {
         .stdin
         .as_mut()
         .unwrap()
-        .write_all(b"novel\nsingle-book\nSample Title\nSample Author\nja\nboth\nn\ny\n")
+        .write_all(
+            b"novel\nsingle-book\nSample Title\nSample Author\nja\nboth\n\n\n\n\n\n\nn\ny\ny\nn\ny\n",
+        )
         .unwrap();
 
     let output = child.wait_with_output().unwrap();
@@ -453,7 +538,9 @@ fn init_cli_interactive_can_cancel_before_writing_files() {
         .stdin
         .as_mut()
         .unwrap()
-        .write_all(b"novel\nsingle-book\nCanceled Title\nSample Author\nja\nkindle\nn\nn\n")
+        .write_all(
+            b"novel\nsingle-book\nCanceled Title\nSample Author\nja\nkindle\n\n\nn\ny\ny\nn\nn\n",
+        )
         .unwrap();
 
     let output = child.wait_with_output().unwrap();
@@ -478,7 +565,9 @@ fn init_cli_interactive_series_accepts_custom_initial_book_id() {
         .stdin
         .as_mut()
         .unwrap()
-        .write_all(b"novel\nseries\npilot\nSeries Title\nSample Author\nja\nboth\nn\ny\n")
+        .write_all(
+            b"novel\nseries\npilot\nSeries Title\nSample Author\nja\nboth\n\n\n\n\n\n\nn\ny\ny\nn\ny\n",
+        )
         .unwrap();
 
     let output = child.wait_with_output().unwrap();
@@ -930,6 +1019,51 @@ fn reference_sync_cli_report_applies_shared_gap_and_skips_book_only_gap() {
             .join("shared/metadata/references/entries/local.md")
             .exists()
     );
+}
+
+#[cfg(any(unix, windows))]
+#[test]
+fn preview_cli_prints_summary_and_writes_artifact() {
+    let root = temp_dir("preview-cli");
+    write_preview_fixture(&root);
+    let tools_dir = write_fake_pandoc(&root);
+
+    let output = Command::new(env!("CARGO_BIN_EXE_shosei"))
+        .args([
+            "preview",
+            "--path",
+            root.to_str().unwrap(),
+            "--target",
+            "kindle",
+        ])
+        .env("PATH", prepend_path(&tools_dir))
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("preview ready for default using target kindle-ja"));
+    assert!(root.join("dist/default-kindle-ja.epub").is_file());
+}
+
+#[test]
+fn series_sync_cli_generates_catalog_and_updates_books() {
+    let root = temp_dir("series-sync-cli");
+    write_series_sync_fixture(&root);
+
+    let output = Command::new(env!("CARGO_BIN_EXE_shosei"))
+        .args(["series", "sync", "--path", root.to_str().unwrap()])
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("series sync completed"));
+    assert!(root.join("shared/metadata/series-catalog.yml").is_file());
+    assert!(root.join("shared/metadata/series-catalog.md").is_file());
+    assert!(root.join("dist/reports/series-sync.json").is_file());
+    let book_contents = fs::read_to_string(root.join("books/vol-01/book.yml")).unwrap();
+    assert!(book_contents.contains("shared/metadata/series-catalog.md"));
 }
 
 #[cfg(any(unix, windows))]

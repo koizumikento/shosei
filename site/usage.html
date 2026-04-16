@@ -435,12 +435,12 @@ pdf:
 
         <section>
           <h2>Generated scaffold</h2>
-          <p><code>init</code> は標準では短い対話式で、作品カテゴリ、<code>paper</code> の場合は profile、repo mode、<code>series</code> の場合は初期 book id、タイトル、著者名、言語、出力先を確認してから scaffold plan の summary を表示し、確認後に生成します。<code>--non-interactive --config-template &lt;template&gt;</code> を使うと既定値で生成できます。<code>--title</code>, <code>--author</code>, <code>--language</code>, <code>--output-preset</code>, <code>--repo-mode</code> で対話項目を explicit に上書きできます。<code>series</code> では追加で <code>--initial-book-id &lt;book-id&gt;</code> を受け付け、既定値は <code>vol-01</code> です。<code>paper</code> では追加で <code>--config-profile paper|conference-preprint</code> を受け付けます。</p>
+          <p><code>init</code> は標準では対話式で、作品カテゴリ、<code>paper</code> の場合は profile、repo mode、<code>series</code> の場合は初期 book id、タイトル、著者名、言語、出力先、本文方向、綴じ方向を確認してから、必要に応じて print 設定、manga 設定、Git、sample 生成も質問する。最後に scaffold plan の summary を表示し、確認後に生成する。<code>--non-interactive --config-template &lt;template&gt;</code> を使うと既定値で生成できます。<code>--title</code>, <code>--author</code>, <code>--language</code>, <code>--output-preset</code>, <code>--repo-mode</code> で対話項目を explicit に上書きできる。<code>series</code> では追加で <code>--initial-book-id &lt;book-id&gt;</code> を受け付け、既定値は <code>vol-01</code> になります。<code>paper</code> では追加で <code>--config-profile paper|conference-preprint</code> を受け付けます。</p>
           <p>テンプレートに応じて、次のような土台を生成します。</p>
           <ul>
             <li>`book.yml` または `series.yml`</li>
             <li>`dist/`</li>
-            <li>`.gitignore`, `.gitattributes`</li>
+            <li>`.gitignore`, `.gitattributes` (<code>git.lfs: true</code> のとき)</li>
             <li>`.agents/skills/shosei-project/SKILL.md`</li>
             <li>`.agents/skills/shosei-content-review/SKILL.md`</li>
             <li>`single-book` では `assets/cover/`, `assets/images/`, `assets/fonts/`, `styles/`</li>
@@ -449,11 +449,11 @@ pdf:
             <li>manga 系では `single-book` に `manga/`、`series` に `books/&lt;book-id&gt;/manga/`</li>
           </ul>
           <p>prose 系テンプレートでは、最初の原稿ファイルとして <code>paper</code> / <code>conference-preprint</code> は <code>single-book</code> で <code>manuscript/01-main.md</code>、<code>series</code> で <code>books/&lt;book-id&gt;/manuscript/01-main.md</code> を生成します。その他の prose は <code>01-chapter-1.md</code> を生成します。この <code>01-</code> prefix は初期命名の慣例で、章順の source of truth ではありません。</p>
-          <p>また、prose 系では空の <code>editorial/style.yml</code>, <code>editorial/claims.yml</code>, <code>editorial/figures.yml</code>, <code>editorial/freshness.yml</code> を生成し、<code>single-book</code> では <code>book.yml</code>、<code>series</code> では <code>books/&lt;book-id&gt;/book.yml</code> から参照します。style 側は <code>single-book</code> では <code>styles/base.css</code>, <code>styles/epub.css</code>, <code>styles/print.css</code>、<code>series</code> では <code>shared/styles/base.css</code>, <code>shared/styles/epub.css</code>, <code>shared/styles/print.css</code> を生成します。これらの default CSS は template/profile ごとに異なり、<code>business</code> / <code>paper</code> は横組み prose、<code>novel</code> / <code>light-novel</code> は縦組み prose を初期状態で表します。<code>novel</code> / <code>light-novel</code> の <code>print.css</code> は PDF 向けに本文サイズを半段締め、扉と目次を控えめに整えます。本文へのページ分離は generated layout stylesheet が持ちます。</p>
+          <p>また、prose 系では空の <code>editorial/style.yml</code>, <code>editorial/claims.yml</code>, <code>editorial/figures.yml</code>, <code>editorial/freshness.yml</code> を生成し、<code>single-book</code> では <code>book.yml</code>、<code>series</code> では <code>books/&lt;book-id&gt;/book.yml</code> から参照します。style 側は <code>single-book</code> では <code>styles/base.css</code>, <code>styles/epub.css</code>, <code>styles/print.css</code>、<code>series</code> では <code>shared/styles/base.css</code>, <code>shared/styles/epub.css</code>, <code>shared/styles/print.css</code> を生成します。これらの default CSS は template/profile ごとに異なり、<code>init</code> で選んだ <code>book.writing_mode</code> に合わせて prose の <code>base.css</code> を切り替えます。<code>novel</code> / <code>light-novel</code> の <code>print.css</code> は PDF 向けに本文サイズを半段締め、扉と目次を控えめに整えます。本文へのページ分離は generated layout stylesheet が持ちます。</p>
           <p>生成される config field の意味は <a href="config-reference.html">Config Reference</a> にまとめます。正式な schema や制約は <code>docs/specs/</code> を参照してください。</p>
           <p><code>init</code> 完了メッセージにも config reference への URL を出します。</p>
           <p>さらに、<code>single-book</code> なら <code>shosei explain</code> / <code>shosei validate</code>、<code>series</code> なら生成された初期 book id 付きの次コマンド例を出します。初期 book id は 1 つの path segment でなければならず、<code>/</code>, <code>\</code>, 空白, <code>.</code>, <code>..</code> は受け付けません。</p>
-          <p>local の <code>.git</code> が見つからないときは <code>git init</code>、常に Git LFS 用の <code>git lfs install</code>、<code>doctor</code> を自動実行していないときは <code>shosei doctor</code> も続けて案内します。</p>
+          <p>対話で Git 初期化を選んだ場合は <code>git init</code> を実行します。local の <code>.git</code> が見つからず Git 初期化を選んでいないときは <code>git init</code> を案内し、<code>git.lfs: true</code> を選んだときだけ <code>git lfs install</code> も案内します。<code>doctor</code> を自動実行していないときは <code>shosei doctor</code> も続けて案内します。</p>
         </section>
 
         <section>

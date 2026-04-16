@@ -94,6 +94,47 @@ fn run() -> Result<i32> {
                         .as_ref()
                         .map(|answers| answers.output_preset.clone())
                 }),
+                writing_mode: wizard_answers
+                    .as_ref()
+                    .map(|answers| answers.writing_mode.clone()),
+                binding: wizard_answers
+                    .as_ref()
+                    .map(|answers| answers.binding.clone()),
+                print_target: wizard_answers
+                    .as_ref()
+                    .and_then(|answers| answers.print_target.clone()),
+                print_trim_size: wizard_answers
+                    .as_ref()
+                    .and_then(|answers| answers.print_trim_size.clone()),
+                print_bleed: wizard_answers
+                    .as_ref()
+                    .and_then(|answers| answers.print_bleed.clone()),
+                print_crop_marks: wizard_answers
+                    .as_ref()
+                    .and_then(|answers| answers.print_crop_marks),
+                print_sides: wizard_answers
+                    .as_ref()
+                    .and_then(|answers| answers.print_sides.clone()),
+                print_max_pages: wizard_answers
+                    .as_ref()
+                    .and_then(|answers| answers.print_max_pages),
+                manga_spread_policy_for_kindle: wizard_answers
+                    .as_ref()
+                    .and_then(|answers| answers.manga_spread_policy_for_kindle.clone()),
+                manga_front_color_pages: wizard_answers
+                    .as_ref()
+                    .and_then(|answers| answers.manga_front_color_pages),
+                manga_body_mode: wizard_answers
+                    .as_ref()
+                    .and_then(|answers| answers.manga_body_mode.clone()),
+                initialize_git: wizard_answers
+                    .as_ref()
+                    .map(|answers| answers.initialize_git)
+                    .unwrap_or(false),
+                git_lfs: wizard_answers.as_ref().map(|answers| answers.git_lfs),
+                generate_sample: wizard_answers
+                    .as_ref()
+                    .map(|answers| answers.generate_sample),
             })?;
             output::print_line(&result.summary);
             if wizard_answers.as_ref().map(|answers| answers.run_doctor) == Some(true) {

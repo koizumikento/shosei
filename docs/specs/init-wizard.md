@@ -19,7 +19,7 @@
 ## 2. UX 方針
 
 - 引数なし起動を標準とする
-- 質問数は 10 前後に抑える
+- 共通質問を先に集め、category / outputs に応じて分岐質問を追加する
 - category と outputs に応じて分岐質問を行う
 - 回答後に summary を表示し、最後に確認を求める
 - `--non-interactive` は CI 用の例外モードとする
@@ -38,21 +38,34 @@
 10. 確認後にファイル生成
 11. 必要なら `doctor` 案内
 
-v0.1 の現行実装は、このフローのうち次を先に満たす。
+v0.1 の現行実装は、このフローを次の範囲で満たす。
 
 - 作品カテゴリ
+- paper profile
 - repo mode
 - `series` の場合の初期 book id
-- paper profile
 - タイトル
 - 著者名
 - 言語
 - 出力先
+- 本文方向
+- 綴じ方向
+- print target / trim size / bleed / crop marks
+- `conference-preprint` の場合の sides / max pages
+- `manga` の場合の Kindle 見開きポリシー / 巻頭カラー枚数 / 本文ページモード
+- Git 初期化
+- Git LFS
+- サンプル生成有無
 - 生成前 summary 表示
 - 最終確認
 - `doctor` 実行有無
 
-判型や PDF profile などの分岐質問は後続拡張とする。
+現時点で future のまま残す項目:
+
+- プロジェクト名を title と別に明示入力する質問
+- print margin を個別数値で決める質問
+- `light-novel` 専用の画像運用ポリシー分岐
+- interactive で選べる layout / print / Git / sample 値を CLI flag でも個別指定する拡張
 
 ## 4. 起動パターン
 
@@ -87,12 +100,17 @@ v0.1 で残す引数:
 - `--output-preset`
 - positional `PATH`
 
+補足:
+
+- 本文方向、綴じ方向、print 設定、Git、sample 生成は現在 interactive 質問で受ける
+- これらの値を個別に上書きする dedicated CLI flag はまだ持たない
+
 ## 5. 質問一覧
 
 ### 5.1 共通質問
 
-1. プロジェクト名
-2. 作品カテゴリ
+1. 作品カテゴリ
+2. `paper` の場合の paper profile
 3. リポジトリ管理単位
 4. `series` の場合の初期 book id
 5. タイトル
@@ -104,17 +122,28 @@ v0.1 で残す引数:
 
 9. 本文方向
 10. 綴じ方向
-11. 判型
+11. print を含む prose の場合の print target
+12. print を含む prose の場合の trim size
+13. print を含む prose の場合の bleed
+14. print を含む prose の場合の crop marks
+15. `conference-preprint` の場合の印刷面
+16. `conference-preprint` の場合の最大ページ数
 
-### 5.3 Git 質問
+### 5.3 manga 質問
 
-12. Git リポジトリを初期化するか
-13. Git LFS を使う前提にするか
+17. `manga` の場合の Kindle 見開きポリシー
+18. `manga` の場合の巻頭カラー枚数
+19. `manga` の場合の本文ページモード
 
-### 5.4 サンプル質問
+### 5.4 Git 質問
 
-14. サンプル原稿を生成するか
-15. 実行後に `shosei doctor` を走らせるか
+20. Git リポジトリを初期化するか
+21. Git LFS を使う前提にするか
+
+### 5.5 サンプル質問
+
+22. サンプル原稿を生成するか
+23. 実行後に `shosei doctor` を走らせるか
 
 ## 6. 分岐ルール
 
@@ -130,11 +159,11 @@ v0.1 で残す引数:
 - 既定 `writing_mode = horizontal-ltr`
 - 既定 `binding = left`
 - 既定 profile は `paper`
-- print を含む scaffold では `pdf.engine = weasyprint`
+- print を含む scaffold では `writing_mode = horizontal-ltr` なら `pdf.engine = weasyprint`、`vertical-rl` なら `chromium`
 - 追加質問:
   - `paper`
   - `conference-preprint`
-- `conference-preprint` では print を既定出力に寄せ、A4 / 2 段組 / 両面の preset を提示する
+- `conference-preprint` では print を既定出力に寄せ、A4 / 2 段組 / 両面の preset を提示し、`pdf.engine = weasyprint` を維持する
 
 ### `project.type = novel`
 
@@ -152,9 +181,7 @@ v0.1 で残す引数:
 - 既定 profile は `light-novel`
 - print を含む scaffold では `pdf.engine = chromium`
 - scaffold する `styles/print.css` は PDF 向けに本文 10pt を既定とし、扉と目次を本文より控えめに整える
-- 画像方針確認を追加
-  - `full-page`
-  - `spread`
+- 画像方針確認は future 拡張に残す
 
 ### `project.type = manga`
 
@@ -163,8 +190,9 @@ v0.1 で残す引数:
 - 既定 profile は `manga`
 - prose 用 `manuscript/` ではなく `manga/` 主体で生成
 - 追加質問:
-  - カラーページ有無
   - Kindle 向け見開き劣化ポリシー
+  - 巻頭カラーページ数
+  - 本文ページモード
 
 ## 7. 出力先ごとの分岐
 
@@ -185,10 +213,14 @@ v0.1 で残す引数:
   - `print-jp-pdfx1a`
   - `print-jp-pdfx4`
 - trim size
-- page margins
 - bleed
 - crop marks
-- `project.type = paper` かつ `conference-preprint` の場合は column layout, duplex, max pages
+- `project.type = paper` かつ `conference-preprint` の場合は duplex, max pages
+
+補足:
+
+- 現行実装では margin を個別入力させず、必要な値は profile 既定または generated stylesheet 側で補う
+- `conference-preprint` では A4 / 2 段組 / 既定 margin を generated stylesheet へ反映する
 
 ### `both`
 
@@ -264,7 +296,6 @@ v0.1 で残す引数:
   - `A5`
   - `B6`
   - `bunko`
-  - `custom`
 
 ### 8.7 paper profile
 
@@ -278,7 +309,7 @@ v0.1 で残す引数:
 
 ### 8.8 Kindle 見開きポリシー
 
-`project.type = light-novel | manga` のかつ `kindle` 有効時のみ質問する。
+`project.type = manga` のときのみ質問する。
 
 - Prompt: `Kindle で見開きをどう扱いますか`
 - Choices:
@@ -299,9 +330,7 @@ v0.1 で残す引数:
 ### 8.10 Git LFS
 
 - Prompt: `画像や作画データを Git LFS 対象として設定しますか`
-- Default:
-  - `manga`, `light-novel`: `yes`
-  - それ以外: `yes`
+- Default: `yes`
 
 ## 9. 生成ファイル
 
@@ -310,7 +339,7 @@ v0.1 で残す引数:
 - `book.yml` または `series.yml`
 - `dist/`
 - `.gitignore`
-- `.gitattributes`
+- `.gitattributes` (`git.lfs = true` のとき)
 - `.agents/skills/shosei-project/SKILL.md`
 - `.agents/skills/shosei-content-review/SKILL.md`
 - `single-book` では `assets/cover/`, `assets/images/`, `assets/fonts/`, `styles/`
@@ -318,10 +347,10 @@ v0.1 で残す引数:
 
 ### prose
 
-- `single-book` では `manuscript/01-chapter-1.md`
+- `single-book` では `paper` / `conference-preprint` に `manuscript/01-main.md`、それ以外に `manuscript/01-chapter-1.md`
 - `single-book` では `editorial/style.yml`, `editorial/claims.yml`, `editorial/figures.yml`, `editorial/freshness.yml`
 - `single-book` では `styles/base.css`, `styles/epub.css`, `styles/print.css`
-- `series` では `books/<book-id>/manuscript/01-chapter-1.md`
+- `series` では `paper` / `conference-preprint` に `books/<book-id>/manuscript/01-main.md`、それ以外に `books/<book-id>/manuscript/01-chapter-1.md`
 - `series` では `books/<book-id>/editorial/style.yml`, `books/<book-id>/editorial/claims.yml`, `books/<book-id>/editorial/figures.yml`, `books/<book-id>/editorial/freshness.yml`
 - `series` では `shared/styles/base.css`, `shared/styles/epub.css`, `shared/styles/print.css`
 - prose の style file は template/profile ごとの既定見た目を持つ
@@ -344,16 +373,22 @@ v0.1 で残す引数:
 - `series.yml`
 - `books/<book-id>/book.yml`
 - `books/<book-id>/assets/`
-- `books/<book-id>/manuscript/` または `books/<book-id>/manga/`
+- prose では `books/<book-id>/manuscript/`
+- manga では `books/<book-id>/manga/`
 - `<book-id>` は質問または `--initial-book-id` で決め、未指定時は `vol-01` を使う
 
-### `--sample` 相当
+### `generate_sample = false`
+
+- prose では空の初期原稿ファイルを生成する
+- manga では追加サンプルファイルは生成しない
+
+### `generate_sample = true`
 
 追加生成:
 
 - prose: サンプル章本文
-- light-novel: サンプル挿絵参照
-- manga: サンプル `page-manifest.yml`
+- light-novel: サンプル挿絵参照を含む本文
+- manga: 追加サンプルファイルは生成せず、空ディレクトリ scaffold に留める
 
 ## 10. `book.yml` 生成ルール
 
