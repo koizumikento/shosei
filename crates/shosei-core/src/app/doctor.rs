@@ -259,9 +259,14 @@ fn apply_resolved_book_context(
     detected: &mut DoctorDetectedProject,
     resolved: &ResolvedBookConfig,
 ) {
-    let requires_chromium_vertical_print = resolved.effective.project.project_type.is_prose()
+    let invalid_vertical_weasyprint = resolved.effective.project.project_type.is_prose()
         && resolved.effective.outputs.print.is_some()
-        && resolved.effective.book.writing_mode == config::WritingMode::VerticalRl;
+        && resolved.effective.book.writing_mode == config::WritingMode::VerticalRl
+        && resolved
+            .effective
+            .pdf
+            .as_ref()
+            .is_some_and(|pdf| pdf.engine == config::PdfEngine::Weasyprint);
 
     detected.project_type = Some(resolved.effective.project.project_type.as_str().to_string());
     if resolved.effective.outputs.kindle.is_some() {
@@ -283,7 +288,7 @@ fn apply_resolved_book_context(
         && resolved.effective.project.project_type.is_prose()
         && let Some(pdf) = resolved.effective.pdf.as_ref()
     {
-        let engine = if requires_chromium_vertical_print {
+        let engine = if invalid_vertical_weasyprint {
             "chromium".to_string()
         } else {
             pdf.engine.as_str().to_string()
@@ -312,13 +317,7 @@ fn apply_resolved_book_context(
     detected.focused_optional_tools.sort();
     detected.focused_optional_tools.dedup();
 
-    if requires_chromium_vertical_print
-        && resolved
-            .effective
-            .pdf
-            .as_ref()
-            .is_some_and(|pdf| pdf.engine == config::PdfEngine::Weasyprint)
-    {
+    if invalid_vertical_weasyprint {
         detected.notes.push(
             "vertical-rl prose print requires chromium at build time; current config still points to weasyprint".to_string(),
         );
@@ -700,5 +699,53 @@ pdf:
                 .iter()
                 .any(|note| note.contains("requires chromium at build time"))
         );
+    }
+
+    #[test]
+    fn doctor_keeps_configured_engine_for_vertical_typst_print() {
+        let root = std::env::temp_dir().join(format!(
+            "shosei-doctor-vertical-typst-{}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(root.join("manuscript")).unwrap();
+        std::fs::write(root.join("manuscript/01.md"), "# Chapter 1\n").unwrap();
+        std::fs::write(
+            root.join("book.yml"),
+            r#"
+project:
+  type: novel
+book:
+  title: "Sample"
+  authors:
+    - "Author"
+  writing_mode: vertical-rl
+  reading_direction: rtl
+layout:
+  binding: right
+manuscript:
+  chapters:
+    - manuscript/01.md
+outputs:
+  print:
+    enabled: true
+    target: print-jp-pdfx1a
+pdf:
+  engine: typst
+"#,
+        )
+        .unwrap();
+
+        let result = doctor_with_report_and_path(ToolchainReport { tools: vec![] }, Some(&root));
+        let project = result
+            .snapshot
+            .detected_project
+            .expect("project should be detected");
+
+        assert_eq!(
+            project.focused_required_tools,
+            vec!["git", "pandoc", "typst"]
+        );
+        assert!(project.notes.is_empty());
     }
 }
