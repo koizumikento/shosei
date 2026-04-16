@@ -143,6 +143,12 @@ shosei validate --book vol-01</code></pre>
           <pre><code>shosei build --target print
 shosei validate --target kindle
 shosei preview --target print</code></pre>
+          <p><code>validate</code> では target / profile の組み合わせに対する実務上の warning も出します。</p>
+          <ul>
+            <li><code>project.type: manga</code> では <code>outputs.kindle.target: kindle-comic</code> を推奨し、<code>kindle-ja</code> は将来互換扱いとして warning にします</li>
+            <li><code>outputs.print.target: print-jp-pdfx1a</code> と <code>print.pdf_standard: pdfx4</code> のような target / PDF standard の不一致は warning にします</li>
+            <li><code>book.profile: conference-preprint</code> では <code>outputs.print.target: print-jp-pdfx4</code> を推奨し、それ以外は warning にします</li>
+          </ul>
           <p><code>series sync</code> は <code>series.yml</code> を正として shared metadata を更新し、prose book では生成 backmatter を同期します。</p>
           <pre><code>shosei series sync
 shosei series sync --path ./my-series</code></pre>

@@ -72,6 +72,12 @@ shosei validate --target kindle
 shosei preview --target print
 ```
 
+`validate` では target / profile の組み合わせに対する実務上の warning も出す。
+
+- `project.type: manga` では `outputs.kindle.target: kindle-comic` を推奨し、`kindle-ja` は将来互換扱いとして warning にする
+- `outputs.print.target: print-jp-pdfx1a` と `print.pdf_standard: pdfx4` のような target / PDF standard の不一致は warning にする
+- `book.profile: conference-preprint` では `outputs.print.target: print-jp-pdfx4` を推奨し、それ以外は warning にする
+
 `series sync` は `series.yml` を正として shared metadata を更新し、prose book では生成 backmatter を同期する。
 
 ```bash

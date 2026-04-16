@@ -258,6 +258,7 @@ outputs:
 - 少なくとも 1 つの出力が `enabled: true`
 - `project.type: manga` のとき、`kindle.target` は `kindle-comic` を推奨
 - `project.type: manga` のとき、`kindle-ja` は将来互換扱いで、v0.1 では非推奨
+- `book.profile: conference-preprint` では `print.target: print-jp-pdfx4` を既定候補とする
 
 ## 11. `pdf`
 
@@ -756,6 +757,7 @@ git:
 - `book.writing_mode: vertical-rl` なのに `pdf.engine = weasyprint` の場合は error
 - `editorial.*` がある場合、参照先 path の形式不正は error
 - `book.profile: conference-preprint` なのに `outputs.print.enabled` が `true` でない場合は warning
+- `book.profile: conference-preprint` なのに `outputs.print.target != print-jp-pdfx4` の場合は warning
 - `book.profile: conference-preprint` なのに `pdf.engine != weasyprint` の場合は warning
 - `book.profile: conference-preprint` なのに `pdf.toc != false` の場合は warning
 - `book.profile: conference-preprint` なのに `pdf.page_number != false` の場合は warning
@@ -770,6 +772,9 @@ git:
 - `book.profile: conference-preprint` なのに `print.page_margin.top/bottom != 20mm` または `left/right != 15mm` の場合は warning
 - `book.profile: conference-preprint` なのに `print.sides != duplex` の場合は warning
 - `book.profile: conference-preprint` なのに `print.max_pages != 2` の場合は warning
+- `project.type: manga` なのに `outputs.kindle.target = kindle-ja` の場合は warning
+- `outputs.print.target = print-jp-pdfx1a` なのに `print.pdf_standard != pdfx1a` の場合は warning
+- `outputs.print.target = print-jp-pdfx4` なのに `print.pdf_standard != pdfx4` の場合は warning
 - `manga.front_color_pages` が resolved page count を超える場合は error
 - `manga.body_mode: monochrome` で `front_color_pages` を超えた本文ページに color 画像がある場合は error
 

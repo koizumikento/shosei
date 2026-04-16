@@ -318,6 +318,48 @@ fn schema_warning_issues(resolved: &config::ResolvedBookConfig) -> Vec<Validatio
         );
     }
 
+    if project_type == ProjectType::Manga
+        && resolved.effective.outputs.kindle.as_deref() == Some("kindle-ja")
+    {
+        issues.push(
+            ValidationIssue::warning(
+                "kindle",
+                "manga projects usually expect outputs.kindle.target = kindle-comic".to_string(),
+                "manga では outputs.kindle.target を kindle-comic にしてください。kindle-ja は v0.1 では将来互換扱いです。",
+            )
+            .at(config_path.clone()),
+        );
+    }
+
+    if let (Some(print_target), Some(print)) = (
+        resolved.effective.outputs.print.as_deref(),
+        resolved.effective.print.as_ref(),
+    ) {
+        let expected_pdf_standard = match print_target {
+            "print-jp-pdfx1a" => Some(config::PrintPdfStandard::Pdfx1a),
+            "print-jp-pdfx4" => Some(config::PrintPdfStandard::Pdfx4),
+            _ => None,
+        };
+        if let Some(expected_pdf_standard) = expected_pdf_standard
+            && print.pdf_standard != expected_pdf_standard
+        {
+            issues.push(
+                ValidationIssue::warning(
+                    "print",
+                    format!(
+                        "print target {print_target} usually expects print.pdf_standard = {}",
+                        expected_pdf_standard.as_str()
+                    ),
+                    format!(
+                        "{print_target} を使う場合は print.pdf_standard を {} にしてください。",
+                        expected_pdf_standard.as_str()
+                    ),
+                )
+                .at(config_path.clone()),
+            );
+        }
+    }
+
     if resolved.effective.book.profile == "conference-preprint" {
         let pdf = resolved.effective.pdf.as_ref();
         let print = resolved.effective.print.as_ref();
@@ -332,6 +374,11 @@ fn schema_warning_issues(resolved: &config::ResolvedBookConfig) -> Vec<Validatio
             push_preprint_warning(
                 "conference-preprint profile usually expects print output",
                 "conference-preprint では outputs.print.enabled を true にしてください。",
+            );
+        } else if resolved.effective.outputs.print.as_deref() != Some("print-jp-pdfx4") {
+            push_preprint_warning(
+                "conference-preprint profile usually expects outputs.print.target = print-jp-pdfx4",
+                "conference-preprint では outputs.print.target を print-jp-pdfx4 にしてください。",
             );
         }
 
@@ -2326,6 +2373,126 @@ git:
     }
 
     #[test]
+    fn validate_warns_when_conference_preprint_uses_non_pdfx4_target() {
+        let root = temp_dir("conference-preprint-target-warning");
+        fs::create_dir_all(root.join("manuscript")).unwrap();
+        fs::write(root.join("manuscript/01-main.md"), "# Main\n").unwrap();
+        fs::write(
+            root.join("book.yml"),
+            r#"
+project:
+  type: paper
+  vcs: git
+book:
+  title: "Sample Preprint"
+  authors:
+    - "Author"
+  profile: conference-preprint
+  reading_direction: ltr
+layout:
+  binding: left
+manuscript:
+  chapters:
+    - manuscript/01-main.md
+outputs:
+  print:
+    enabled: true
+    target: print-jp-pdfx1a
+pdf:
+  engine: weasyprint
+  toc: false
+  page_number: false
+  running_header: none
+  column_count: 2
+  column_gap: 10mm
+  base_font_size: 9pt
+  line_height: 14pt
+print:
+  trim_size: A4
+  bleed: 0mm
+  crop_marks: false
+  page_margin:
+    top: 20mm
+    bottom: 20mm
+    left: 15mm
+    right: 15mm
+  sides: duplex
+  max_pages: 2
+  pdf_standard: pdfx1a
+validation:
+  strict: true
+git:
+  lfs: true
+"#,
+        )
+        .unwrap();
+
+        let result = validate_book_with_toolchain(
+            &CommandContext::new(&root, None, None),
+            &fake_toolchain(ToolStatus::Available),
+        )
+        .unwrap();
+
+        assert!(!result.has_errors);
+        let report = fs::read_to_string(result.report_path).unwrap();
+        assert!(report.contains(
+            "conference-preprint profile usually expects outputs.print.target = print-jp-pdfx4"
+        ));
+    }
+
+    #[test]
+    fn validate_warns_when_print_target_and_pdf_standard_do_not_match() {
+        let root = temp_dir("print-target-pdf-standard-mismatch");
+        fs::create_dir_all(root.join("manuscript")).unwrap();
+        fs::write(root.join("manuscript/01.md"), "# Chapter 1\n").unwrap();
+        fs::write(
+            root.join("book.yml"),
+            r#"
+project:
+  type: novel
+  vcs: git
+book:
+  title: "Sample"
+  authors:
+    - "Author"
+  reading_direction: rtl
+layout:
+  binding: right
+manuscript:
+  chapters:
+    - manuscript/01.md
+outputs:
+  print:
+    enabled: true
+    target: print-jp-pdfx1a
+pdf:
+  engine: chromium
+print:
+  pdf_standard: pdfx4
+validation:
+  strict: true
+git:
+  lfs: true
+"#,
+        )
+        .unwrap();
+
+        let result = validate_book_with_toolchain(
+            &CommandContext::new(&root, None, None),
+            &fake_toolchain(ToolStatus::Available),
+        )
+        .unwrap();
+
+        assert!(!result.has_errors);
+        let report = fs::read_to_string(result.report_path).unwrap();
+        assert!(
+            report.contains(
+                "print target print-jp-pdfx1a usually expects print.pdf_standard = pdfx1a"
+            )
+        );
+    }
+
+    #[test]
     fn validate_reports_missing_configured_pdf_engine() {
         let root = temp_dir("missing-configured-pdf-engine");
         fs::create_dir_all(root.join("manuscript")).unwrap();
@@ -2473,6 +2640,55 @@ manga:
         assert!(!result.has_errors);
         let report = fs::read_to_string(result.report_path).unwrap();
         assert!(report.contains("project.type is manga but manuscript.chapters is also present"));
+    }
+
+    #[test]
+    fn validate_warns_when_manga_uses_legacy_kindle_target() {
+        let root = temp_dir("manga-legacy-kindle-target");
+        fs::create_dir_all(root.join("manga/pages")).unwrap();
+        fs::write(root.join("manga/pages/001.png"), solid_png(120, 120, 120)).unwrap();
+        fs::write(
+            root.join("book.yml"),
+            r#"
+project:
+  type: manga
+  vcs: git
+book:
+  title: "Sample Manga"
+  authors:
+    - "Author"
+  reading_direction: rtl
+layout:
+  binding: right
+outputs:
+  kindle:
+    enabled: true
+    target: kindle-ja
+validation:
+  strict: true
+git:
+  lfs: true
+manga:
+  reading_direction: rtl
+  default_page_side: right
+  spread_policy_for_kindle: split
+  front_color_pages: 0
+  body_mode: mixed
+"#,
+        )
+        .unwrap();
+
+        let result = validate_book_with_toolchain(
+            &CommandContext::new(&root, None, None),
+            &fake_toolchain(ToolStatus::Missing),
+        )
+        .unwrap();
+
+        assert!(!result.has_errors);
+        let report = fs::read_to_string(result.report_path).unwrap();
+        assert!(
+            report.contains("manga projects usually expect outputs.kindle.target = kindle-comic")
+        );
     }
 
     #[test]
