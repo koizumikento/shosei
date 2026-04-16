@@ -203,19 +203,34 @@ project/
 - 標準ディレクトリ作成
 - `.gitignore`, `.gitattributes` の作成
 - repo-scoped agent skill templates の生成
-- Git リポジトリ初期化補助
+- Git リポジトリ初期化
 - 依存チェック案内
 
 v0.1 の現行質問項目:
 
 1. 作品カテゴリ: `business | paper | novel | light-novel | manga`
-2. リポジトリ管理単位: `single-book | series`
-3. `series` の場合の初期 book id
-4. タイトル
-5. 著者名
-6. 言語
-7. 出力先: `kindle | print | both`
-8. 実行後に `doctor` を流すか
+2. `paper` の場合の profile: `paper | conference-preprint`
+3. リポジトリ管理単位: `single-book | series`
+4. `series` の場合の初期 book id
+5. タイトル
+6. 著者名
+7. 言語
+8. 出力先: `kindle | print | both`
+9. 本文方向: `horizontal-ltr | vertical-rl`
+10. 綴じ方向: `left | right`
+11. print を含む prose の場合の print target: `print-jp-pdfx1a | print-jp-pdfx4`
+12. print を含む prose の場合の trim size: `A4 | A5 | B6 | bunko`
+13. print を含む prose の場合の bleed
+14. print を含む prose の場合の crop marks 有無
+15. `conference-preprint` の場合の印刷面: `simplex | duplex`
+16. `conference-preprint` の場合の最大ページ数
+17. `manga` の場合の Kindle 見開きポリシー: `split | single-page | skip`
+18. `manga` の場合の巻頭カラー枚数
+19. `manga` の場合の本文ページモード: `monochrome | mixed | color`
+20. Git リポジトリを初期化するか
+21. Git LFS を前提にするか
+22. サンプル原稿を生成するか
+23. 実行後に `doctor` を流すか
 
 補足:
 
@@ -234,6 +249,8 @@ v0.1 の現行質問項目:
       - page number は各ページの下中央に置く
       - running header は有効な場合だけ各ページの上中央に置く
       - title / TOC など frontmatter では page number と running header を出さない
+- 対話で Git 初期化を選んだ場合は `git init` を実行する
+- `git.lfs: true` を選んだ場合だけ `.gitattributes` を生成し、完了メッセージでも `git lfs install` を案内する
 
 ### 7.2 `shosei build`
 

@@ -1032,6 +1032,20 @@ git:
             author: Some("Author".to_string()),
             language: Some("ja".to_string()),
             output_preset: Some("kindle".to_string()),
+            writing_mode: None,
+            binding: None,
+            print_target: None,
+            print_trim_size: None,
+            print_bleed: None,
+            print_crop_marks: None,
+            print_sides: None,
+            print_max_pages: None,
+            manga_spread_policy_for_kindle: None,
+            manga_front_color_pages: None,
+            manga_body_mode: None,
+            initialize_git: false,
+            git_lfs: None,
+            generate_sample: None,
         })
         .unwrap();
     }
