@@ -42,8 +42,11 @@ Keep examples and command handling aligned with the actually implemented surface
 
 - For current user flows, prefer examples in the order `init` -> `explain` -> `build` / `validate`.
 - `explain` is the supported way to inspect resolved config and origin data before running output commands.
+- `preview` supports both one-shot output checks and a longer-running `--watch` loop. Describe `--watch` only for iterative local preview workflows.
 - `shosei chapter <subcommand>` is for prose books only and updates `manuscript.chapters`; it does not manage manga page order.
+- `shosei chapter renumber` is the explicit filename-prefix rewrite flow. Do not imply that chapter add/move/remove rewrites prose filenames automatically.
 - `shosei reference <subcommand>` and `shosei story <subcommand>` are explicit opt-in workspace flows. Start from `scaffold`, then use `map` / `check` before `drift` / `sync`.
+- For `series` repos, keep `reference scaffold` / `story scaffold` examples explicit about scope: use `--shared` for shared metadata workspaces and `--book <book-id>` for book-scoped workspaces.
 - `shosei story sync --report <path> --force` and `shosei reference sync --report <path> --force` are the batch replay flows; do not describe report-driven sync without the explicit reviewed report and `--force`.
 - `shosei page check` is for manga books only and inspects page order and spread-related issues without mutating prose chapter config.
 - `shosei handoff print` and `shosei handoff proof` are the supported handoff destinations. Keep package contents and docs aligned with the implemented destination behavior.
