@@ -1097,8 +1097,13 @@ fn story_check_command(repo_mode: RepoTemplate, initial_book_id: &str) -> String
 
 fn reference_check_command(repo_mode: RepoTemplate, initial_book_id: &str) -> String {
     match repo_mode {
-        RepoTemplate::SingleBook => "shosei reference check".to_string(),
-        RepoTemplate::Series => format!("shosei reference check --book {initial_book_id}"),
+        RepoTemplate::SingleBook => {
+            "Use `shosei reference check` when reference or source sidecars are present."
+                .to_string()
+        }
+        RepoTemplate::Series => format!(
+            "Use `shosei reference check --book {initial_book_id}` for book-scoped reference sidecars or `shosei reference check --shared` for shared reference sidecars."
+        ),
     }
 }
 
@@ -1560,6 +1565,7 @@ mod tests {
         let content_review_skill = read_skill(&root, "shosei-content-review");
         assert!(content_review_skill.contains("books/<book-id>/manuscript/"));
         assert!(content_review_skill.contains("shosei reference check --book vol-01"));
+        assert!(content_review_skill.contains("shosei reference check --shared"));
         assert!(content_review_skill.contains("claim support"));
         assert!(content_review_skill.contains("release-readiness"));
         assert!(result.summary.contains("series scaffold"));
@@ -1600,6 +1606,7 @@ mod tests {
         let content_review_skill = read_skill(&root, "shosei-content-review");
         assert!(content_review_skill.contains("shosei story check --book pilot"));
         assert!(content_review_skill.contains("shosei reference check --book pilot"));
+        assert!(content_review_skill.contains("shosei reference check --shared"));
     }
 
     #[test]

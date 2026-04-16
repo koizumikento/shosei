@@ -45,7 +45,7 @@ Use this skill for reviewing content in this repository instead of implementing 
    - Use `{{VALIDATE_COMMAND}}` for schema or repository checks that affect the review.
    - {{PAGE_CHECK_COMMAND}}
    - Use `{{STORY_CHECK_COMMAND}}` when story or canon sidecars are present.
-   - Use `{{REFERENCE_CHECK_COMMAND}}` when reference or source sidecars are present.
+   - {{REFERENCE_CHECK_COMMAND}}
 4. Review for substantive issues first.
    - confirm whether the text matches the requested `project.type`
    - compare the content against the relevant sidecars, proofs, and repo conventions
