@@ -37,10 +37,10 @@
 Activity Bar に `Shosei` view container を追加する。
 
 - `Context`: repo mode、repo root、series の target book
-- `Toolchain`: host OS、required / optional summary、tool status
-- `Resolved Config`: title、project type、language、outputs、writing mode、binding、editorial summary
 - `Structure`: config file、chapter list、初期化済み reference workspace file、editorial sidecar file
 - `Actions`: explain / validate / build / preview / doctor / reference などの主要操作
+- `Resolved Config`: title、project type、language、outputs、writing mode、binding、editorial summary
+- `Toolchain`: host OS、required / optional summary、tool status
 
 repo が見つからない場合は、view から `Init` を直接起動できる。
 

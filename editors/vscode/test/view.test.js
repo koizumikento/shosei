@@ -34,6 +34,18 @@ function createFakeVscode() {
   };
 }
 
+test("buildRootItems keeps the sidebar groups in the frequent-use order", () => {
+  const vscode = createFakeVscode();
+  const items = view.__test.buildRootItems(vscode, {
+    repoRoot: "/tmp/book"
+  });
+
+  assert.deepEqual(
+    items.map((item) => item.label),
+    ["Context", "Structure", "Actions", "Resolved Config", "Toolchain"]
+  );
+});
+
 test("buildStructureItems nests chapters and editorial files under structure groups", () => {
   const vscode = createFakeVscode();
   const items = view.__test.buildStructureItems(vscode, {
