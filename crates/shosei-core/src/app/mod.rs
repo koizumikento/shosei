@@ -11,6 +11,9 @@ mod series_sync;
 mod story;
 mod validate_book;
 
+pub(crate) const CONFIG_REFERENCE_URL: &str =
+    "https://github.com/koizumikento/shosei/blob/main/docs/config-reference.md";
+
 pub use build_book::{BuildBookError, BuildBookResult, build_book};
 pub use chapter::{
     ChapterAddOptions, ChapterError, ChapterMoveOptions, ChapterRemoveOptions,

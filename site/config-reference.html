@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>shosei | Config Reference</title>
+    <meta
+      name="description"
+      content="Reference for the meaning of fields in book.yml, series.yml, and per-volume book.yml."
+    />
+    <link rel="stylesheet" href="assets/style.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <div>
+        <a class="site-name" href="index.html">shosei</a>
+        <p class="tagline">Japanese publishing workflows for EPUB, PDF, Kindle, and print handoff.</p>
+      </div>
+      <nav class="site-nav" aria-label="Primary">
+        <a href="index.html">Overview</a>
+        <a href="install.html">Install</a>
+        <a href="usage.html">Usage</a>
+        <a class="is-current" href="config-reference.html" aria-current="page">Config</a>
+        <a href="quickstart.html">Quickstart</a>
+        <a href="contributing.html">Contributing</a>
+        <a href="https://github.com/koizumikento/shosei">GitHub</a>
+      </nav>
+    </header>
+
+    <main class="content">
+      <article class="page">
+        <h1>Config Reference</h1>
+        <p class="lead">`shosei init` が生成する `book.yml` / `series.yml` / `books/&lt;book-id&gt;/book.yml` の意味を、普段触る項目に絞ってまとめます。</p>
+        <p><a href="https://github.com/koizumikento/shosei/blob/main/docs/config-reference.md">Markdown version</a></p>
+
+        <section>
+          <h2>どのファイルを見るか</h2>
+          <p><code>single-book</code> では root の <code>book.yml</code> を編集します。</p>
+          <p><code>series</code> では、シリーズ共通項目は root の <code>series.yml</code>、巻固有の項目は <code>books/&lt;book-id&gt;/book.yml</code> を編集します。</p>
+        </section>
+
+        <section>
+          <h2>single-book の基本形</h2>
+          <pre><code>project:
+  type: novel
+  vcs: git
+  version: 1
+book:
+  title: "My Book"
+  authors:
+    - "Ken"
+  language: ja
+  profile: novel
+  writing_mode: vertical-rl
+  reading_direction: rtl
+layout:
+  binding: right
+  chapter_start_page: odd
+  allow_blank_pages: true
+manuscript:
+  chapters:
+    - manuscript/01-chapter-1.md
+outputs:
+  kindle:
+    enabled: true
+    target: kindle-ja
+validation:
+  strict: true
+  epubcheck: true
+  accessibility: warn
+git:
+  lfs: true
+editorial:
+  style: editorial/style.yml
+  claims: editorial/claims.yml
+  figures: editorial/figures.yml
+  freshness: editorial/freshness.yml</code></pre>
+        </section>
+
+        <section>
+          <h2>series の役割分担</h2>
+          <p><code>series.yml</code> はシリーズ共通設定、<code>books/&lt;book-id&gt;/book.yml</code> は巻ごとの上書きです。</p>
+          <pre><code>series:
+  id: my-series
+  title: "My Series"
+  language: ja
+  type: novel
+shared:
+  assets:
+    - shared/assets
+  styles:
+    - shared/styles
+  fonts:
+    - shared/fonts
+  metadata:
+    - shared/metadata
+defaults:
+  book:
+    profile: novel
+    writing_mode: vertical-rl
+    reading_direction: rtl
+  layout:
+    binding: right
+    chapter_start_page: odd
+    allow_blank_pages: true
+books:
+  - id: vol-01
+    path: books/vol-01
+    number: 1
+    title: "Volume 1"</code></pre>
+          <pre><code>project:
+  type: novel
+  vcs: git
+  version: 1
+book:
+  title: "Volume 1"
+  authors:
+    - "Ken"
+  language: ja
+layout:
+  binding: right
+  chapter_start_page: odd
+  allow_blank_pages: true
+manuscript:
+  chapters:
+    - books/vol-01/manuscript/01-chapter-1.md
+editorial:
+  style: books/vol-01/editorial/style.yml
+  claims: books/vol-01/editorial/claims.yml
+  figures: books/vol-01/editorial/figures.yml
+  freshness: books/vol-01/editorial/freshness.yml</code></pre>
+        </section>
+
+        <section>
+          <h2>よく触る項目</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>Field</th>
+                <th>どこにあるか</th>
+                <th>意味</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td><code>project.type</code></td><td><code>book.yml</code></td><td>プロジェクト種別</td></tr>
+              <tr><td><code>book.title</code></td><td><code>book.yml</code>, <code>books/&lt;book-id&gt;/book.yml</code></td><td>その本のタイトル</td></tr>
+              <tr><td><code>book.authors</code></td><td>同上</td><td>著者一覧</td></tr>
+              <tr><td><code>book.language</code></td><td>どちらにもありうる</td><td>本文の言語コード</td></tr>
+              <tr><td><code>book.profile</code></td><td>主に <code>book.yml</code> か <code>series.yml.defaults.book</code></td><td>出力 preset</td></tr>
+              <tr><td><code>book.writing_mode</code></td><td>同上</td><td><code>horizontal-ltr</code> か <code>vertical-rl</code></td></tr>
+              <tr><td><code>book.reading_direction</code></td><td>同上</td><td><code>ltr</code> か <code>rtl</code></td></tr>
+              <tr><td><code>layout.binding</code></td><td><code>book.yml</code> または <code>series.yml.defaults.layout</code></td><td>綴じ方向</td></tr>
+              <tr><td><code>layout.chapter_start_page</code></td><td>同上</td><td>章を奇数ページ始まりにするか</td></tr>
+              <tr><td><code>layout.allow_blank_pages</code></td><td>同上</td><td>空ページを入れてよいか</td></tr>
+              <tr><td><code>manuscript.chapters</code></td><td>prose の <code>book.yml</code></td><td>章順そのもの</td></tr>
+              <tr><td><code>outputs.kindle.*</code></td><td><code>book.yml</code> または <code>series.yml.defaults.outputs</code></td><td>Kindle 出力設定</td></tr>
+              <tr><td><code>outputs.print.*</code></td><td>同上</td><td>print 出力設定</td></tr>
+              <tr><td><code>pdf.engine</code></td><td>prose の print 時</td><td>print PDF のレンダラ</td></tr>
+              <tr><td><code>print.trim_size</code></td><td>print 時</td><td>仕上がりサイズ</td></tr>
+              <tr><td><code>editorial.*</code></td><td>prose の <code>book.yml</code></td><td>editorial sidecar file への参照</td></tr>
+              <tr><td><code>validation.strict</code></td><td><code>book.yml</code> または <code>series.yml</code></td><td>厳しめの検証を有効にするか</td></tr>
+              <tr><td><code>git.lfs</code></td><td><code>book.yml</code> または <code>series.yml</code></td><td>Git LFS 前提か</td></tr>
+            </tbody>
+          </table>
+        </section>
+
+        <section>
+          <h2>series.yml でよく触る項目</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>Field</th>
+                <th>意味</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td><code>series.id</code></td><td>シリーズ識別子</td></tr>
+              <tr><td><code>series.title</code></td><td>シリーズ名</td></tr>
+              <tr><td><code>shared.assets</code></td><td>shared cover や画像の探索先</td></tr>
+              <tr><td><code>shared.styles</code></td><td>shared CSS の探索先</td></tr>
+              <tr><td><code>shared.fonts</code></td><td>shared font の探索先</td></tr>
+              <tr><td><code>shared.metadata</code></td><td>series metadata の置き場</td></tr>
+              <tr><td><code>defaults.book.*</code></td><td>各巻の既定値</td></tr>
+              <tr><td><code>defaults.layout.*</code></td><td>各巻の layout 既定値</td></tr>
+              <tr><td><code>books[].id</code></td><td><code>--book</code> で指定する巻 ID</td></tr>
+              <tr><td><code>books[].path</code></td><td>巻ディレクトリの repo-relative path</td></tr>
+              <tr><td><code>books[].number</code></td><td>巻番号</td></tr>
+              <tr><td><code>books[].title</code></td><td>巻タイトル</td></tr>
+            </tbody>
+          </table>
+        </section>
+
+        <section>
+          <h2>manga の項目</h2>
+          <p><code>project.type: manga</code> のときは prose の <code>manuscript</code> / <code>editorial</code> ではなく <code>manga</code> block を使います。</p>
+          <table>
+            <thead>
+              <tr>
+                <th>Field</th>
+                <th>意味</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td><code>manga.reading_direction</code></td><td>ページ読み順</td></tr>
+              <tr><td><code>manga.default_page_side</code></td><td>本文の最初のページを左右どちらに置くか</td></tr>
+              <tr><td><code>manga.spread_policy_for_kindle</code></td><td>見開きを Kindle 向けにどう落とすか</td></tr>
+              <tr><td><code>manga.front_color_pages</code></td><td>巻頭カラーの枚数</td></tr>
+              <tr><td><code>manga.body_mode</code></td><td>本文ページの既定</td></tr>
+            </tbody>
+          </table>
+        </section>
+
+        <section>
+          <h2>注意点</h2>
+          <ul>
+            <li>config の path は repo-relative</li>
+            <li>path 区切りは <code>/</code></li>
+            <li>prose の章順は <code>manuscript.chapters</code> の配列順で決まります</li>
+            <li><code>series</code> では <code>series.yml</code> の defaults が先に入り、巻固有 <code>book.yml</code> が上書きします</li>
+            <li>詳しい制約や許容値は schema を参照してください</li>
+          </ul>
+        </section>
+      </article>
+    </main>
+    <footer class="site-footer">
+      <p>MIT licensed.</p>
+    </footer>
+  </body>
+</html>

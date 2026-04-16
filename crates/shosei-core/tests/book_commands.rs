@@ -316,6 +316,12 @@ notes
             .summary
             .contains("- references = 1 entry(s) at references/entries")
     );
+    assert!(result.summary.contains("config reference:"));
+    assert!(
+        result
+            .summary
+            .contains("https://github.com/koizumikento/shosei/blob/main/docs/config-reference.md")
+    );
     assert!(result.snapshot.references.current.initialized);
     assert_eq!(
         result.snapshot.references.current.references_root,
@@ -418,6 +424,7 @@ manuscript:
     );
     assert!(result.summary.contains("shared search paths:"));
     assert!(result.summary.contains("assets = shared/assets"));
+    assert!(result.summary.contains("config reference:"));
     assert!(result.summary.contains("reference summary:"));
     assert!(
         result

@@ -210,16 +210,19 @@ v0.1 の現行質問項目:
 
 1. 作品カテゴリ: `business | paper | novel | light-novel | manga`
 2. リポジトリ管理単位: `single-book | series`
-3. タイトル
-4. 著者名
-5. 言語
-6. 出力先: `kindle | print | both`
-7. 実行後に `doctor` を流すか
+3. `series` の場合の初期 book id
+4. タイトル
+5. 著者名
+6. 言語
+7. 出力先: `kindle | print | both`
+8. 実行後に `doctor` を流すか
 
 補足:
 
 - `--non-interactive --config-template <template>` を使うと既定値で scaffold を生成できる
 - `--title`, `--author`, `--language`, `--output-preset`, `--repo-mode` を付けると対話で決める値を明示 override できる
+- `series` を選ぶ場合は `--initial-book-id <book-id>` も使え、既定値は `vol-01` とする
+- 初期 book id は 1 つの path segment とし、空文字、`/`, `\\`, 空白, `.`, `..` は受け付けない
 - `paper` を選んだ場合は prose 系のまま扱い、`paper` または `conference-preprint` の profile を後続質問で選べるようにする
 - prose project では `editorial/style.yml`, `claims.yml`, `figures.yml`, `freshness.yml` も scaffold に含める
 - prose project では template/profile が所有する `base.css`, `epub.css`, `print.css` を scaffold し、`series` では `shared/styles/` に置く

@@ -37,10 +37,10 @@
 Activity Bar に `Shosei` view container を追加する。
 
 - `Context`: repo mode、repo root、series の target book
-- `Toolchain`: host OS、required / optional summary、tool status
-- `Resolved Config`: title、project type、language、outputs、writing mode、binding、editorial summary
 - `Structure`: config file、chapter list、初期化済み reference workspace file、editorial sidecar file
 - `Actions`: explain / validate / build / preview / doctor / reference などの主要操作
+- `Resolved Config`: title、project type、language、outputs、writing mode、binding、editorial summary
+- `Toolchain`: host OS、required / optional summary、tool status
 
 repo が見つからない場合は、view から `Init` を直接起動できる。
 
@@ -136,7 +136,7 @@ VS Code で repo root を開けば、`.vscode/launch.json` の `shosei: Extensio
 
 開発ホストでは `shosei.cli.command` / `shosei.cli.args` が未設定でも、repo 内の `crates/shosei-cli/Cargo.toml` が見つかれば `cargo run --manifest-path ... --bin shosei --` に自動フォールバックする。
 
-`Shosei: Init` は VS Code 側で template / `paper` の場合は profile / repo mode / title / author / language / output preset を集め、`shosei init <path> --non-interactive ...` に変換して実行する。`paper` は print を先頭に出し、`conference-preprint` は `--config-profile conference-preprint` に変換する。scaffold 自体は CLI が生成する。
+`Shosei: Init` は VS Code 側で template / `paper` の場合は profile / repo mode / `series` の場合は初期 book id / title / author / language / output preset を集め、`shosei init <path> --non-interactive ...` に変換して実行する。`paper` は print を先頭に出し、`conference-preprint` は `--config-profile conference-preprint` に変換する。`series` の初期 book id は `--initial-book-id` に変換し、既定値は `vol-01`、`/`, `\\`, 空白, `.`, `..` は受け付けない。scaffold 自体は CLI が生成する。
 
 view の config / structure 表示は `shosei explain --json`、toolchain 表示は `shosei doctor --json` を使っており、required / optional の分類も含めて VS Code 側で config merge や依存検出を再実装しない。
 

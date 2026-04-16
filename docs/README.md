@@ -1,6 +1,7 @@
 # Docs
 
 - [Usage ガイド](usage.md)
+- [設定リファレンス](config-reference.md)
 - [機能仕様書](specs/functional-spec.md)
 - [リポジトリ管理モデル](specs/repository-model.md)
 - [single-book から series への移行仕様](specs/repository-migration.md)

@@ -5,6 +5,7 @@ const path = require("path");
 const core = require("./src/core");
 const { ShoseiViewProvider } = require("./src/view");
 
+const DEFAULT_INIT_SERIES_BOOK_ID = "vol-01";
 const SERIES_BOOK_SELECTIONS_KEY = "shosei.series.selectedBooks";
 
 function activate(context) {
@@ -736,6 +737,7 @@ async function runInitCommand(vscode, output, extensionContext, viewProvider) {
       configTemplate: initOptions.configTemplate,
       configProfile: initOptions.configProfile,
       repoMode: initOptions.repoMode,
+      initialBookId: initOptions.initialBookId,
       title: initOptions.title,
       author: initOptions.author,
       language: initOptions.language,
@@ -1657,6 +1659,20 @@ async function promptInitOptions(vscode, targetRoot) {
     return null;
   }
 
+  const initialBookId =
+    repoMode === "series"
+      ? await vscode.window.showInputBox({
+          title: "Initial book id",
+          prompt: "Book id used for books/<book-id>/ and the first --book examples",
+          value: DEFAULT_INIT_SERIES_BOOK_ID,
+          ignoreFocusOut: true,
+          validateInput: validateSeriesBookIdInput
+        })
+      : null;
+  if (repoMode === "series" && initialBookId === undefined) {
+    return null;
+  }
+
   const title = await vscode.window.showInputBox({
     title: "Book title",
     prompt: "Title written to book.yml or series.yml",
@@ -1732,6 +1748,7 @@ async function promptInitOptions(vscode, targetRoot) {
     configTemplate,
     configProfile,
     repoMode,
+    initialBookId: repoMode === "series" ? initialBookId.trim() : null,
     title: title.trim(),
     author: author.trim(),
     language: language.trim(),
@@ -1958,6 +1975,23 @@ function validateChapterPathInput(value) {
   }
   if (trimmed.split("/").includes("..")) {
     return "Chapter path must not contain '..'";
+  }
+  return null;
+}
+
+function validateSeriesBookIdInput(value) {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return "Book id is required";
+  }
+  if (trimmed === "." || trimmed === "..") {
+    return "Book id must not be '.' or '..'";
+  }
+  if (trimmed.includes("/") || trimmed.includes("\\")) {
+    return "Book id must be a single path segment";
+  }
+  if (/\s/.test(trimmed)) {
+    return "Book id must not contain whitespace";
   }
   return null;
 }
@@ -2255,6 +2289,7 @@ module.exports = {
     referenceWorkspaceRoot,
     resolveDiagnosticLocation,
     suggestChapterPath,
-    validateChapterPathInput
+    validateChapterPathInput,
+    validateSeriesBookIdInput
   }
 };
