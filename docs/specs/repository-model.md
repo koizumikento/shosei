@@ -90,6 +90,8 @@ repo/
     skills/
       shosei-project/
         SKILL.md
+      shosei-content-review/
+        SKILL.md
   [opt-in] references/
   [opt-in] story/
   [prose] editorial/
@@ -117,6 +119,8 @@ repo/
   .agents/
     skills/
       shosei-project/
+        SKILL.md
+      shosei-content-review/
         SKILL.md
   shared/
     assets/

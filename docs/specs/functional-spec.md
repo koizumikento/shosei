@@ -153,6 +153,8 @@ project/
     skills/
       shosei-project/
         SKILL.md
+      shosei-content-review/
+        SKILL.md
   [opt-in] references/
   [opt-in] story/
   [prose] manuscript/
@@ -200,7 +202,7 @@ project/
 - 設定ファイル生成
 - 標準ディレクトリ作成
 - `.gitignore`, `.gitattributes` の作成
-- repo-scoped agent skill template の生成
+- repo-scoped agent skill templates の生成
 - Git リポジトリ初期化補助
 - 依存チェック案内
 
