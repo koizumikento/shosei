@@ -365,6 +365,8 @@ editorial sidecar が設定されている場合、`explain` は rule / claim / 
 
 reference workspace が初期化済みなら、`explain` は current scope の `references/README.md` と `entries/*.md`、`series` では shared scope 側の reference file も structure summary と `--json` に含める。
 
+人向けの summary 出力では、field の意味を追いやすいように config reference への URL も末尾に出す。
+
 editor integration 向けには `--json` も使える。resolved config の要約、主要 field の origin、chapter list、初期化済み reference workspace file などを機械可読で返す。
 
 ## Editorial sidecars
@@ -417,7 +419,7 @@ prose の Kindle / EPUB build では `styles/base.css` と `styles/epub.css` を
 
 ## Generated scaffold
 
-`init` は標準では短い対話式で、作品カテゴリ、`paper` の場合は profile、repo mode、タイトル、著者名、言語、出力先を確認してから scaffold plan の summary を表示し、確認後に生成する。`--non-interactive --config-template <template>` を使うと既定値で生成できる。`--title`, `--author`, `--language`, `--output-preset`, `--repo-mode` で対話項目を explicit に上書きできる。`paper` では追加で `--config-profile paper|conference-preprint` を受け付ける。
+`init` は標準では短い対話式で、作品カテゴリ、`paper` の場合は profile、repo mode、`series` の場合は初期 book id、タイトル、著者名、言語、出力先を確認してから scaffold plan の summary を表示し、確認後に生成する。`--non-interactive --config-template <template>` を使うと既定値で生成できる。`--title`, `--author`, `--language`, `--output-preset`, `--repo-mode` で対話項目を explicit に上書きできる。`series` では追加で `--initial-book-id <book-id>` を受け付け、既定値は `vol-01` になる。`paper` では追加で `--config-profile paper|conference-preprint` を受け付ける。
 
 テンプレートに応じて、次のような土台を生成する。
 
@@ -433,6 +435,14 @@ prose の Kindle / EPUB build では `styles/base.css` と `styles/epub.css` を
 prose 系テンプレートでは、最初の原稿ファイルとして `paper` / `conference-preprint` は `single-book` で `manuscript/01-main.md`、`series` で `books/<book-id>/manuscript/01-main.md` を生成する。その他の prose は `01-chapter-1.md` を生成する。この `01-` prefix は初期命名の慣例で、章順の source of truth ではない。
 
 また、prose 系では空の `editorial/style.yml`, `editorial/claims.yml`, `editorial/figures.yml`, `editorial/freshness.yml` を生成し、`single-book` では `book.yml`、`series` では `books/<book-id>/book.yml` から参照する。style 側は `single-book` では `styles/base.css`, `styles/epub.css`, `styles/print.css`、`series` では `shared/styles/base.css`, `shared/styles/epub.css`, `shared/styles/print.css` を生成する。これらの default CSS は template/profile ごとに異なり、`business` / `paper` は横組み prose、`novel` / `light-novel` は縦組み prose を初期状態で表す。`novel` / `light-novel` の `print.css` は PDF 向けに本文サイズを半段締め、扉と目次を控えめに整える。本文へのページ分離は generated layout stylesheet が持つ。
+
+生成される config field の意味は [設定リファレンス](config-reference.md) にまとめる。正式な schema や制約は `docs/specs/` を参照する。
+
+`init` 完了メッセージにも config reference への URL を出す。
+
+さらに、`single-book` なら `shosei explain` / `shosei validate`、`series` なら生成された初期 book id 付きの次コマンド例を出す。初期 book id は 1 つの path segment でなければならず、`/`, `\\`, 空白, `.`, `..` は受け付けない。
+
+local の `.git` が見つからないときは `git init`、常に Git LFS 用の `git lfs install`、`doctor` を自動実行していないときは `shosei doctor` も続けて案内する。
 
 ## Preview and doctor
 

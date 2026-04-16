@@ -180,6 +180,9 @@ function buildInitCommandParts(options = {}) {
   appendOptionArg(args, "--config-template", options.configTemplate);
   appendOptionArg(args, "--config-profile", options.configProfile);
   appendOptionArg(args, "--repo-mode", options.repoMode);
+  if (options.repoMode === "series") {
+    appendOptionArg(args, "--initial-book-id", options.initialBookId);
+  }
   appendOptionArg(args, "--title", options.title);
   appendOptionArg(args, "--author", options.author);
   appendOptionArg(args, "--language", options.language);

@@ -1027,6 +1027,7 @@ git:
             config_template: Some("business".to_string()),
             config_profile: None,
             repo_mode: Some("series".to_string()),
+            initial_series_book_id: None,
             title: Some("Series Sample".to_string()),
             author: Some("Author".to_string()),
             language: Some("ja".to_string()),

@@ -5,7 +5,10 @@ use std::{
 
 use thiserror::Error;
 
+use crate::app::CONFIG_REFERENCE_URL;
+
 const SHOSEI_PROJECT_SKILL_TEMPLATE: &str = include_str!("../../templates/shosei-project-skill.md");
+const DEFAULT_SERIES_BOOK_ID: &str = "vol-01";
 
 #[derive(Debug, Clone)]
 pub struct InitProjectOptions {
@@ -15,6 +18,7 @@ pub struct InitProjectOptions {
     pub config_template: Option<String>,
     pub config_profile: Option<String>,
     pub repo_mode: Option<String>,
+    pub initial_series_book_id: Option<String>,
     pub title: Option<String>,
     pub author: Option<String>,
     pub language: Option<String>,
@@ -35,6 +39,13 @@ pub enum InitProjectError {
     UnsupportedProfile { profile: String },
     #[error("unsupported repo mode `{mode}`")]
     UnsupportedRepoMode { mode: String },
+    #[error("initial series book id `{book_id}` requires repo mode `series`")]
+    InitialSeriesBookIdRequiresSeriesRepoMode { book_id: String },
+    #[error("invalid initial series book id `{book_id}`: {reason}")]
+    InvalidInitialSeriesBookId {
+        book_id: String,
+        reason: &'static str,
+    },
     #[error("refusing to initialize {path}: existing shosei config found")]
     AlreadyInitialized { path: String },
     #[error("failed to create {path}: {source}")]
@@ -91,12 +102,15 @@ struct InitScaffoldConfig {
     author: String,
     language: String,
     output_preset: OutputPreset,
+    initial_series_book_id: String,
 }
 
 pub fn init_project(options: InitProjectOptions) -> Result<InitProjectResult, InitProjectError> {
     let template = ProjectTemplate::from_cli(options.config_template.as_deref())?;
     let profile = ProjectProfile::from_cli(options.config_profile.as_deref(), template)?;
     let repo_mode = RepoTemplate::from_cli(options.repo_mode.as_deref(), template)?;
+    let initial_series_book_id =
+        resolve_initial_series_book_id(repo_mode, options.initial_series_book_id.as_deref())?;
     let scaffold = InitScaffoldConfig {
         template,
         profile,
@@ -104,8 +118,10 @@ pub fn init_project(options: InitProjectOptions) -> Result<InitProjectResult, In
         author: options.author.unwrap_or_else(|| "Author Name".to_string()),
         language: options.language.unwrap_or_else(|| "ja".to_string()),
         output_preset: OutputPreset::from_cli(options.output_preset.as_deref(), profile)?,
+        initial_series_book_id,
     };
     let root = options.root;
+    let has_local_git_metadata = git_metadata_exists(&root);
 
     if !options.force && has_existing_config(&root) {
         return Err(InitProjectError::AlreadyInitialized {
@@ -124,9 +140,9 @@ pub fn init_project(options: InitProjectOptions) -> Result<InitProjectResult, In
         RepoTemplate::SingleBook => "single-book",
         RepoTemplate::Series => "series",
     };
-
-    Ok(InitProjectResult {
-        summary: format!(
+    let next_steps = next_steps(repo_mode, scaffold.series_book_id());
+    let mut summary = vec![
+        format!(
             "initialized {mode_label} scaffold for {} at {}{}",
             profile.as_str(),
             root.display(),
@@ -136,8 +152,104 @@ pub fn init_project(options: InitProjectOptions) -> Result<InitProjectResult, In
                 " (interactive answers applied)"
             }
         ),
+        format!("config reference: {CONFIG_REFERENCE_URL}"),
+        "next:".to_string(),
+        format!("- {}", next_steps.explain),
+        format!("- {}", next_steps.validate),
+    ];
+    let setup_steps = setup_steps(has_local_git_metadata);
+    if !setup_steps.is_empty() {
+        summary.push("setup:".to_string());
+        summary.extend(setup_steps.into_iter().map(|step| format!("- {step}")));
+    }
+
+    Ok(InitProjectResult {
+        summary: summary.join("\n"),
         root,
     })
+}
+
+struct InitNextSteps {
+    explain: String,
+    validate: String,
+}
+
+fn next_steps(repo_mode: RepoTemplate, initial_book_id: &str) -> InitNextSteps {
+    match repo_mode {
+        RepoTemplate::SingleBook => InitNextSteps {
+            explain: "from the repo root, run: shosei explain".to_string(),
+            validate: "then run: shosei validate".to_string(),
+        },
+        RepoTemplate::Series => InitNextSteps {
+            explain: format!("from the repo root, run: shosei explain --book {initial_book_id}"),
+            validate: format!("then run: shosei validate --book {initial_book_id}"),
+        },
+    }
+}
+
+fn setup_steps(has_local_git_metadata: bool) -> Vec<&'static str> {
+    let mut steps = Vec::new();
+    if !has_local_git_metadata {
+        steps.push("if this directory is not under Git yet, run: git init");
+    }
+    steps.push("if Git LFS is not set up on this machine, run: git lfs install");
+    steps
+}
+
+fn git_metadata_exists(root: &Path) -> bool {
+    root.join(".git").exists()
+}
+
+impl InitScaffoldConfig {
+    fn series_book_id(&self) -> &str {
+        &self.initial_series_book_id
+    }
+}
+
+fn resolve_initial_series_book_id(
+    repo_mode: RepoTemplate,
+    initial_series_book_id: Option<&str>,
+) -> Result<String, InitProjectError> {
+    match repo_mode {
+        RepoTemplate::SingleBook => {
+            if let Some(book_id) = initial_series_book_id {
+                return Err(
+                    InitProjectError::InitialSeriesBookIdRequiresSeriesRepoMode {
+                        book_id: book_id.to_string(),
+                    },
+                );
+            }
+            Ok(DEFAULT_SERIES_BOOK_ID.to_string())
+        }
+        RepoTemplate::Series => {
+            let book_id = initial_series_book_id.unwrap_or(DEFAULT_SERIES_BOOK_ID);
+            validate_series_book_id(book_id)?;
+            Ok(book_id.to_string())
+        }
+    }
+}
+
+fn validate_series_book_id(book_id: &str) -> Result<(), InitProjectError> {
+    let reason = if book_id.is_empty() {
+        Some("book id must not be empty")
+    } else if matches!(book_id, "." | "..") {
+        Some("book id must not be `.` or `..`")
+    } else if book_id.contains('/') || book_id.contains('\\') {
+        Some("book id must be a single path segment")
+    } else if book_id.chars().any(char::is_whitespace) {
+        Some("book id must not contain whitespace")
+    } else {
+        None
+    };
+
+    if let Some(reason) = reason {
+        Err(InitProjectError::InvalidInitialSeriesBookId {
+            book_id: book_id.to_string(),
+            reason,
+        })
+    } else {
+        Ok(())
+    }
 }
 
 impl RepoTemplate {
@@ -331,45 +443,52 @@ fn init_single_book(root: &Path, scaffold: &InitScaffoldConfig) -> Result<(), In
     write_file(&root.join(".gitignore"), gitignore_contents())?;
     write_file(&root.join(".gitattributes"), gitattributes_contents())?;
     write_style_scaffold(&root.join("styles"), template, scaffold.profile)?;
-    write_agent_skill_template(root, template, RepoTemplate::SingleBook)?;
+    write_agent_skill_template(
+        root,
+        template,
+        RepoTemplate::SingleBook,
+        scaffold.series_book_id(),
+    )?;
     Ok(())
 }
 
 fn init_series(root: &Path, scaffold: &InitScaffoldConfig) -> Result<(), InitProjectError> {
     let template = scaffold.template;
+    let book_root = root.join("books").join(scaffold.series_book_id());
     ensure_dir(&root.join("shared/assets"))?;
     ensure_dir(&root.join("shared/styles"))?;
     ensure_dir(&root.join("shared/fonts"))?;
     ensure_dir(&root.join("shared/metadata"))?;
-    ensure_dir(&root.join("books/vol-01/assets"))?;
-    ensure_dir(&root.join("books/vol-01/manuscript"))?;
-    ensure_dir(&root.join("books/vol-01/manga/script"))?;
-    ensure_dir(&root.join("books/vol-01/manga/storyboard"))?;
-    ensure_dir(&root.join("books/vol-01/manga/pages"))?;
-    ensure_dir(&root.join("books/vol-01/manga/spreads"))?;
-    ensure_dir(&root.join("books/vol-01/manga/metadata"))?;
+    ensure_dir(&book_root.join("assets"))?;
+    ensure_dir(&book_root.join("manuscript"))?;
+    ensure_dir(&book_root.join("manga/script"))?;
+    ensure_dir(&book_root.join("manga/storyboard"))?;
+    ensure_dir(&book_root.join("manga/pages"))?;
+    ensure_dir(&book_root.join("manga/spreads"))?;
+    ensure_dir(&book_root.join("manga/metadata"))?;
     ensure_dir(&root.join("dist"))?;
 
     if template != ProjectTemplate::Manga {
-        write_editorial_scaffold(&root.join("books/vol-01/editorial"))?;
+        write_editorial_scaffold(&book_root.join("editorial"))?;
         write_file(
-            &root.join(format!(
-                "books/vol-01/manuscript/{}",
-                scaffold.profile.manuscript_file()
-            )),
+            &book_root
+                .join("manuscript")
+                .join(scaffold.profile.manuscript_file()),
             scaffold.profile.manuscript_heading(),
         )?;
     }
 
     write_file(&root.join("series.yml"), &series_yml(scaffold))?;
-    write_file(
-        &root.join("books/vol-01/book.yml"),
-        &series_book_yml(scaffold),
-    )?;
+    write_file(&book_root.join("book.yml"), &series_book_yml(scaffold))?;
     write_file(&root.join(".gitignore"), gitignore_contents())?;
     write_file(&root.join(".gitattributes"), gitattributes_contents())?;
     write_style_scaffold(&root.join("shared/styles"), template, scaffold.profile)?;
-    write_agent_skill_template(root, template, RepoTemplate::Series)?;
+    write_agent_skill_template(
+        root,
+        template,
+        RepoTemplate::Series,
+        scaffold.series_book_id(),
+    )?;
     Ok(())
 }
 
@@ -407,9 +526,11 @@ fn book_yml(scaffold: &InitScaffoldConfig) -> String {
 fn series_yml(scaffold: &InitScaffoldConfig) -> String {
     let template = scaffold.template;
     let outputs = indent_block(&outputs_block(scaffold), 2);
+    let book_id = scaffold.series_book_id();
+    let book_path = format!("books/{book_id}");
 
     format!(
-        "series:\n  id: sample-series\n  title: \"{}\"\n  language: {}\n  type: {}\nshared:\n  assets:\n    - shared/assets\n  styles:\n    - shared/styles\n  fonts:\n    - shared/fonts\n  metadata:\n    - shared/metadata\ndefaults:\n  book:\n    profile: {}\n    writing_mode: {}\n    reading_direction: {}\n  layout:\n    binding: {}\n    chapter_start_page: {}\n    allow_blank_pages: {}\n{}validation:\n  strict: true\n  epubcheck: {}\n  accessibility: warn\ngit:\n  lfs: true\n  require_clean_worktree_for_handoff: true\nbooks:\n  - id: vol-01\n    path: books/vol-01\n    number: 1\n    title: \"Volume 1\"\n",
+        "series:\n  id: sample-series\n  title: \"{}\"\n  language: {}\n  type: {}\nshared:\n  assets:\n    - shared/assets\n  styles:\n    - shared/styles\n  fonts:\n    - shared/fonts\n  metadata:\n    - shared/metadata\ndefaults:\n  book:\n    profile: {}\n    writing_mode: {}\n    reading_direction: {}\n  layout:\n    binding: {}\n    chapter_start_page: {}\n    allow_blank_pages: {}\n{}validation:\n  strict: true\n  epubcheck: {}\n  accessibility: warn\ngit:\n  lfs: true\n  require_clean_worktree_for_handoff: true\nbooks:\n  - id: {}\n    path: {}\n    number: 1\n    title: \"Volume 1\"\n",
         scaffold.title,
         scaffold.language,
         template.as_str(),
@@ -424,12 +545,15 @@ fn series_yml(scaffold: &InitScaffoldConfig) -> String {
             "false"
         } else {
             "true"
-        }
+        },
+        book_id,
+        book_path,
     )
 }
 
 fn series_book_yml(scaffold: &InitScaffoldConfig) -> String {
     let template = scaffold.template;
+    let book_root = format!("books/{}", scaffold.series_book_id());
     if template == ProjectTemplate::Manga {
         format!(
             "project:\n  type: {}\n  vcs: git\n  version: 1\nbook:\n  title: \"{}\"\n  authors:\n    - \"{}\"\n  language: {}\nlayout:\n  binding: {}\n  chapter_start_page: odd\n  allow_blank_pages: true\nmanga:\n  reading_direction: rtl\n  default_page_side: right\n  spread_policy_for_kindle: split\n  front_color_pages: 0\n  body_mode: monochrome\n",
@@ -441,7 +565,7 @@ fn series_book_yml(scaffold: &InitScaffoldConfig) -> String {
         )
     } else {
         format!(
-            "project:\n  type: {}\n  vcs: git\n  version: 1\nbook:\n  title: \"{}\"\n  authors:\n    - \"{}\"\n  language: {}\nlayout:\n  binding: {}\n  chapter_start_page: {}\n  allow_blank_pages: {}\nmanuscript:\n  chapters:\n    - books/vol-01/manuscript/{}\neditorial:\n  style: books/vol-01/editorial/style.yml\n  claims: books/vol-01/editorial/claims.yml\n  figures: books/vol-01/editorial/figures.yml\n  freshness: books/vol-01/editorial/freshness.yml\n",
+            "project:\n  type: {}\n  vcs: git\n  version: 1\nbook:\n  title: \"{}\"\n  authors:\n    - \"{}\"\n  language: {}\nlayout:\n  binding: {}\n  chapter_start_page: {}\n  allow_blank_pages: {}\nmanuscript:\n  chapters:\n    - {}/manuscript/{}\neditorial:\n  style: {}/editorial/style.yml\n  claims: {}/editorial/claims.yml\n  figures: {}/editorial/figures.yml\n  freshness: {}/editorial/freshness.yml\n",
             template.as_str(),
             scaffold.title,
             scaffold.author,
@@ -449,7 +573,12 @@ fn series_book_yml(scaffold: &InitScaffoldConfig) -> String {
             template.binding(),
             scaffold.profile.chapter_start_page(),
             scaffold.profile.allow_blank_pages(),
+            book_root,
             scaffold.profile.manuscript_file(),
+            book_root,
+            book_root,
+            book_root,
+            book_root,
         )
     }
 }
@@ -692,16 +821,27 @@ fn write_agent_skill_template(
     root: &Path,
     template: ProjectTemplate,
     repo_mode: RepoTemplate,
+    initial_book_id: &str,
 ) -> Result<(), InitProjectError> {
     let skill_dir = root.join(".agents/skills/shosei-project");
     ensure_dir(&skill_dir)?;
     write_file(
         &skill_dir.join("SKILL.md"),
-        &agent_skill_contents(template, repo_mode),
+        &agent_skill_contents(template, repo_mode, initial_book_id),
     )
 }
 
-fn agent_skill_contents(template: ProjectTemplate, repo_mode: RepoTemplate) -> String {
+fn agent_skill_contents(
+    template: ProjectTemplate,
+    repo_mode: RepoTemplate,
+    initial_book_id: &str,
+) -> String {
+    let explain = explain_command(repo_mode, initial_book_id);
+    let validate = validate_command(repo_mode, initial_book_id);
+    let page_check = page_check_rule(template, repo_mode, initial_book_id);
+    let build = build_command(repo_mode, initial_book_id);
+    let preview = preview_command(repo_mode, initial_book_id);
+    let handoff = handoff_command(repo_mode, initial_book_id);
     let replacements = [
         (
             "{{DESCRIPTION}}",
@@ -715,12 +855,12 @@ fn agent_skill_contents(template: ProjectTemplate, repo_mode: RepoTemplate) -> S
             primary_content_paths(template, repo_mode),
         ),
         ("{{REPO_MODE_RULES}}", repo_mode_rules(repo_mode)),
-        ("{{EXPLAIN_COMMAND}}", explain_command(repo_mode)),
-        ("{{VALIDATE_COMMAND}}", validate_command(repo_mode)),
-        ("{{PAGE_CHECK_RULE}}", page_check_rule(template, repo_mode)),
-        ("{{BUILD_COMMAND}}", build_command(repo_mode)),
-        ("{{PREVIEW_COMMAND}}", preview_command(repo_mode)),
-        ("{{HANDOFF_COMMAND}}", handoff_command(repo_mode)),
+        ("{{EXPLAIN_COMMAND}}", explain.as_str()),
+        ("{{VALIDATE_COMMAND}}", validate.as_str()),
+        ("{{PAGE_CHECK_RULE}}", page_check.as_str()),
+        ("{{BUILD_COMMAND}}", build.as_str()),
+        ("{{PREVIEW_COMMAND}}", preview.as_str()),
+        ("{{HANDOFF_COMMAND}}", handoff.as_str()),
     ];
 
     let mut rendered = SHOSEI_PROJECT_SKILL_TEMPLATE.to_string();
@@ -785,50 +925,57 @@ fn repo_mode_rules(repo_mode: RepoTemplate) -> &'static str {
     }
 }
 
-fn explain_command(repo_mode: RepoTemplate) -> &'static str {
+fn explain_command(repo_mode: RepoTemplate, initial_book_id: &str) -> String {
     match repo_mode {
-        RepoTemplate::SingleBook => "shosei explain",
-        RepoTemplate::Series => "shosei explain --book vol-01",
+        RepoTemplate::SingleBook => "shosei explain".to_string(),
+        RepoTemplate::Series => format!("shosei explain --book {initial_book_id}"),
     }
 }
 
-fn validate_command(repo_mode: RepoTemplate) -> &'static str {
+fn validate_command(repo_mode: RepoTemplate, initial_book_id: &str) -> String {
     match repo_mode {
-        RepoTemplate::SingleBook => "shosei validate",
-        RepoTemplate::Series => "shosei validate --book vol-01",
+        RepoTemplate::SingleBook => "shosei validate".to_string(),
+        RepoTemplate::Series => format!("shosei validate --book {initial_book_id}"),
     }
 }
 
-fn page_check_rule(template: ProjectTemplate, repo_mode: RepoTemplate) -> &'static str {
+fn page_check_rule(
+    template: ProjectTemplate,
+    repo_mode: RepoTemplate,
+    initial_book_id: &str,
+) -> String {
     match (template, repo_mode) {
         (ProjectTemplate::Manga, RepoTemplate::SingleBook) => {
             "Run `shosei page check` after changing manga page assets, page order, or spread-related settings."
+                .to_string()
         }
         (ProjectTemplate::Manga, RepoTemplate::Series) => {
-            "Run `shosei page check --book vol-01` after changing manga page assets, page order, or spread-related settings."
+            format!(
+                "Run `shosei page check --book {initial_book_id}` after changing manga page assets, page order, or spread-related settings."
+            )
         }
-        _ => "Skip `page check` unless this repo is using the manga workflow.",
+        _ => "Skip `page check` unless this repo is using the manga workflow.".to_string(),
     }
 }
 
-fn build_command(repo_mode: RepoTemplate) -> &'static str {
+fn build_command(repo_mode: RepoTemplate, initial_book_id: &str) -> String {
     match repo_mode {
-        RepoTemplate::SingleBook => "shosei build",
-        RepoTemplate::Series => "shosei build --book vol-01",
+        RepoTemplate::SingleBook => "shosei build".to_string(),
+        RepoTemplate::Series => format!("shosei build --book {initial_book_id}"),
     }
 }
 
-fn preview_command(repo_mode: RepoTemplate) -> &'static str {
+fn preview_command(repo_mode: RepoTemplate, initial_book_id: &str) -> String {
     match repo_mode {
-        RepoTemplate::SingleBook => "shosei preview",
-        RepoTemplate::Series => "shosei preview --book vol-01",
+        RepoTemplate::SingleBook => "shosei preview".to_string(),
+        RepoTemplate::Series => format!("shosei preview --book {initial_book_id}"),
     }
 }
 
-fn handoff_command(repo_mode: RepoTemplate) -> &'static str {
+fn handoff_command(repo_mode: RepoTemplate, initial_book_id: &str) -> String {
     match repo_mode {
-        RepoTemplate::SingleBook => "shosei handoff print",
-        RepoTemplate::Series => "shosei handoff print --book vol-01",
+        RepoTemplate::SingleBook => "shosei handoff print".to_string(),
+        RepoTemplate::Series => format!("shosei handoff print --book {initial_book_id}"),
     }
 }
 
@@ -852,6 +999,7 @@ mod tests {
             config_template: Some("novel".to_string()),
             config_profile: None,
             repo_mode: None,
+            initial_series_book_id: None,
             title: None,
             author: None,
             language: None,
@@ -871,6 +1019,7 @@ mod tests {
         let book = fs::read_to_string(root.join("book.yml")).unwrap();
         assert!(book.contains("editorial:\n  style: editorial/style.yml"));
         assert!(book.contains("engine: chromium"));
+        crate::config::load_book_config(&root.join("book.yml")).unwrap();
         let base_css = fs::read_to_string(root.join("styles/base.css")).unwrap();
         assert!(base_css.contains("writing-mode: vertical-rl"));
         let print_css = fs::read_to_string(root.join("styles/print.css")).unwrap();
@@ -886,18 +1035,37 @@ mod tests {
         assert!(skill.contains("shosei story scaffold"));
         assert!(skill.contains("shosei story check"));
         assert!(result.summary.contains("single-book scaffold"));
+        assert!(result.summary.contains("config reference:"));
+        assert!(
+            result
+                .summary
+                .contains("from the repo root, run: shosei explain")
+        );
+        assert!(result.summary.contains("then run: shosei validate"));
+        assert!(
+            result
+                .summary
+                .contains("if this directory is not under Git yet, run: git init")
+        );
+        assert!(
+            result
+                .summary
+                .contains("if Git LFS is not set up on this machine, run: git lfs install")
+        );
     }
 
     #[test]
     fn initializes_series_manga_scaffold() {
         let root = temp_dir("series");
-        init_project(InitProjectOptions {
+        let book_root = root.join("books").join(DEFAULT_SERIES_BOOK_ID);
+        let result = init_project(InitProjectOptions {
             root: root.clone(),
             non_interactive: true,
             force: false,
             config_template: Some("manga".to_string()),
             config_profile: None,
             repo_mode: None,
+            initial_series_book_id: None,
             title: None,
             author: None,
             language: None,
@@ -906,16 +1074,20 @@ mod tests {
         .unwrap();
 
         assert!(root.join("series.yml").is_file());
-        assert!(root.join("books/vol-01/book.yml").is_file());
+        assert!(book_root.join("book.yml").is_file());
         assert!(root.join("shared/styles/base.css").is_file());
         assert!(root.join("shared/styles/epub.css").is_file());
         assert!(root.join("shared/styles/print.css").is_file());
-        assert!(root.join("books/vol-01/manga/pages").is_dir());
+        assert!(book_root.join("manga/pages").is_dir());
+        crate::config::load_series_config(&root.join("series.yml")).unwrap();
+        crate::config::load_book_config(&book_root.join("book.yml")).unwrap();
         let skill =
             fs::read_to_string(root.join(".agents/skills/shosei-project/SKILL.md")).unwrap();
         assert!(skill.contains("series"));
-        assert!(skill.contains("shosei explain --book vol-01"));
-        assert!(skill.contains("shosei page check --book vol-01"));
+        assert!(skill.contains(&format!("shosei explain --book {DEFAULT_SERIES_BOOK_ID}")));
+        assert!(skill.contains(&format!(
+            "shosei page check --book {DEFAULT_SERIES_BOOK_ID}"
+        )));
         assert!(skill.contains("books/<book-id>/manga/"));
         assert!(skill.contains("shosei story scaffold --book <book-id>"));
         assert!(skill.contains("shared/metadata/story/"));
@@ -924,6 +1096,23 @@ mod tests {
         assert!(skill.contains("shosei story sync --book <book-id> --from shared"));
         assert!(skill.contains("--to shared"));
         assert!(skill.contains("--report <drift-report> --force"));
+        assert!(result.summary.contains("config reference:"));
+        assert!(result.summary.contains(&format!(
+            "from the repo root, run: shosei explain --book {DEFAULT_SERIES_BOOK_ID}"
+        )));
+        assert!(result.summary.contains(&format!(
+            "then run: shosei validate --book {DEFAULT_SERIES_BOOK_ID}"
+        )));
+        assert!(
+            result
+                .summary
+                .contains("if this directory is not under Git yet, run: git init")
+        );
+        assert!(
+            result
+                .summary
+                .contains("if Git LFS is not set up on this machine, run: git lfs install")
+        );
     }
 
     #[test]
@@ -939,6 +1128,7 @@ mod tests {
             config_template: None,
             config_profile: None,
             repo_mode: None,
+            initial_series_book_id: None,
             title: None,
             author: None,
             language: None,
@@ -962,6 +1152,7 @@ mod tests {
             config_template: Some("business".to_string()),
             config_profile: None,
             repo_mode: None,
+            initial_series_book_id: None,
             title: None,
             author: None,
             language: None,
@@ -974,6 +1165,78 @@ mod tests {
     }
 
     #[test]
+    fn skips_git_init_hint_when_local_git_metadata_exists() {
+        let root = temp_dir("git-metadata");
+        fs::create_dir_all(root.join(".git")).unwrap();
+
+        let result = init_project(InitProjectOptions {
+            root,
+            non_interactive: true,
+            force: false,
+            config_template: Some("novel".to_string()),
+            config_profile: None,
+            repo_mode: None,
+            initial_series_book_id: None,
+            title: None,
+            author: None,
+            language: None,
+            output_preset: None,
+        })
+        .unwrap();
+
+        assert!(!result.summary.contains("run: git init"));
+        assert!(result.summary.contains("run: git lfs install"));
+    }
+
+    #[test]
+    fn rejects_initial_series_book_id_for_single_book() {
+        let root = temp_dir("single-book-id-override");
+        let error = init_project(InitProjectOptions {
+            root,
+            non_interactive: true,
+            force: false,
+            config_template: Some("novel".to_string()),
+            config_profile: None,
+            repo_mode: Some("single-book".to_string()),
+            initial_series_book_id: Some("pilot".to_string()),
+            title: None,
+            author: None,
+            language: None,
+            output_preset: None,
+        })
+        .unwrap_err();
+
+        assert!(matches!(
+            error,
+            InitProjectError::InitialSeriesBookIdRequiresSeriesRepoMode { .. }
+        ));
+    }
+
+    #[test]
+    fn rejects_invalid_initial_series_book_id() {
+        let root = temp_dir("invalid-series-book-id");
+        let error = init_project(InitProjectOptions {
+            root,
+            non_interactive: true,
+            force: false,
+            config_template: Some("novel".to_string()),
+            config_profile: None,
+            repo_mode: Some("series".to_string()),
+            initial_series_book_id: Some("bad/id".to_string()),
+            title: None,
+            author: None,
+            language: None,
+            output_preset: None,
+        })
+        .unwrap_err();
+
+        assert!(matches!(
+            error,
+            InitProjectError::InvalidInitialSeriesBookId { .. }
+        ));
+    }
+
+    #[test]
     fn rejects_unknown_template() {
         let root = temp_dir("bad-template");
         let error = init_project(InitProjectOptions {
@@ -983,6 +1246,7 @@ mod tests {
             config_template: Some("poetry".to_string()),
             config_profile: None,
             repo_mode: None,
+            initial_series_book_id: None,
             title: None,
             author: None,
             language: None,
@@ -999,6 +1263,7 @@ mod tests {
     #[test]
     fn initializes_series_business_scaffold_with_editorial_book_files() {
         let root = temp_dir("series-business");
+        let book_root = root.join("books").join(DEFAULT_SERIES_BOOK_ID);
         let result = init_project(InitProjectOptions {
             root: root.clone(),
             non_interactive: true,
@@ -1006,6 +1271,7 @@ mod tests {
             config_template: Some("business".to_string()),
             config_profile: None,
             repo_mode: Some("series".to_string()),
+            initial_series_book_id: None,
             title: None,
             author: None,
             language: None,
@@ -1014,31 +1280,33 @@ mod tests {
         .unwrap();
 
         assert!(root.join("series.yml").is_file());
-        assert!(root.join("books/vol-01/book.yml").is_file());
-        assert!(
-            root.join("books/vol-01/manuscript/01-chapter-1.md")
-                .is_file()
-        );
-        assert!(root.join("books/vol-01/editorial/style.yml").is_file());
-        assert!(root.join("books/vol-01/editorial/claims.yml").is_file());
-        assert!(root.join("books/vol-01/editorial/figures.yml").is_file());
-        assert!(root.join("books/vol-01/editorial/freshness.yml").is_file());
+        assert!(book_root.join("book.yml").is_file());
+        assert!(book_root.join("manuscript/01-chapter-1.md").is_file());
+        assert!(book_root.join("editorial/style.yml").is_file());
+        assert!(book_root.join("editorial/claims.yml").is_file());
+        assert!(book_root.join("editorial/figures.yml").is_file());
+        assert!(book_root.join("editorial/freshness.yml").is_file());
         assert!(root.join("shared/styles/base.css").is_file());
         assert!(root.join("shared/styles/epub.css").is_file());
         assert!(root.join("shared/styles/print.css").is_file());
-        let book = fs::read_to_string(root.join("books/vol-01/book.yml")).unwrap();
-        assert!(book.contains("editorial:\n  style: books/vol-01/editorial/style.yml"));
+        let book = fs::read_to_string(book_root.join("book.yml")).unwrap();
+        assert!(book.contains(&format!(
+            "editorial:\n  style: books/{DEFAULT_SERIES_BOOK_ID}/editorial/style.yml"
+        )));
+        crate::config::load_book_config(&book_root.join("book.yml")).unwrap();
         let base_css = fs::read_to_string(root.join("shared/styles/base.css")).unwrap();
         assert!(base_css.contains("writing-mode: horizontal-tb"));
         let skill =
             fs::read_to_string(root.join(".agents/skills/shosei-project/SKILL.md")).unwrap();
         assert!(skill.contains("books/<book-id>/editorial/"));
         assert!(result.summary.contains("series scaffold"));
+        assert!(result.summary.contains("config reference:"));
     }
 
     #[test]
     fn applies_interactive_answers_to_scaffold() {
         let root = temp_dir("interactive-values");
+        let book_root = root.join("books").join("pilot");
         init_project(InitProjectOptions {
             root: root.clone(),
             non_interactive: false,
@@ -1046,6 +1314,7 @@ mod tests {
             config_template: Some("novel".to_string()),
             config_profile: None,
             repo_mode: Some("series".to_string()),
+            initial_series_book_id: Some("pilot".to_string()),
             title: Some("Custom Series".to_string()),
             author: Some("Ken".to_string()),
             language: Some("ja-JP".to_string()),
@@ -1056,10 +1325,13 @@ mod tests {
         let series = fs::read_to_string(root.join("series.yml")).unwrap();
         assert!(series.contains("title: \"Custom Series\""));
         assert!(series.contains("language: ja-JP"));
+        assert!(series.contains("id: pilot"));
+        assert!(series.contains("path: books/pilot"));
         assert!(series.contains("target: kindle-ja"));
         assert!(series.contains("target: print-jp-pdfx1a"));
-        let book = fs::read_to_string(root.join("books/vol-01/book.yml")).unwrap();
+        let book = fs::read_to_string(book_root.join("book.yml")).unwrap();
         assert!(book.contains("- \"Ken\""));
+        assert!(book.contains("books/pilot/manuscript/01-chapter-1.md"));
     }
 
     #[test]
@@ -1072,6 +1344,7 @@ mod tests {
             config_template: Some("paper".to_string()),
             config_profile: Some("conference-preprint".to_string()),
             repo_mode: None,
+            initial_series_book_id: None,
             title: None,
             author: None,
             language: None,
@@ -1091,6 +1364,7 @@ mod tests {
         let print_css = fs::read_to_string(root.join("styles/print.css")).unwrap();
         assert!(print_css.contains(".abstract"));
         assert!(result.summary.contains("conference-preprint"));
+        assert!(result.summary.contains("config reference:"));
     }
 
     #[test]
@@ -1103,6 +1377,7 @@ mod tests {
             config_template: Some("light-novel".to_string()),
             config_profile: None,
             repo_mode: None,
+            initial_series_book_id: None,
             title: None,
             author: None,
             language: None,

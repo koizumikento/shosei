@@ -84,3 +84,19 @@ test("referenceEntriesRoot appends entries to the selected workspace root", () =
     path.join("/tmp/series", "shared", "metadata", "references", "entries")
   );
 });
+
+test("validateSeriesBookIdInput matches init CLI constraints", () => {
+  assert.equal(extension.__test.validateSeriesBookIdInput("pilot"), null);
+  assert.equal(
+    extension.__test.validateSeriesBookIdInput(""),
+    "Book id is required"
+  );
+  assert.equal(
+    extension.__test.validateSeriesBookIdInput("bad/id"),
+    "Book id must be a single path segment"
+  );
+  assert.equal(
+    extension.__test.validateSeriesBookIdInput("bad id"),
+    "Book id must not contain whitespace"
+  );
+});

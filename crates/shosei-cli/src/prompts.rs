@@ -8,6 +8,7 @@ pub struct InitWizardAnswers {
     pub config_template: String,
     pub config_profile: Option<String>,
     pub repo_mode: String,
+    pub initial_series_book_id: Option<String>,
     pub title: String,
     pub author: String,
     pub language: String,
@@ -39,6 +40,11 @@ pub fn prompt_init_wizard() -> io::Result<InitWizardAnswers> {
     };
     let repo_mode =
         prompt_with_default("リポジトリ管理単位 [single-book|series]", default_repo_mode)?;
+    let initial_series_book_id = if repo_mode == "series" {
+        Some(prompt_series_book_id("初期 book id", "vol-01")?)
+    } else {
+        None
+    };
     let default_title = match config_profile
         .as_deref()
         .unwrap_or(config_template.as_str())
@@ -67,6 +73,7 @@ pub fn prompt_init_wizard() -> io::Result<InitWizardAnswers> {
         config_template,
         config_profile,
         repo_mode,
+        initial_series_book_id,
         title,
         author,
         language,
@@ -83,11 +90,16 @@ pub fn render_init_summary(target: &Path, answers: &InitWizardAnswers) -> String
     let run_doctor = if answers.run_doctor { "yes" } else { "no" };
 
     format!(
-        "init plan:\n- path: {}\n- template: {}\n- profile: {}\n- repo mode: {}\n- title: {}\n- author: {}\n- language: {}\n- outputs: {}\n- run doctor after init: {}",
+        "init plan:\n- path: {}\n- template: {}\n- profile: {}\n- repo mode: {}\n{}- title: {}\n- author: {}\n- language: {}\n- outputs: {}\n- run doctor after init: {}",
         target.display(),
         answers.config_template,
         profile,
         answers.repo_mode,
+        answers
+            .initial_series_book_id
+            .as_ref()
+            .map(|book_id| format!("- initial book id: {book_id}\n"))
+            .unwrap_or_default(),
         answers.title,
         answers.author,
         answers.language,
@@ -124,5 +136,30 @@ fn prompt_yes_no(label: &str, default: bool) -> io::Result<bool> {
         Ok(default)
     } else {
         Ok(matches!(trimmed.as_str(), "y" | "yes"))
+    }
+}
+
+fn prompt_series_book_id(label: &str, default: &str) -> io::Result<String> {
+    loop {
+        let book_id = prompt_with_default(label, default)?;
+        if let Some(reason) = validate_series_book_id(&book_id) {
+            println!("error: invalid initial book id: {reason}");
+            continue;
+        }
+        return Ok(book_id);
+    }
+}
+
+fn validate_series_book_id(book_id: &str) -> Option<&'static str> {
+    if book_id.is_empty() {
+        Some("book id must not be empty")
+    } else if matches!(book_id, "." | "..") {
+        Some("book id must not be `.` or `..`")
+    } else if book_id.contains('/') || book_id.contains('\\') {
+        Some("book id must be a single path segment")
+    } else if book_id.chars().any(char::is_whitespace) {
+        Some("book id must not contain whitespace")
+    } else {
+        None
     }
 }

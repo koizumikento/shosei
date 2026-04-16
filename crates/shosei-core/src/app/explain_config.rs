@@ -1,6 +1,7 @@
 use std::{fs, path::Path};
 
 use crate::{
+    app::CONFIG_REFERENCE_URL,
     cli_api::CommandContext,
     config::{self, ExplainedConfig},
     domain::RepoMode,
@@ -221,6 +222,9 @@ pub fn explain_config(command: &CommandContext) -> Result<ExplainConfigResult, E
             display_repo_paths(&explained.resolved.shared.metadata)
         ));
     }
+
+    lines.push("".to_string());
+    lines.push(format!("config reference: {CONFIG_REFERENCE_URL}"));
 
     Ok(ExplainConfigResult {
         summary: lines.join("\n"),

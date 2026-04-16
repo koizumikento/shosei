@@ -33,6 +33,7 @@ fn run() -> Result<i32> {
             config_template,
             config_profile,
             repo_mode,
+            initial_book_id,
             title,
             author,
             language,
@@ -71,6 +72,11 @@ fn run() -> Result<i32> {
                         .as_ref()
                         .map(|answers| answers.repo_mode.clone())
                 }),
+                initial_series_book_id: initial_book_id.or_else(|| {
+                    wizard_answers
+                        .as_ref()
+                        .and_then(|answers| answers.initial_series_book_id.clone())
+                }),
                 title: title
                     .or_else(|| wizard_answers.as_ref().map(|answers| answers.title.clone())),
                 author: author.or_else(|| {
@@ -93,6 +99,8 @@ fn run() -> Result<i32> {
             if wizard_answers.as_ref().map(|answers| answers.run_doctor) == Some(true) {
                 let doctor = app::doctor();
                 output::print_line(&doctor.summary);
+            } else {
+                output::print_line("toolchain hint: run shosei doctor");
             }
             Ok(exit_code::OK)
         }

@@ -138,6 +138,39 @@ test("buildInitCommandParts includes paper config profile when selected", () => 
   ]);
 });
 
+test("buildInitCommandParts includes initial book id for series scaffolds", () => {
+  const commandParts = core.buildInitCommandParts({
+    path: "/tmp/my-series",
+    configTemplate: "manga",
+    repoMode: "series",
+    initialBookId: "pilot",
+    title: "My Series",
+    author: "Ken",
+    language: "ja",
+    outputPreset: "both"
+  });
+
+  assert.deepEqual(commandParts, [
+    "init",
+    "/tmp/my-series",
+    "--non-interactive",
+    "--config-template",
+    "manga",
+    "--repo-mode",
+    "series",
+    "--initial-book-id",
+    "pilot",
+    "--title",
+    "My Series",
+    "--author",
+    "Ken",
+    "--language",
+    "ja",
+    "--output-preset",
+    "both"
+  ]);
+});
+
 test("resolveCliTooling falls back to repo cargo manifest in development", () => {
   const root = tempDir("dev-cli");
   const extensionPath = path.join(root, "editors", "vscode");

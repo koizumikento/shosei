@@ -42,6 +42,7 @@ v0.1 の現行実装は、このフローのうち次を先に満たす。
 
 - 作品カテゴリ
 - repo mode
+- `series` の場合の初期 book id
 - paper profile
 - タイトル
 - 著者名
@@ -79,6 +80,7 @@ v0.1 で残す引数:
 - `--force`
 - `--config-template`
 - `--repo-mode`
+- `--initial-book-id`
 - `--title`
 - `--author`
 - `--language`
@@ -92,26 +94,27 @@ v0.1 で残す引数:
 1. プロジェクト名
 2. 作品カテゴリ
 3. リポジトリ管理単位
-4. タイトル
-5. 著者名
-6. 言語
-7. 出力先
+4. `series` の場合の初期 book id
+5. タイトル
+6. 著者名
+7. 言語
+8. 出力先
 
 ### 5.2 レイアウト質問
 
-8. 本文方向
-9. 綴じ方向
-10. 判型
+9. 本文方向
+10. 綴じ方向
+11. 判型
 
 ### 5.3 Git 質問
 
-11. Git リポジトリを初期化するか
-12. Git LFS を使う前提にするか
+12. Git リポジトリを初期化するか
+13. Git LFS を使う前提にするか
 
 ### 5.4 サンプル質問
 
-13. サンプル原稿を生成するか
-14. 実行後に `shosei doctor` を走らせるか
+14. サンプル原稿を生成するか
+15. 実行後に `shosei doctor` を走らせるか
 
 ## 6. 分岐ルール
 
@@ -220,6 +223,9 @@ v0.1 で残す引数:
 
 - `single-book`: 1 冊または 1 巻を 1 repo として扱う
 - `series`: シリーズ全体を 1 repo にまとめ、各巻を子ディレクトリで持つ
+- `series` を選んだ場合だけ初期 book id を質問する
+- 初期 book id の既定値は `vol-01`
+- 初期 book id は 1 つの path segment とし、空文字、`/`, `\\`, 空白, `.`, `..` は受け付けない
 
 ### 8.3 言語
 
@@ -338,6 +344,7 @@ v0.1 で残す引数:
 - `books/<book-id>/book.yml`
 - `books/<book-id>/assets/`
 - `books/<book-id>/manuscript/` または `books/<book-id>/manga/`
+- `<book-id>` は質問または `--initial-book-id` で決め、未指定時は `vol-01` を使う
 
 ### `--sample` 相当
 
@@ -351,8 +358,10 @@ v0.1 で残す引数:
 
 - `single-book` では回答を `book.yml` に反映する
 - `series` ではシリーズ共通項目を `series.yml` に、巻固有項目を `books/<book-id>/book.yml` に振り分ける
+- `series` の `<book-id>` は初期 book id の回答値または `--initial-book-id` を使い、未指定時は `vol-01` を使う
 - 未回答だが既定値がある項目は明示出力する
 - 将来用だが未実装の項目は必要最小限に留める
+- 生成する YAML config は簡潔さを優先し、field の意味は別の config reference にまとめる
 - prose では `manuscript` を生成
 - manga では `manga` を生成し、`manuscript` は省略
 
@@ -411,9 +420,11 @@ dist/
 
 `shosei init` 完了後、必要に応じて以下を案内する。
 
-- `shosei doctor`
-- `git init`
-- `git lfs install`
+- field の意味を追うための config reference URL
+- repo mode に応じた `shosei explain` / `shosei validate` の次コマンド例
+- 必要時だけ `git init`
+- Git LFS 未設定マシン向けの `git lfs install`
+- `run doctor = no` のときだけ `shosei doctor`
 - 初回 commit
 
 `run doctor = yes` を選んだ場合は自動実行してもよい。
@@ -437,6 +448,7 @@ dist/
 
 - project type
 - repo mode
+- initial book id (`series` のときのみ)
 - title
 - author
 - writing mode
@@ -454,6 +466,7 @@ dist/
 Project summary
   type: light-novel
   repo_mode: series
+  initial_book_id: vol-01
   title: 作品名
   writing_mode: vertical-rl
   binding: right
@@ -471,6 +484,7 @@ v0.1 では CI や editor integration からの scaffold 生成にも使う。
 
 - `config-template`
 - `repo-mode`
+- `initial-book-id`
 - `title`
 - `author`
 - `language`

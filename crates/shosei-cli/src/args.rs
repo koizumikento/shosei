@@ -24,6 +24,8 @@ pub enum Commands {
         config_profile: Option<String>,
         #[arg(long, value_name = "MODE", value_parser = ["single-book", "series"])]
         repo_mode: Option<String>,
+        #[arg(long = "initial-book-id", value_name = "BOOK_ID")]
+        initial_book_id: Option<String>,
         #[arg(long, value_name = "TITLE")]
         title: Option<String>,
         #[arg(long, value_name = "AUTHOR")]
@@ -357,12 +359,14 @@ mod tests {
                 config_template,
                 config_profile,
                 repo_mode,
+                initial_book_id,
                 ..
             } => {
                 assert_eq!(path, Some(PathBuf::from("./my-series")));
                 assert_eq!(config_template.as_deref(), Some("paper"));
                 assert_eq!(config_profile.as_deref(), Some("conference-preprint"));
                 assert_eq!(repo_mode.as_deref(), Some("series"));
+                assert_eq!(initial_book_id, None);
             }
             other => panic!("unexpected command: {other:?}"),
         }
@@ -409,6 +413,36 @@ mod tests {
                 assert_eq!(author.as_deref(), Some("Ken"));
                 assert_eq!(language.as_deref(), Some("ja-JP"));
                 assert_eq!(output_preset.as_deref(), Some("both"));
+            }
+            other => panic!("unexpected command: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_init_initial_book_id_override() {
+        let cli = Cli::parse_from([
+            "shosei",
+            "init",
+            "./my-series",
+            "--non-interactive",
+            "--config-template",
+            "manga",
+            "--repo-mode",
+            "series",
+            "--initial-book-id",
+            "pilot",
+        ]);
+
+        match cli.command {
+            Commands::Init {
+                path,
+                repo_mode,
+                initial_book_id,
+                ..
+            } => {
+                assert_eq!(path, Some(PathBuf::from("./my-series")));
+                assert_eq!(repo_mode.as_deref(), Some("series"));
+                assert_eq!(initial_book_id.as_deref(), Some("pilot"));
             }
             other => panic!("unexpected command: {other:?}"),
         }

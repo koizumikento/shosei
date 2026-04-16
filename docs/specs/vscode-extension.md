@@ -64,7 +64,7 @@ VS Code 拡張は `shosei` を外部プロセスとして実行する。
 
 ### 4.2 guided init
 
-VS Code 側で template / repo mode / title / author / language / output preset を Quick Pick / Input Box で集め、`shosei init <path> --non-interactive ...` に変換して実行してよい。
+VS Code 側で template / `paper` の場合は profile / repo mode / `series` の場合は初期 book id / title / author / language / output preset を Quick Pick / Input Box で集め、`shosei init <path> --non-interactive ...` に変換して実行してよい。
 
 ルール:
 
@@ -72,6 +72,8 @@ VS Code 側で template / repo mode / title / author / language / output preset 
 - VS Code 側で `book.yml` / `series.yml` の雛形を書かない
 - 成功後に optional で `shosei doctor` を続けて実行してよい
 - target path は workspace folder か folder picker から選ばせてよい
+- `series` を選んだ場合は `--initial-book-id <book-id>` に変換し、未指定時の既定値は `vol-01` とする
+- 初期 book id の validation は CLI と揃え、空文字、`/`, `\\`, 空白, `.`, `..` は受け付けない
 
 ### 4.3 one-shot と watch
 

@@ -430,6 +430,12 @@ fn init_cli_interactive_shows_summary_and_writes_after_confirmation() {
     assert!(stdout.contains("init plan:"));
     assert!(stdout.contains("- title: Sample Title"));
     assert!(stdout.contains("initialized single-book scaffold"));
+    assert!(stdout.contains("config reference:"));
+    assert!(stdout.contains("from the repo root, run: shosei explain"));
+    assert!(stdout.contains("then run: shosei validate"));
+    assert!(stdout.contains("if this directory is not under Git yet, run: git init"));
+    assert!(stdout.contains("if Git LFS is not set up on this machine, run: git lfs install"));
+    assert!(stdout.contains("toolchain hint: run shosei doctor"));
     assert!(root.join("book.yml").is_file());
 }
 
@@ -456,6 +462,33 @@ fn init_cli_interactive_can_cancel_before_writing_files() {
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("init canceled before writing files"));
     assert!(!root.join("book.yml").exists());
+}
+
+#[test]
+fn init_cli_interactive_series_accepts_custom_initial_book_id() {
+    let root = temp_dir("init-interactive-series-book-id");
+
+    let mut child = Command::new(env!("CARGO_BIN_EXE_shosei"))
+        .args(["init", root.to_str().unwrap()])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .spawn()
+        .unwrap();
+    child
+        .stdin
+        .as_mut()
+        .unwrap()
+        .write_all(b"novel\nseries\npilot\nSeries Title\nSample Author\nja\nboth\nn\ny\n")
+        .unwrap();
+
+    let output = child.wait_with_output().unwrap();
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("- initial book id: pilot"));
+    assert!(stdout.contains("shosei explain --book pilot"));
+    assert!(stdout.contains("shosei validate --book pilot"));
+    assert!(root.join("books/pilot/book.yml").is_file());
 }
 
 #[test]

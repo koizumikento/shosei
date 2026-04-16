@@ -20,6 +20,7 @@
         <a href="index.html">Overview</a>
         <a href="install.html">Install</a>
         <a class="is-current" href="usage.html" aria-current="page">Usage</a>
+        <a href="config-reference.html">Config</a>
         <a href="quickstart.html">Quickstart</a>
         <a href="contributing.html">Contributing</a>
         <a href="https://github.com/koizumikento/shosei">GitHub</a>
@@ -390,6 +391,7 @@ shosei explain --json</code></pre>
           </ul>
           <p>editorial sidecar が設定されている場合、<code>explain</code> は rule / claim / figure / freshness item の件数も summary に出します。</p>
           <p>reference workspace が初期化済みなら、<code>explain</code> は current scope の <code>references/README.md</code> と <code>entries/*.md</code>、<code>series</code> では shared scope 側の reference file も structure summary と <code>--json</code> に含めます。</p>
+          <p>人向けの summary 出力では、field の意味を追いやすいように config reference への URL も末尾に出します。</p>
           <p>editor integration 向けには <code>--json</code> も使えます。resolved config の要約、主要 field の origin、chapter list、初期化済み reference workspace file などを機械可読で返します。</p>
         </section>
 
@@ -433,7 +435,7 @@ pdf:
 
         <section>
           <h2>Generated scaffold</h2>
-          <p><code>init</code> は標準では短い対話式で、作品カテゴリ、<code>paper</code> の場合は profile、repo mode、タイトル、著者名、言語、出力先を確認してから scaffold plan の summary を表示し、確認後に生成します。<code>--non-interactive --config-template &lt;template&gt;</code> を使うと既定値で生成できます。<code>--title</code>, <code>--author</code>, <code>--language</code>, <code>--output-preset</code>, <code>--repo-mode</code> で対話項目を explicit に上書きできます。<code>paper</code> では追加で <code>--config-profile paper|conference-preprint</code> を受け付けます。</p>
+          <p><code>init</code> は標準では短い対話式で、作品カテゴリ、<code>paper</code> の場合は profile、repo mode、<code>series</code> の場合は初期 book id、タイトル、著者名、言語、出力先を確認してから scaffold plan の summary を表示し、確認後に生成します。<code>--non-interactive --config-template &lt;template&gt;</code> を使うと既定値で生成できます。<code>--title</code>, <code>--author</code>, <code>--language</code>, <code>--output-preset</code>, <code>--repo-mode</code> で対話項目を explicit に上書きできます。<code>series</code> では追加で <code>--initial-book-id &lt;book-id&gt;</code> を受け付け、既定値は <code>vol-01</code> です。<code>paper</code> では追加で <code>--config-profile paper|conference-preprint</code> を受け付けます。</p>
           <p>テンプレートに応じて、次のような土台を生成します。</p>
           <ul>
             <li>`book.yml` または `series.yml`</li>
@@ -447,6 +449,10 @@ pdf:
           </ul>
           <p>prose 系テンプレートでは、最初の原稿ファイルとして <code>paper</code> / <code>conference-preprint</code> は <code>single-book</code> で <code>manuscript/01-main.md</code>、<code>series</code> で <code>books/&lt;book-id&gt;/manuscript/01-main.md</code> を生成します。その他の prose は <code>01-chapter-1.md</code> を生成します。この <code>01-</code> prefix は初期命名の慣例で、章順の source of truth ではありません。</p>
           <p>また、prose 系では空の <code>editorial/style.yml</code>, <code>editorial/claims.yml</code>, <code>editorial/figures.yml</code>, <code>editorial/freshness.yml</code> を生成し、<code>single-book</code> では <code>book.yml</code>、<code>series</code> では <code>books/&lt;book-id&gt;/book.yml</code> から参照します。style 側は <code>single-book</code> では <code>styles/base.css</code>, <code>styles/epub.css</code>, <code>styles/print.css</code>、<code>series</code> では <code>shared/styles/base.css</code>, <code>shared/styles/epub.css</code>, <code>shared/styles/print.css</code> を生成します。これらの default CSS は template/profile ごとに異なり、<code>business</code> / <code>paper</code> は横組み prose、<code>novel</code> / <code>light-novel</code> は縦組み prose を初期状態で表します。<code>novel</code> / <code>light-novel</code> の <code>print.css</code> は PDF 向けに本文サイズを半段締め、扉と目次を控えめに整えます。本文へのページ分離は generated layout stylesheet が持ちます。</p>
+          <p>生成される config field の意味は <a href="config-reference.html">Config Reference</a> にまとめます。正式な schema や制約は <code>docs/specs/</code> を参照してください。</p>
+          <p><code>init</code> 完了メッセージにも config reference への URL を出します。</p>
+          <p>さらに、<code>single-book</code> なら <code>shosei explain</code> / <code>shosei validate</code>、<code>series</code> なら生成された初期 book id 付きの次コマンド例を出します。初期 book id は 1 つの path segment でなければならず、<code>/</code>, <code>\</code>, 空白, <code>.</code>, <code>..</code> は受け付けません。</p>
+          <p>local の <code>.git</code> が見つからないときは <code>git init</code>、常に Git LFS 用の <code>git lfs install</code>、<code>doctor</code> を自動実行していないときは <code>shosei doctor</code> も続けて案内します。</p>
         </section>
 
         <section>

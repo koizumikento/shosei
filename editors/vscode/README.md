@@ -136,7 +136,7 @@ VS Code で repo root を開けば、`.vscode/launch.json` の `shosei: Extensio
 
 開発ホストでは `shosei.cli.command` / `shosei.cli.args` が未設定でも、repo 内の `crates/shosei-cli/Cargo.toml` が見つかれば `cargo run --manifest-path ... --bin shosei --` に自動フォールバックする。
 
-`Shosei: Init` は VS Code 側で template / `paper` の場合は profile / repo mode / title / author / language / output preset を集め、`shosei init <path> --non-interactive ...` に変換して実行する。`paper` は print を先頭に出し、`conference-preprint` は `--config-profile conference-preprint` に変換する。scaffold 自体は CLI が生成する。
+`Shosei: Init` は VS Code 側で template / `paper` の場合は profile / repo mode / `series` の場合は初期 book id / title / author / language / output preset を集め、`shosei init <path> --non-interactive ...` に変換して実行する。`paper` は print を先頭に出し、`conference-preprint` は `--config-profile conference-preprint` に変換する。`series` の初期 book id は `--initial-book-id` に変換し、既定値は `vol-01`、`/`, `\\`, 空白, `.`, `..` は受け付けない。scaffold 自体は CLI が生成する。
 
 view の config / structure 表示は `shosei explain --json`、toolchain 表示は `shosei doctor --json` を使っており、required / optional の分類も含めて VS Code 側で config merge や依存検出を再実装しない。
 
