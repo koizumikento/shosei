@@ -37,6 +37,14 @@ repo/
   story/
     README.md
     scenes.yml
+    scene-notes/
+      01-scene.md
+    structures/
+      README.md
+      kishotenketsu.md
+      three-act.md
+      save-the-cat.md
+      heroes-journey.md
     characters/
       README.md
     locations/
@@ -76,6 +84,14 @@ repo/
       story/
         README.md
         scenes.yml
+        scene-notes/
+          01-scene.md
+        structures/
+          README.md
+          kishotenketsu.md
+          three-act.md
+          save-the-cat.md
+          heroes-journey.md
         characters/
           README.md
         locations/
@@ -118,15 +134,79 @@ shosei story scaffold --force
 
 - `README.md`
 - `characters/README.md`
+- `characters/_template.md`
 - `locations/README.md`
+- `locations/_template.md`
 - `terms/README.md`
+- `terms/_template.md`
 - `factions/README.md`
+- `factions/_template.md`
 
 book scope のみ:
 
 - `scenes.yml`
+- `scene-template.md`
+- `structures/README.md`
+- `structures/kishotenketsu.md`
+- `structures/three-act.md`
+- `structures/save-the-cat.md`
+- `structures/heroes-journey.md`
 
-## 6. `scenes.yml` の最小 shape
+補足:
+
+- entity directory の `_template.md` は scaffold に含まれる予約 file とし、`story check` / `story drift` / `story sync` の scan 対象から除外する
+- scaffold される template/README は日本語中心で説明してよい
+- parser が意味を持って読む key は canonical な英語 key に固定する
+- `structures/` は book-scoped な構成メモ置き場とし、v0.1 の CLI は本文全体は解釈しないが `story seed` 用に `scene_seeds` frontmatter は読む
+
+## 6. `shosei story seed`
+
+book-scoped な structure template の `scene_seeds` を使って `scenes.yml` と scene note を生成する。
+
+### 6.1 コマンド形
+
+```bash
+shosei story seed --template kishotenketsu
+shosei story seed --template three-act --book vol-01
+shosei story seed --template save-the-cat --force
+```
+
+### 6.2 振る舞い
+
+- 対象は book scope のみ
+- `single-book` では `story/structures/<template>.md` を読む
+- `series` では `books/<book-id>/story/structures/<template>.md` を読む
+- `--template` は `structures/` 配下の file stem または `.md` 付き file 名を受け付ける
+- structure template の frontmatter root は YAML mapping とし、`scene_seeds` sequence を持つ
+- 各 `scene_seeds` entry は少なくとも `title` を持つ
+- `scene_seeds[*].file` を省略した場合は `story/scene-notes/<nn>-scene.md` 相当の repo-relative path を自動採番する
+- `scene_seeds[*].file` を指定した場合は repo-relative かつ `/` 区切りの Markdown path とする
+- command は `scenes.yml` を seed 順で書き換える
+- command は scene note file が無ければ作成する
+- 既存の scene note file は既定で保持し、`--force` を付けた場合だけ seed 内容で上書きする
+- `scenes.yml` が非空で seed 内容と異なる場合、`--force` を要求する
+
+### 6.3 `scene_seeds` の最小 shape
+
+```yaml
+scene_seeds:
+  - title: 起: 日常の提示
+    beat: 起
+    summary: 主人公の日常と物語の約束を見せる
+    characters:
+      - 主人公
+```
+
+ルール:
+
+- `title` は必須の non-empty string
+- `beat`, `summary`, `file` は任意の string
+- `characters`, `locations`, `terms`, `factions` は string または string sequence
+- 不明な key は将来拡張のために許容する
+- 生成される scene note frontmatter では canonical key `characters`, `locations`, `terms`, `factions` を使う
+- 生成される scene note frontmatter に `structure_template`, `structure_beat` のような補助 key を追加してよい
+
+## 7. `scenes.yml` の最小 shape
 
 ```yaml
 scenes:
@@ -140,10 +220,11 @@ scenes:
 - `scenes` は sequence とする
 - scene の順序は配列順を正とする
 - `file` は repo-relative かつ `/` 区切りの path とする
+- scene entry key は `file` / `title` を使う
 - `title` は任意
 - 不明な key は将来拡張のために許容する
 
-## 7. `shosei story map`
+## 8. `shosei story map`
 
 book-scoped な `scenes.yml` を読み、scene 一覧を text と JSON report へ出力する。
 
@@ -160,7 +241,7 @@ v0.1 の最小要件:
 - `shared/metadata/story/` は対象外
 - report は `single-book` では `dist/reports/default-story-map.json`、`series` では `dist/reports/<book-id>-story-map.json` に出力する
 
-## 8. `shosei story check`
+## 9. `shosei story check`
 
 book-scoped な `scenes.yml` と story entity Markdown を読み、軽い整合チェックを report へ出力する。
 
@@ -177,15 +258,16 @@ v0.1 の最小要件:
 - invalid `file` path は error
 - repo 内に実ファイルが存在しない `file` は warning
 - `characters/`, `locations/`, `terms/`, `factions/` 配下の直下 `*.md` を scan 対象にする
+- ただし `README.md` と `_template.md` は scan 対象から除外する
 - entity ID は frontmatter の `id` を優先し、未指定時は filename stem を使う
 - 同一 kind 内で duplicate entity `id` は error
-- scene Markdown 冒頭の YAML frontmatter で `characters`, `locations`, `terms`, `factions` を参照配列として読める
+- scene Markdown 冒頭の YAML frontmatter で `characters`, `locations`, `terms`, `factions` を参照配列として読む
 - `series` では scene 参照解決時に `books/<book-id>/story/` と `shared/metadata/story/` の両方を対象にする
 - 参照先 entity が存在しない場合は warning
 - invalid scene/entity frontmatter は error
 - shared canon drift や semantic continuity までは扱わない
 
-## 9. `shosei story drift`
+## 10. `shosei story drift`
 
 `series` の shared canon と巻固有 story data の衝突を report へ出力する。
 
@@ -205,7 +287,7 @@ v0.1 の最小要件:
 - `shared` と book-scoped で同じ kind の同じ `id` があり、内容が同じなら warning
 - scene Markdown や `scenes.yml` は入力に含めない
 
-## 10. `shosei story sync`
+## 11. `shosei story sync`
 
 `series` で shared canon と巻固有 story workspace の間を明示コピーする。単体 copy と、`story drift` report に基づく batch copy を両方サポートする。
 
@@ -241,10 +323,17 @@ v0.1 の最小要件:
 - report mode は report 内の `shared_path` / `book_path` をそのまま使い、対象セットの再発見はしない
 - `scenes.yml` は更新しない
 
-## 11. 初期内容
+## 12. 初期内容
 
 - `README.md` は置き場所の意味と運用ルールを短く説明する
-- entity directory の `README.md` は 1 file 1 entity の方針と推奨 frontmatter を示す
+- entity directory の `README.md` は 1 file 1 entity の方針、`_template.md` の使い方、CLI が読む canonical key を示す
+- entity directory の `_template.md` は日本語中心の記入例を置く
+- book scope の `scene-template.md` は日本語中心の scene frontmatter 記入例を置く
+- book scope の `structures/README.md` は各構成テンプレートの使い分けを案内する
+- book scope の `structures/*.md` は `起承転結`、`三幕構成`、`Save the Cat! 15ビート`、`ヒーローズ・ジャーニー` の叩き台を置く
+- book scope の `structures/*.md` は `scene_seeds` frontmatter を持ち、`story seed` の入力にもなる
+- `story seed` が作る `scene-notes/*.md` は scene frontmatter の下書きと構成メモを含む
+- machine-read key は `id`, `characters`, `locations`, `terms`, `factions`, `scenes`, `file`, `title` のように英語のまま使う
 - scene Markdown では必要なら次の frontmatter を置ける
 
 ```yaml
@@ -263,6 +352,6 @@ factions:
 - `characters/`, `locations/`, `terms/`, `factions/` の entity Markdown では `id` を置ける
 - `scenes.yml` は空配列の skeleton を置く
 
-## 12. 今後の拡張候補
+## 13. 今後の拡張候補
 
 - repo-scoped story skill template

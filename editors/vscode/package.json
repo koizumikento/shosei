@@ -51,6 +51,13 @@
     "onCommand:shosei.referenceCheck",
     "onCommand:shosei.referenceDrift",
     "onCommand:shosei.referenceSync",
+    "onCommand:shosei.storyScaffold",
+    "onCommand:shosei.storySeed",
+    "onCommand:shosei.storyMap",
+    "onCommand:shosei.storyRevealScene",
+    "onCommand:shosei.storyCheck",
+    "onCommand:shosei.storyDrift",
+    "onCommand:shosei.storySync",
     "onCommand:shosei.doctor",
     "onCommand:shosei.pageCheck",
     "onCommand:shosei.seriesSync",
@@ -145,6 +152,34 @@
         "title": "Shosei: Reference Sync"
       },
       {
+        "command": "shosei.storyScaffold",
+        "title": "Shosei: Story Scaffold"
+      },
+      {
+        "command": "shosei.storySeed",
+        "title": "Shosei: Story Seed"
+      },
+      {
+        "command": "shosei.storyMap",
+        "title": "Shosei: Story Map"
+      },
+      {
+        "command": "shosei.storyRevealScene",
+        "title": "Shosei: Reveal Scene In Index"
+      },
+      {
+        "command": "shosei.storyCheck",
+        "title": "Shosei: Story Check"
+      },
+      {
+        "command": "shosei.storyDrift",
+        "title": "Shosei: Story Drift"
+      },
+      {
+        "command": "shosei.storySync",
+        "title": "Shosei: Story Sync"
+      },
+      {
         "command": "shosei.doctor",
         "title": "Shosei: Doctor"
       },
@@ -203,6 +238,11 @@
           "command": "shosei.chapterRemove",
           "when": "view == shosei.sidebar && viewItem == shosei.chapter",
           "group": "inline@1"
+        },
+        {
+          "command": "shosei.storyRevealScene",
+          "when": "view == shosei.sidebar && viewItem == shosei.storySceneNote",
+          "group": "navigation"
         }
       ]
     }

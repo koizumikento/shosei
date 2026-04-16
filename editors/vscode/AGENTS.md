@@ -21,6 +21,7 @@ Rules in this file apply to `editors/vscode/`.
 - Use `shosei doctor --json` for toolchain views.
 - Use CLI-generated report paths from `validate` and `page check` to populate Problems.
 - Keep `Shosei: Init` prompt collection aligned with the implemented `shosei init <path> --non-interactive ...` flags and defaults, including `paper` profile and `series` initial book id handling.
+- Keep `Shosei: Story Seed` aligned with the implemented `shosei story seed --template <template> [--force]` flow, including template selection from the current book-scoped `story/structures/` workspace.
 - Keep the Extension Development Host fallback aligned with the current repo-local CLI invocation: `cargo run --manifest-path <repo>/crates/shosei-cli/Cargo.toml --bin shosei --`.
 - Keep command mapping aligned with the implemented CLI surface and current specs.
 

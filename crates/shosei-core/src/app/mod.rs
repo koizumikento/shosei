@@ -37,7 +37,8 @@ pub use series_sync::{SeriesSyncError, SeriesSyncResult, series_sync};
 pub use story::{
     StoryCheckError, StoryCheckOptions, StoryCheckResult, StoryDriftError, StoryDriftOptions,
     StoryDriftResult, StoryMapError, StoryMapOptions, StoryMapResult, StoryScaffoldError,
-    StoryScaffoldOptions, StoryScaffoldResult, StorySyncError, StorySyncOptions, StorySyncResult,
-    story_check, story_drift, story_map, story_scaffold, story_sync,
+    StoryScaffoldOptions, StoryScaffoldResult, StorySeedError, StorySeedOptions, StorySeedResult,
+    StorySyncError, StorySyncOptions, StorySyncResult, story_check, story_drift, story_map,
+    story_scaffold, story_seed, story_sync,
 };
 pub use validate_book::{ValidateBookError, ValidateBookResult, validate_book};

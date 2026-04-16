@@ -19,6 +19,8 @@ function activate(context) {
   const referenceDriftDiagnostics = vscode.languages.createDiagnosticCollection(
     "shosei-reference-drift"
   );
+  const storyCheckDiagnostics = vscode.languages.createDiagnosticCollection("shosei-story-check");
+  const storyDriftDiagnostics = vscode.languages.createDiagnosticCollection("shosei-story-drift");
   const viewProvider = new ShoseiViewProvider(vscode, {
     getSnapshot: () => resolveViewSnapshot(vscode, context)
   });
@@ -33,6 +35,8 @@ function activate(context) {
     pageCheckDiagnostics,
     referenceCheckDiagnostics,
     referenceDriftDiagnostics,
+    storyCheckDiagnostics,
+    storyDriftDiagnostics,
     treeView
   );
   context.subscriptions.push(
@@ -141,6 +145,29 @@ function activate(context) {
   });
   registerCommand(context, "shosei.referenceSync", () =>
     runReferenceSyncCommand(vscode, output, context, viewProvider, referenceDriftDiagnostics)
+  );
+  registerCommand(context, "shosei.storyScaffold", () =>
+    runStoryScaffoldCommand(vscode, output, context, viewProvider)
+  );
+  registerCommand(context, "shosei.storySeed", () =>
+    runStorySeedCommand(vscode, output, context, viewProvider)
+  );
+  registerCommand(context, "shosei.storyMap", () =>
+    runStoryMapCommand(vscode, output, context, viewProvider)
+  );
+  registerCommand(context, "shosei.storyRevealScene", (item) =>
+    runStoryRevealSceneCommand(vscode, item)
+  );
+  registerCommand(context, "shosei.storyCheck", async () => {
+    storyCheckDiagnostics.clear();
+    await runStoryCheckCommand(vscode, output, context, storyCheckDiagnostics, viewProvider);
+  });
+  registerCommand(context, "shosei.storyDrift", async () => {
+    storyDriftDiagnostics.clear();
+    await runStoryDriftCommand(vscode, output, context, storyDriftDiagnostics);
+  });
+  registerCommand(context, "shosei.storySync", () =>
+    runStorySyncCommand(vscode, output, context, viewProvider, storyDriftDiagnostics)
   );
 
   registerCommand(context, "shosei.doctor", () =>
@@ -1030,6 +1057,24 @@ async function runReferenceScaffoldCommand(vscode, output, extensionContext, vie
   );
 }
 
+async function runStoryScaffoldCommand(vscode, output, extensionContext, viewProvider) {
+  const storyContext = await resolveStoryScaffoldContext(vscode, extensionContext, {
+    title: "story scaffold"
+  });
+  if (!storyContext) {
+    return;
+  }
+
+  await runStoryScaffoldWithResolved(
+    vscode,
+    output,
+    extensionContext,
+    storyContext.resolved,
+    storyContext.shared,
+    viewProvider
+  );
+}
+
 async function runReferenceScaffoldWithResolved(
   vscode,
   output,
@@ -1059,6 +1104,53 @@ async function runReferenceScaffoldWithResolved(
     {
       title: "reference scaffold",
       commandParts: buildReferenceScopedCommandParts("scaffold", {
+        shared,
+        force
+      }),
+      extensionContext
+    },
+    resolved
+  );
+  if (!result) {
+    return null;
+  }
+
+  if (viewProvider) {
+    viewProvider.refresh();
+  }
+
+  return result;
+}
+
+async function runStoryScaffoldWithResolved(
+  vscode,
+  output,
+  extensionContext,
+  resolved,
+  shared,
+  viewProvider
+) {
+  let force = false;
+  if (fs.existsSync(storyWorkspaceRoot(resolved, shared))) {
+    const overwrite = await promptBooleanChoice(vscode, {
+      title: "Story scaffold mode",
+      placeHolder: "Overwrite scaffold template files if they already exist?",
+      trueLabel: "Overwrite templates",
+      falseLabel: "Keep existing files",
+      defaultValue: false
+    });
+    if (overwrite === undefined) {
+      return;
+    }
+    force = overwrite;
+  }
+
+  const result = await runManagedCommandWithResolved(
+    vscode,
+    output,
+    {
+      title: "story scaffold",
+      commandParts: buildStoryScopedCommandParts("scaffold", {
         shared,
         force
       }),
@@ -1110,6 +1202,144 @@ async function runReferenceMapCommand(vscode, output, extensionContext, viewProv
   );
 }
 
+async function runStoryMapCommand(vscode, output, extensionContext, viewProvider) {
+  const resolved = await resolveExecutionContext(vscode, {
+    title: "story map",
+    requireBook: true,
+    extensionContext
+  });
+  if (!resolved) {
+    return;
+  }
+
+  const ready = await ensureStoryWorkspaceInitialized(
+    vscode,
+    output,
+    extensionContext,
+    resolved,
+    viewProvider
+  );
+  if (!ready) {
+    return;
+  }
+
+  await runTextCommandWithResolved(
+    vscode,
+    output,
+    {
+      title: "story map",
+      commandParts: buildStoryScopedCommandParts("map"),
+      extensionContext
+    },
+    resolved
+  );
+}
+
+async function runStoryRevealSceneCommand(vscode, item) {
+  const sceneContext = extractStorySceneNoteContext(item);
+  if (!sceneContext) {
+    vscode.window.showErrorMessage("Story scene note context is not available.");
+    return;
+  }
+
+  const scenesUri = vscode.Uri.file(path.resolve(sceneContext.repoRoot, sceneContext.scenesPath));
+  let document;
+  try {
+    document = await vscode.workspace.openTextDocument(scenesUri);
+  } catch {
+    vscode.window.showErrorMessage(`Scenes index was not found at ${sceneContext.scenesPath}.`);
+    return;
+  }
+
+  const editor = await vscode.window.showTextDocument(document, { preview: false });
+  const line = findStorySceneLine(document.getText(), sceneContext.sceneFile);
+
+  if (line === null) {
+    vscode.window.showWarningMessage(
+      `Scene entry for ${sceneContext.sceneFile} was not found in ${sceneContext.scenesPath}.`
+    );
+    return;
+  }
+
+  const start = new vscode.Position(line, 0);
+  const end = document.lineAt(line).range.end;
+  const range = new vscode.Range(start, end);
+  editor.selection = new vscode.Selection(start, end);
+  editor.revealRange(range, vscode.TextEditorRevealType.InCenter);
+}
+
+async function runStorySeedCommand(vscode, output, extensionContext, viewProvider) {
+  const resolved = await resolveExecutionContext(vscode, {
+    title: "story seed",
+    requireBook: true,
+    extensionContext
+  });
+  if (!resolved) {
+    return;
+  }
+
+  const ready = await ensureStoryWorkspaceInitialized(
+    vscode,
+    output,
+    extensionContext,
+    resolved,
+    viewProvider
+  );
+  if (!ready) {
+    return;
+  }
+
+  const template = await promptStorySeedTemplate(vscode, storyStructuresRoot(resolved));
+  if (!template) {
+    return;
+  }
+
+  let force = false;
+  if (hasNonEmptyStoryScenes(storyScenesPath(resolved))) {
+    const overwrite = await promptBooleanChoice(vscode, {
+      title: "Story seed mode",
+      placeHolder: "Replace the existing scene index and scene notes with the selected structure seeds?",
+      trueLabel: "Replace with --force",
+      falseLabel: "Cancel",
+      defaultValue: false
+    });
+    if (overwrite !== true) {
+      return;
+    }
+    force = true;
+  } else if (fs.existsSync(storySceneNotesRoot(resolved))) {
+    const overwrite = await promptBooleanChoice(vscode, {
+      title: "Story seed note mode",
+      placeHolder: "Overwrite existing scene notes with the selected structure seeds?",
+      trueLabel: "Overwrite notes",
+      falseLabel: "Keep existing notes",
+      defaultValue: false
+    });
+    if (overwrite === undefined) {
+      return;
+    }
+    force = overwrite;
+  }
+
+  const result = await runManagedCommandWithResolved(
+    vscode,
+    output,
+    {
+      title: "story seed",
+      commandParts: buildStorySeedCommandParts({ template, force }),
+      extensionContext
+    },
+    resolved
+  );
+  if (!result) {
+    return;
+  }
+
+  if (viewProvider) {
+    viewProvider.refresh();
+  }
+}
+
 async function runReferenceCheckCommand(
   vscode,
   output,
@@ -1159,6 +1389,49 @@ async function runReferenceCheckCommand(
   );
 }
 
+async function runStoryCheckCommand(vscode, output, extensionContext, diagnostics, viewProvider) {
+  const resolved = await resolveExecutionContext(vscode, {
+    title: "story check",
+    requireBook: true,
+    extensionContext
+  });
+  if (!resolved) {
+    return;
+  }
+
+  const ready = await ensureStoryWorkspaceInitialized(
+    vscode,
+    output,
+    extensionContext,
+    resolved,
+    viewProvider
+  );
+  if (!ready) {
+    return;
+  }
+
+  await runManagedCommandWithResolved(
+    vscode,
+    output,
+    {
+      title: "story check",
+      commandParts: buildStoryScopedCommandParts("check"),
+      extensionContext,
+      acceptedExitCodes: [0, 1],
+      onComplete: (result, currentResolved) =>
+        applyDiagnosticsFromReport(
+          vscode,
+          output,
+          diagnostics,
+          "shosei story check",
+          result,
+          currentResolved
+        )
+    },
+    resolved
+  );
+}
+
 async function runReferenceDriftCommand(
   vscode,
   output,
@@ -1182,6 +1455,20 @@ async function runReferenceDriftCommand(
     diagnostics,
     resolved
   );
+}
+
+async function runStoryDriftCommand(vscode, output, extensionContext, diagnostics) {
+  const resolved = await resolveExecutionContext(vscode, {
+    title: "story drift",
+    requireBook: true,
+    requireSeriesRepo: true,
+    extensionContext
+  });
+  if (!resolved) {
+    return;
+  }
+
+  await runStoryDriftWithResolved(vscode, output, extensionContext, diagnostics, resolved);
 }
 
 async function runReferenceDriftWithResolved(
@@ -1221,6 +1508,52 @@ async function runReferenceDriftWithResolved(
     const outcome = core.classifyCommandResult(result, {
       acceptedExitCodes: [0, 1],
       fallbackMessage: "reference drift completed"
+    });
+    if (outcome.level === "error") {
+      vscode.window.showErrorMessage(outcome.message);
+      return null;
+    }
+    if (outcome.level === "warning") {
+      vscode.window.showWarningMessage(outcome.message);
+    } else {
+      vscode.window.showInformationMessage(outcome.message);
+    }
+  }
+
+  return result;
+}
+
+async function runStoryDriftWithResolved(
+  vscode,
+  output,
+  extensionContext,
+  diagnostics,
+  resolved,
+  options = {}
+) {
+  const result = await runProcess(vscode, output, "story drift", resolved, {
+    title: "story drift",
+    commandParts: ["story", "drift"],
+    extensionContext,
+    acceptedExitCodes: [0, 1]
+  });
+  if (!result) {
+    return null;
+  }
+
+  await applyDiagnosticsFromReport(
+    vscode,
+    output,
+    diagnostics,
+    "shosei story drift",
+    result,
+    resolved
+  );
+
+  if (!options.silentOutcome) {
+    const outcome = core.classifyCommandResult(result, {
+      acceptedExitCodes: [0, 1],
+      fallbackMessage: "story drift completed"
     });
     if (outcome.level === "error") {
       vscode.window.showErrorMessage(outcome.message);
@@ -1351,6 +1684,127 @@ async function runReferenceSyncCommand(
   }
 }
 
+async function runStorySyncCommand(
+  vscode,
+  output,
+  extensionContext,
+  viewProvider,
+  driftDiagnostics
+) {
+  const resolved = await resolveExecutionContext(vscode, {
+    title: "story sync",
+    requireBook: true,
+    requireSeriesRepo: true,
+    extensionContext
+  });
+  if (!resolved) {
+    return;
+  }
+
+  const direction = await promptStorySyncDirection(vscode);
+  if (!direction) {
+    return;
+  }
+
+  const mode = await promptStorySyncMode(vscode);
+  if (!mode) {
+    return;
+  }
+
+  let commandParts;
+  if (mode === "single") {
+    const kind = await promptStorySyncKind(vscode);
+    if (!kind) {
+      return;
+    }
+
+    const id = await vscode.window.showInputBox({
+      title: "Story entity id",
+      prompt: "Story entity id to sync",
+      ignoreFocusOut: true,
+      validateInput: (value) => (value.trim() ? null : "Story entity id is required")
+    });
+    if (id === undefined) {
+      return;
+    }
+
+    const force = await promptBooleanChoice(vscode, {
+      title: "Overwrite diverged destination",
+      placeHolder: "Pass --force when the destination entity differs?",
+      trueLabel: "Allow overwrite",
+      falseLabel: "No overwrite",
+      defaultValue: false
+    });
+    if (force === undefined) {
+      return;
+    }
+
+    commandParts = buildStorySyncCommandParts({
+      direction,
+      kind,
+      id: id.trim(),
+      force
+    });
+  } else {
+    const confirmed = await promptBooleanChoice(vscode, {
+      title: "Batch sync from drift report",
+      placeHolder: "Generate the latest story drift report and apply it with --force?",
+      trueLabel: "Generate and apply",
+      falseLabel: "Cancel",
+      defaultValue: false
+    });
+    if (confirmed !== true) {
+      return;
+    }
+
+    if (driftDiagnostics) {
+      driftDiagnostics.clear();
+    }
+    const driftResult = await runStoryDriftWithResolved(
+      vscode,
+      output,
+      extensionContext,
+      driftDiagnostics,
+      resolved,
+      { silentOutcome: true }
+    );
+    if (!driftResult) {
+      return;
+    }
+
+    const reportPath = core.extractReportPath([driftResult.stdout, driftResult.stderr].join("\n"));
+    if (!reportPath) {
+      vscode.window.showErrorMessage("story drift report path was not found in CLI output.");
+      return;
+    }
+
+    commandParts = buildStorySyncCommandParts({
+      direction,
+      report: core.toAbsolutePath(resolved.repoRoot, reportPath),
+      force: true
+    });
+  }
+
+  const result = await runManagedCommandWithResolved(
+    vscode,
+    output,
+    {
+      title: "story sync",
+      commandParts,
+      extensionContext,
+      requireBook: true
+    },
+    resolved
+  );
+  if (!result) {
+    return;
+  }
+
+  if (viewProvider) {
+    viewProvider.refresh();
+  }
+}
+
 async function resolveReferenceScopeContext(vscode, extensionContext, options = {}) {
   const startPath = await pickStartPath(vscode, { promptForWorkspace: true });
   if (!startPath) {
@@ -1376,6 +1830,60 @@ async function resolveReferenceScopeContext(vscode, extensionContext, options = 
   }
 
   const shared = await promptReferenceScope(vscode, options.title);
+  if (shared === null) {
+    return null;
+  }
+  if (shared) {
+    return {
+      shared: true,
+      resolved: {
+        repoRoot: repo.repoRoot,
+        mode: repo.mode,
+        bookId: null
+      }
+    };
+  }
+
+  const bookId = await resolveSeriesBookId(vscode, extensionContext, repo.repoRoot, startPath);
+  if (!bookId) {
+    return null;
+  }
+
+  return {
+    shared: false,
+    resolved: {
+      repoRoot: repo.repoRoot,
+      mode: repo.mode,
+      bookId
+    }
+  };
+}
+
+async function resolveStoryScaffoldContext(vscode, extensionContext, options = {}) {
+  const startPath = await pickStartPath(vscode, { promptForWorkspace: true });
+  if (!startPath) {
+    vscode.window.showErrorMessage("Open a workspace folder or file before running shosei commands.");
+    return null;
+  }
+
+  const repo = core.findRepoRoot(startPath);
+  if (!repo) {
+    vscode.window.showErrorMessage("Could not find book.yml or series.yml from the current workspace context.");
+    return null;
+  }
+
+  if (repo.mode === "single-book") {
+    return {
+      shared: false,
+      resolved: {
+        repoRoot: repo.repoRoot,
+        mode: repo.mode,
+        bookId: null
+      }
+    };
+  }
+
+  const shared = await promptStoryScope(vscode, options.title);
   if (shared === null) {
     return null;
   }
@@ -1440,6 +1948,38 @@ async function ensureReferenceWorkspaceInitialized(
   );
 }
 
+async function ensureStoryWorkspaceInitialized(
+  vscode,
+  output,
+  extensionContext,
+  resolved,
+  viewProvider
+) {
+  if (fs.existsSync(storyScenesPath(resolved))) {
+    return true;
+  }
+
+  const selected = await vscode.window.showWarningMessage(
+    `Story workspace is not initialized at ${storyWorkspaceRoot(resolved)}.`,
+    "Run Story Scaffold",
+    "Cancel"
+  );
+  if (selected !== "Run Story Scaffold") {
+    return false;
+  }
+
+  return Boolean(
+    await runStoryScaffoldWithResolved(
+      vscode,
+      output,
+      extensionContext,
+      resolved,
+      false,
+      viewProvider
+    )
+  );
+}
+
 async function resolveProseChapterContext(vscode, extensionContext) {
   const resolved = await resolveExecutionContext(vscode, {
     title: "chapter",
@@ -1481,6 +2021,38 @@ function getStoredSeriesBookSelection(extensionContext, repoRoot) {
 
 function extractChapterItemPath(item) {
   return typeof item?.chapterPath === "string" ? item.chapterPath : null;
+}
+
+function extractStorySceneNoteContext(item) {
+  if (
+    typeof item?.storyRepoRoot !== "string" ||
+    typeof item?.storySceneFile !== "string" ||
+    typeof item?.storyScenesPath !== "string"
+  ) {
+    return null;
+  }
+
+  return {
+    repoRoot: item.storyRepoRoot,
+    sceneFile: item.storySceneFile,
+    scenesPath: item.storyScenesPath
+  };
+}
+
+function findStorySceneLine(contents, sceneFile) {
+  const escaped = escapeRegExp(sceneFile);
+  const matcher = new RegExp(`^\\s*-?\\s*file:\\s*([\"'])?${escaped}\\1\\s*$`);
+  const lines = contents.split(/\r?\n/);
+  for (let index = 0; index < lines.length; index += 1) {
+    if (matcher.test(lines[index])) {
+      return index;
+    }
+  }
+  return null;
+}
+
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 async function setStoredSeriesBookSelection(extensionContext, repoRoot, bookId) {
@@ -2059,8 +2631,44 @@ function buildReferenceScopedCommandParts(subcommand, options = {}) {
   return commandParts;
 }
 
+function buildStoryScopedCommandParts(subcommand, options = {}) {
+  const commandParts = ["story", subcommand];
+  if (options.shared) {
+    commandParts.push("--shared");
+  }
+  if (options.force) {
+    commandParts.push("--force");
+  }
+  return commandParts;
+}
+
+function buildStorySeedCommandParts(options) {
+  const commandParts = ["story", "seed", "--template", options.template];
+  if (options.force) {
+    commandParts.push("--force");
+  }
+  return commandParts;
+}
+
 function buildReferenceSyncCommandParts(options) {
   const commandParts = ["reference", "sync", options.direction.flag, "shared"];
+  if (typeof options.id === "string" && options.id.trim()) {
+    commandParts.push("--id", options.id.trim());
+  }
+  if (typeof options.report === "string" && options.report.trim()) {
+    commandParts.push("--report", options.report.trim());
+  }
+  if (options.force) {
+    commandParts.push("--force");
+  }
+  return commandParts;
+}
+
+function buildStorySyncCommandParts(options) {
+  const commandParts = ["story", "sync", options.direction.flag, "shared"];
+  if (typeof options.kind === "string" && options.kind.trim()) {
+    commandParts.push("--kind", options.kind.trim());
+  }
   if (typeof options.id === "string" && options.id.trim()) {
     commandParts.push("--id", options.id.trim());
   }
@@ -2125,6 +2733,28 @@ async function promptReferenceScope(vscode, title) {
   );
 }
 
+async function promptStoryScope(vscode, title) {
+  return promptQuickPickValue(
+    vscode,
+    [
+      {
+        label: "Book Story Workspace",
+        description: "current book story data",
+        value: false
+      },
+      {
+        label: "Shared Story Workspace",
+        description: "shared/metadata/story",
+        value: true
+      }
+    ],
+    {
+      title: title || "Story scope",
+      placeHolder: "Select the story workspace scope"
+    }
+  );
+}
+
 async function promptBooleanChoice(vscode, options) {
   const items = [
     { label: options.trueLabel || "Yes", value: true },
@@ -2163,6 +2793,28 @@ async function promptReferenceSyncDirection(vscode) {
   );
 }
 
+async function promptStorySyncDirection(vscode) {
+  return promptQuickPickValue(
+    vscode,
+    [
+      {
+        label: "Shared -> Book",
+        description: "copy a shared story entity into the selected book",
+        value: { flag: "--from", label: "shared" }
+      },
+      {
+        label: "Book -> Shared",
+        description: "copy a book story entity into shared canon",
+        value: { flag: "--to", label: "shared" }
+      }
+    ],
+    {
+      title: "Story sync direction",
+      placeHolder: "Select the direction for story sync"
+    }
+  );
+}
+
 async function promptReferenceSyncMode(vscode) {
   return promptQuickPickValue(
     vscode,
@@ -2185,6 +2837,92 @@ async function promptReferenceSyncMode(vscode) {
   );
 }
 
+async function promptStorySyncMode(vscode) {
+  return promptQuickPickValue(
+    vscode,
+    [
+      {
+        label: "Single Story Entity",
+        description: "copy one story entity by kind and id",
+        value: "single"
+      },
+      {
+        label: "Batch From Drift Report",
+        description: "generate the latest drift report and apply it with --force",
+        value: "report"
+      }
+    ],
+    {
+      title: "Story sync mode",
+      placeHolder: "Select how to choose story entities for sync"
+    }
+  );
+}
+
+async function promptStorySyncKind(vscode) {
+  return promptQuickPickValue(
+    vscode,
+    [
+      {
+        label: "Character",
+        description: "story/characters or shared/metadata/story/characters",
+        value: "character"
+      },
+      {
+        label: "Location",
+        description: "story/locations or shared/metadata/story/locations",
+        value: "location"
+      },
+      {
+        label: "Term",
+        description: "story/terms or shared/metadata/story/terms",
+        value: "term"
+      },
+      {
+        label: "Faction",
+        description: "story/factions or shared/metadata/story/factions",
+        value: "faction"
+      }
+    ],
+    {
+      title: "Story entity kind",
+      placeHolder: "Select the story entity kind to sync"
+    }
+  );
+}
+
+async function promptStorySeedTemplate(vscode, structuresRoot) {
+  let templates = [];
+  try {
+    templates = fs
+      .readdirSync(structuresRoot, { withFileTypes: true })
+      .filter((entry) => entry.isFile())
+      .map((entry) => entry.name)
+      .filter((name) => name.toLowerCase().endsWith(".md"))
+      .filter((name) => name.toLowerCase() !== "readme.md")
+      .sort();
+  } catch {
+    templates = [];
+  }
+
+  if (templates.length === 0) {
+    return null;
+  }
+
+  return promptQuickPickValue(
+    vscode,
+    templates.map((name) => ({
+      label: name.replace(/\.md$/i, ""),
+      description: path.join(path.basename(path.dirname(structuresRoot)), name),
+      value: name.replace(/\.md$/i, "")
+    })),
+    {
+      title: "Story structure template",
+      placeHolder: "Select the structure template to seed into scenes.yml"
+    }
+  );
+}
+
 function referenceWorkspaceRoot(resolved, shared) {
   if (resolved.mode === "single-book") {
     return path.join(resolved.repoRoot, "references");
@@ -2195,8 +2933,43 @@ function referenceWorkspaceRoot(resolved, shared) {
   return path.join(resolved.repoRoot, "books", resolved.bookId, "references");
 }
 
+function storyWorkspaceRoot(resolved, shared = false) {
+  if (resolved.mode === "single-book") {
+    return path.join(resolved.repoRoot, "story");
+  }
+  if (shared) {
+    return path.join(resolved.repoRoot, "shared", "metadata", "story");
+  }
+  return path.join(resolved.repoRoot, "books", resolved.bookId, "story");
+}
+
 function referenceEntriesRoot(resolved, shared) {
   return path.join(referenceWorkspaceRoot(resolved, shared), "entries");
+}
+
+function storyScenesPath(resolved) {
+  return path.join(storyWorkspaceRoot(resolved), "scenes.yml");
+}
+
+function storyStructuresRoot(resolved) {
+  return path.join(storyWorkspaceRoot(resolved), "structures");
+}
+
+function storySceneNotesRoot(resolved) {
+  return path.join(storyWorkspaceRoot(resolved), "scene-notes");
+}
+
+function hasNonEmptyStoryScenes(scenesPath) {
+  if (!fs.existsSync(scenesPath)) {
+    return false;
+  }
+
+  try {
+    const contents = fs.readFileSync(scenesPath, "utf8");
+    return /^(\s*)-\s+file:/m.test(contents);
+  } catch {
+    return false;
+  }
 }
 
 async function promptForSeriesBookId(
@@ -2285,8 +3058,17 @@ module.exports = {
     buildChapterRenumberCommandParts,
     buildReferenceScopedCommandParts,
     buildReferenceSyncCommandParts,
+    buildStoryScopedCommandParts,
+    buildStorySeedCommandParts,
+    buildStorySyncCommandParts,
+    findStorySceneLine,
+    hasNonEmptyStoryScenes,
     referenceEntriesRoot,
     referenceWorkspaceRoot,
+    storySceneNotesRoot,
+    storyScenesPath,
+    storyStructuresRoot,
+    storyWorkspaceRoot,
     resolveDiagnosticLocation,
     suggestChapterPath,
     validateChapterPathInput,

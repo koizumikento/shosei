@@ -278,6 +278,14 @@ outputs:
         },
     )
     .unwrap();
+    app::story_scaffold(
+        &CommandContext::new(&root, None, None),
+        app::StoryScaffoldOptions {
+            shared: false,
+            force: false,
+        },
+    )
+    .unwrap();
     fs::write(
         root.join("references/entries/market.md"),
         r#"---
@@ -288,6 +296,18 @@ notes
 "#,
     )
     .unwrap();
+    fs::write(
+        root.join("story/characters/hero.md"),
+        r#"---
+id: hero
+---
+
+Lead
+"#,
+    )
+    .unwrap();
+    fs::create_dir_all(root.join("story/scene-notes")).unwrap();
+    fs::write(root.join("story/scene-notes/01-opening.md"), "# Opening\n").unwrap();
 
     let result = app::explain_config(&CommandContext::new(&root, None, None)).unwrap();
     assert!(result.summary.contains("explain for default"));
@@ -316,6 +336,10 @@ notes
             .summary
             .contains("- references = 1 entry(s) at references/entries")
     );
+    assert!(result.summary.contains("story summary:"));
+    assert!(result.summary.contains(
+        "- story = 1 entity file(s) at story, scenes: story/scenes.yml, scene notes: 1, structure files: 4"
+    ));
     assert!(result.summary.contains("config reference:"));
     assert!(
         result
@@ -330,6 +354,43 @@ notes
     assert_eq!(
         result.snapshot.references.current.entries,
         vec!["references/entries/market.md"]
+    );
+    assert!(result.snapshot.story.current.initialized);
+    assert_eq!(result.snapshot.story.current.story_root, "story");
+    assert_eq!(
+        result.snapshot.story.current.scenes_path.as_deref(),
+        Some("story/scenes.yml")
+    );
+    assert_eq!(
+        result.snapshot.story.current.characters.entries,
+        vec!["story/characters/hero.md"]
+    );
+    assert_eq!(
+        result
+            .snapshot
+            .story
+            .current
+            .scene_notes
+            .as_ref()
+            .unwrap()
+            .files,
+        vec!["story/scene-notes/01-opening.md"]
+    );
+    assert_eq!(
+        result
+            .snapshot
+            .story
+            .current
+            .structures
+            .as_ref()
+            .unwrap()
+            .files,
+        vec![
+            "story/structures/heroes-journey.md",
+            "story/structures/kishotenketsu.md",
+            "story/structures/save-the-cat.md",
+            "story/structures/three-act.md",
+        ]
     );
 }
 
@@ -395,6 +456,22 @@ manuscript:
         },
     )
     .unwrap();
+    app::story_scaffold(
+        &CommandContext::new(&root, Some("vol-01".to_string()), None),
+        app::StoryScaffoldOptions {
+            shared: false,
+            force: false,
+        },
+    )
+    .unwrap();
+    app::story_scaffold(
+        &CommandContext::new(&root, None, None),
+        app::StoryScaffoldOptions {
+            shared: true,
+            force: false,
+        },
+    )
+    .unwrap();
     fs::write(
         root.join("books/vol-01/references/entries/local.md"),
         "book note\n",
@@ -403,6 +480,22 @@ manuscript:
     fs::write(
         root.join("shared/metadata/references/entries/shared.md"),
         "shared note\n",
+    )
+    .unwrap();
+    fs::write(
+        root.join("books/vol-01/story/characters/lead.md"),
+        "---\nid: lead\n---\n",
+    )
+    .unwrap();
+    fs::write(
+        root.join("shared/metadata/story/terms/lore.md"),
+        "---\nid: lore\n---\n",
+    )
+    .unwrap();
+    fs::create_dir_all(root.join("books/vol-01/story/scene-notes")).unwrap();
+    fs::write(
+        root.join("books/vol-01/story/scene-notes/01-opening.md"),
+        "# Opening\n",
     )
     .unwrap();
 
@@ -436,6 +529,17 @@ manuscript:
             .summary
             .contains("- shared references = 1 entry(s) at shared/metadata/references/entries")
     );
+    assert!(result.summary.contains("story summary:"));
+    assert!(
+        result
+            .summary
+            .contains("- book story = 1 entity file(s) at books/vol-01/story, scenes: books/vol-01/story/scenes.yml, scene notes: 1, structure files: 4")
+    );
+    assert!(
+        result
+            .summary
+            .contains("- shared story = 1 entity file(s) at shared/metadata/story")
+    );
     assert_eq!(
         result.snapshot.references.current.entries,
         vec!["books/vol-01/references/entries/local.md"]
@@ -443,6 +547,61 @@ manuscript:
     assert_eq!(
         result.snapshot.references.shared.as_ref().unwrap().entries,
         vec!["shared/metadata/references/entries/shared.md"]
+    );
+    assert_eq!(
+        result.snapshot.story.current.characters.entries,
+        vec!["books/vol-01/story/characters/lead.md"]
+    );
+    assert_eq!(
+        result
+            .snapshot
+            .story
+            .current
+            .scene_notes
+            .as_ref()
+            .unwrap()
+            .files,
+        vec!["books/vol-01/story/scene-notes/01-opening.md"]
+    );
+    assert_eq!(
+        result
+            .snapshot
+            .story
+            .current
+            .structures
+            .as_ref()
+            .unwrap()
+            .files,
+        vec![
+            "books/vol-01/story/structures/heroes-journey.md",
+            "books/vol-01/story/structures/kishotenketsu.md",
+            "books/vol-01/story/structures/save-the-cat.md",
+            "books/vol-01/story/structures/three-act.md",
+        ]
+    );
+    assert_eq!(
+        result.snapshot.story.shared.as_ref().unwrap().terms.entries,
+        vec!["shared/metadata/story/terms/lore.md"]
+    );
+    assert!(
+        result
+            .snapshot
+            .story
+            .shared
+            .as_ref()
+            .unwrap()
+            .scene_notes
+            .is_none()
+    );
+    assert!(
+        result
+            .snapshot
+            .story
+            .shared
+            .as_ref()
+            .unwrap()
+            .structures
+            .is_none()
     );
 }
 

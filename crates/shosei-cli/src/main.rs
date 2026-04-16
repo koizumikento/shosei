@@ -345,6 +345,19 @@ fn run() -> Result<i32> {
                     exit_code::OK
                 })
             }
+            StoryCommands::Seed {
+                template,
+                force,
+                book,
+                path,
+            } => {
+                let result = app::story_seed(
+                    &CommandContext::new(path, book, None),
+                    app::StorySeedOptions { template, force },
+                )?;
+                output::print_line(&result.summary);
+                Ok(exit_code::OK)
+            }
             StoryCommands::Drift { book, path } => {
                 let result = app::story_drift(
                     &CommandContext::new(path, book, None),

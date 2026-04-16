@@ -214,6 +214,16 @@ pub enum StoryCommands {
         #[arg(long, value_name = "PATH", default_value = ".")]
         path: PathBuf,
     },
+    Seed {
+        #[arg(long, value_name = "TEMPLATE")]
+        template: String,
+        #[arg(long)]
+        force: bool,
+        #[arg(long)]
+        book: Option<String>,
+        #[arg(long, value_name = "PATH", default_value = ".")]
+        path: PathBuf,
+    },
     Drift {
         #[arg(long)]
         book: Option<String>,
@@ -720,6 +730,40 @@ mod tests {
             Commands::Story {
                 command: StoryCommands::Map { book, path },
             } => {
+                assert_eq!(book.as_deref(), Some("vol-01"));
+                assert_eq!(path, PathBuf::from("books/vol-01"));
+            }
+            other => panic!("unexpected command: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_story_seed_command() {
+        let cli = Cli::parse_from([
+            "shosei",
+            "story",
+            "seed",
+            "--template",
+            "save-the-cat",
+            "--book",
+            "vol-01",
+            "--force",
+            "--path",
+            "books/vol-01",
+        ]);
+
+        match cli.command {
+            Commands::Story {
+                command:
+                    StoryCommands::Seed {
+                        template,
+                        force,
+                        book,
+                        path,
+                    },
+            } => {
+                assert_eq!(template, "save-the-cat");
+                assert!(force);
                 assert_eq!(book.as_deref(), Some("vol-01"));
                 assert_eq!(path, PathBuf::from("books/vol-01"));
             }

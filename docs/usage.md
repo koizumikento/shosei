@@ -251,12 +251,46 @@ v0.1 の検査対象:
 
 - `README.md`
 - `characters/README.md`
+- `characters/_template.md`
 - `locations/README.md`
+- `locations/_template.md`
 - `terms/README.md`
+- `terms/_template.md`
 - `factions/README.md`
+- `factions/_template.md`
 - book scope のときだけ `scenes.yml`
+- book scope のときだけ `scene-template.md`
+- book scope のときだけ `structures/README.md`
+- book scope のときだけ `structures/kishotenketsu.md`
+- book scope のときだけ `structures/three-act.md`
+- book scope のときだけ `structures/save-the-cat.md`
+- book scope のときだけ `structures/heroes-journey.md`
 
 既定では既存 file を保持し、template を上書きしたい場合だけ `--force` を付ける。
+
+`_template.md` と `scene-template.md` は日本語中心の記入例。`structures/*.md` は book-scoped な構成メモの叩き台。entity dir の `_template.md` は `story check` / `story drift` / `story sync` の scan 対象に含めない。CLI が意味を持って読む key は `id`, `characters`, `locations`, `terms`, `factions`, `scenes`, `file`, `title` のように英語のまま使い、`structures/` 配下では `story seed` 用の `scene_seeds` frontmatter だけを読む。
+
+## Story seed
+
+`story seed` は book-scoped な `structures/<template>.md` の `scene_seeds` frontmatter を使って `scenes.yml` と `scene-notes/*.md` の下書きを起こす。
+
+- `single-book`: `story/structures/<template>.md`
+- `series`: `books/<book-id>/story/structures/<template>.md`
+- `--template` は file stem か `.md` 付き file 名
+- `scene_seeds[*].file` を省略した場合は `scene-notes/<nn>-scene.md` を自動採番
+- 既存 scene note は既定で保持し、`--force` を付けたときだけ seed 内容で上書き
+- 非空の `scenes.yml` を置き換える場合は `--force` が必要
+
+`scene_seeds` の最小 shape:
+
+```yaml
+scene_seeds:
+  - title: 起: 日常の提示
+    beat: 起
+    summary: 主人公の日常と物語の約束を見せる
+    characters:
+      - 主人公
+```
 
 ## Story map
 
@@ -283,8 +317,9 @@ scenes:
 - 実ファイルが存在しない `file` は warning
 - entity frontmatter の `id` は参照解決に使われ、未指定時は filename stem を使う
 - 同一 kind 内の duplicate entity `id` は error
+- `README.md` と `_template.md` は entity scan 対象に含めない
 - `series` では book-scoped story data と `shared/metadata/story/` の両方から参照を解決する
-- scene frontmatter の未解決 entity 参照は warning
+- scene frontmatter の `characters`, `locations`, `terms`, `factions` の未解決 entity 参照は warning
 - invalid scene/entity frontmatter は error
 - report: `single-book` は `dist/reports/default-story-check.json`、`series` は `dist/reports/<book-id>-story-check.json`
 
@@ -371,9 +406,11 @@ editorial sidecar が設定されている場合、`explain` は rule / claim / 
 
 reference workspace が初期化済みなら、`explain` は current scope の `references/README.md` と `entries/*.md`、`series` では shared scope 側の reference file も structure summary と `--json` に含める。
 
+story workspace が初期化済みなら、`explain` は current scope の `story/README.md`、book scope の `scenes.yml` と `scene-notes/*.md` と `structures/*.md`、entity Markdown、`series` では shared scope 側の story file も structure summary と `--json` に含める。
+
 人向けの summary 出力では、field の意味を追いやすいように config reference への URL も末尾に出す。
 
-editor integration 向けには `--json` も使える。resolved config の要約、主要 field の origin、chapter list、初期化済み reference workspace file などを機械可読で返す。
+editor integration 向けには `--json` も使える。resolved config の要約、主要 field の origin、chapter list、初期化済み reference / story workspace file などを機械可読で返す。
 
 ## Editorial sidecars
 

@@ -281,8 +281,28 @@ status: unread</code></pre>
             <li><code>series --shared</code>: <code>shared/metadata/story/</code></li>
             <li><code>series --book &lt;book-id&gt;</code>: <code>books/&lt;book-id&gt;/story/</code></li>
           </ul>
-          <p>生成するのは <code>README.md</code>、entity directory ごとの <code>README.md</code>、book scope のときだけ <code>scenes.yml</code> です。</p>
+          <p>生成するのは <code>README.md</code>、entity directory ごとの <code>README.md</code> と <code>_template.md</code>、book scope のときだけ <code>scenes.yml</code>、<code>scene-template.md</code>、<code>structures/README.md</code>、<code>structures/kishotenketsu.md</code>、<code>structures/three-act.md</code>、<code>structures/save-the-cat.md</code>、<code>structures/heroes-journey.md</code> です。</p>
           <p>既定では既存 file を保持し、template を上書きしたい場合だけ <code>--force</code> を付けます。</p>
+          <p><code>_template.md</code> と <code>scene-template.md</code> は日本語中心の記入例です。<code>structures/*.md</code> は book-scoped な構成メモの叩き台です。entity dir の <code>_template.md</code> は <code>story check</code> / <code>story drift</code> / <code>story sync</code> の scan 対象に含めません。CLI が意味を持って読む key は <code>id</code>, <code>characters</code>, <code>locations</code>, <code>terms</code>, <code>factions</code>, <code>scenes</code>, <code>file</code>, <code>title</code> のように英語のまま使い、<code>structures/</code> 配下では <code>story seed</code> 用の <code>scene_seeds</code> frontmatter だけを読みます。</p>
+        </section>
+
+        <section>
+          <h2>Story seed</h2>
+          <p><code>story seed</code> は book-scoped な <code>structures/&lt;template&gt;.md</code> の <code>scene_seeds</code> frontmatter を使って <code>scenes.yml</code> と <code>scene-notes/*.md</code> の下書きを起こします。</p>
+          <ul>
+            <li><code>single-book</code>: <code>story/structures/&lt;template&gt;.md</code></li>
+            <li><code>series</code>: <code>books/&lt;book-id&gt;/story/structures/&lt;template&gt;.md</code></li>
+            <li><code>--template</code> は file stem か <code>.md</code> 付き file 名</li>
+            <li><code>scene_seeds[*].file</code> を省略した場合は <code>scene-notes/&lt;nn&gt;-scene.md</code> を自動採番</li>
+            <li>既存 scene note は既定で保持し、<code>--force</code> を付けたときだけ seed 内容で上書きします</li>
+            <li>非空の <code>scenes.yml</code> を置き換える場合は <code>--force</code> が必要です</li>
+          </ul>
+          <pre><code>scene_seeds:
+  - title: 起: 日常の提示
+    beat: 起
+    summary: 主人公の日常と物語の約束を見せる
+    characters:
+      - 主人公</code></pre>
         </section>
 
         <section>
@@ -307,8 +327,9 @@ status: unread</code></pre>
             <li>実ファイルが存在しない <code>file</code> は warning</li>
             <li>entity frontmatter の <code>id</code> は参照解決に使われ、未指定時は filename stem を使う</li>
             <li>同一 kind 内の duplicate entity <code>id</code> は error</li>
+            <li><code>README.md</code> と <code>_template.md</code> は entity scan 対象に含めない</li>
             <li><code>series</code> では book-scoped story data と <code>shared/metadata/story/</code> の両方から参照を解決する</li>
-            <li>scene frontmatter の未解決 entity 参照は warning</li>
+            <li>scene frontmatter の <code>characters</code>, <code>locations</code>, <code>terms</code>, <code>factions</code> の未解決 entity 参照は warning</li>
             <li>invalid scene/entity frontmatter は error</li>
             <li>report: <code>single-book</code> は <code>dist/reports/default-story-check.json</code>、<code>series</code> は <code>dist/reports/&lt;book-id&gt;-story-check.json</code></li>
           </ul>
@@ -397,8 +418,9 @@ shosei explain --json</code></pre>
           </ul>
           <p>editorial sidecar が設定されている場合、<code>explain</code> は rule / claim / figure / freshness item の件数も summary に出します。</p>
           <p>reference workspace が初期化済みなら、<code>explain</code> は current scope の <code>references/README.md</code> と <code>entries/*.md</code>、<code>series</code> では shared scope 側の reference file も structure summary と <code>--json</code> に含めます。</p>
+          <p>story workspace が初期化済みなら、<code>explain</code> は current scope の <code>story/README.md</code>、book scope の <code>scenes.yml</code> と <code>scene-notes/*.md</code> と <code>structures/*.md</code>、entity Markdown、<code>series</code> では shared scope 側の story file も structure summary と <code>--json</code> に含めます。</p>
           <p>人向けの summary 出力では、field の意味を追いやすいように config reference への URL も末尾に出します。</p>
-          <p>editor integration 向けには <code>--json</code> も使えます。resolved config の要約、主要 field の origin、chapter list、初期化済み reference workspace file などを機械可読で返します。</p>
+          <p>editor integration 向けには <code>--json</code> も使えます。resolved config の要約、主要 field の origin、chapter list、初期化済み reference / story workspace file などを機械可読で返します。</p>
         </section>
 
         <section>

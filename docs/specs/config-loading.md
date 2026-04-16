@@ -258,4 +258,6 @@ repo/
 - `shared.assets`, `shared.styles`, `shared.fonts`, `shared.metadata` は merge 値ではなく、`series.yml` の探索パスとして別表示する
 - v0.1 の `explain` は text 出力を基本とし、すべての schema 項目を網羅しなくてもよい
 - editor integration では `shosei explain --json` を使って同じ resolved config を機械可読で取得してよい
+- 初期化済みの `reference/` と `story/` workspace があれば、`explain` の text summary と `--json` snapshot に current scope / shared scope の file 概要を含めてよい
+- book-scoped な `story/scene-notes/` と `story/structures/` があれば、`explain` はその file 概要も story workspace の一部として含めてよい
 - prose / manga で relevant な項目だけを表示してよい

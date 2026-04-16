@@ -35,6 +35,7 @@ pub struct ExplainConfigSnapshot {
     pub manuscript: Option<ExplainConfigSnapshotManuscript>,
     pub editorial: Option<ExplainConfigSnapshotEditorial>,
     pub references: ExplainConfigSnapshotReferences,
+    pub story: ExplainConfigSnapshotStory,
     pub manga: Option<ExplainConfigSnapshotManga>,
     pub shared_paths: Option<ExplainConfigSnapshotSharedPaths>,
 }
@@ -79,6 +80,48 @@ pub struct ExplainConfigSnapshotReferenceWorkspace {
     pub initialized: bool,
     pub readme_path: Option<String>,
     pub entries_readme_path: Option<String>,
+    pub entries: Vec<String>,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct ExplainConfigSnapshotStory {
+    pub current: ExplainConfigSnapshotStoryWorkspace,
+    pub shared: Option<ExplainConfigSnapshotStoryWorkspace>,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct ExplainConfigSnapshotStoryWorkspace {
+    pub scope: String,
+    pub story_root: String,
+    pub initialized: bool,
+    pub readme_path: Option<String>,
+    pub scenes_path: Option<String>,
+    pub scene_notes: Option<ExplainConfigSnapshotStorySceneNotes>,
+    pub structures: Option<ExplainConfigSnapshotStoryStructures>,
+    pub characters: ExplainConfigSnapshotStoryKind,
+    pub locations: ExplainConfigSnapshotStoryKind,
+    pub terms: ExplainConfigSnapshotStoryKind,
+    pub factions: ExplainConfigSnapshotStoryKind,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct ExplainConfigSnapshotStorySceneNotes {
+    pub root: String,
+    pub files: Vec<String>,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct ExplainConfigSnapshotStoryStructures {
+    pub root: String,
+    pub readme_path: Option<String>,
+    pub files: Vec<String>,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct ExplainConfigSnapshotStoryKind {
+    pub kind: String,
+    pub root: String,
+    pub readme_path: Option<String>,
     pub entries: Vec<String>,
 }
 
@@ -135,6 +178,12 @@ pub fn explain_config(command: &CommandContext) -> Result<ExplainConfigResult, E
     let has_initialized_references = snapshot.references.current.initialized
         || snapshot
             .references
+            .shared
+            .as_ref()
+            .is_some_and(|workspace| workspace.initialized);
+    let has_initialized_story = snapshot.story.current.initialized
+        || snapshot
+            .story
             .shared
             .as_ref()
             .is_some_and(|workspace| workspace.initialized);
@@ -199,6 +248,26 @@ pub fn explain_config(command: &CommandContext) -> Result<ExplainConfigResult, E
                 "shared references",
                 shared,
             ));
+        }
+    }
+
+    if has_initialized_story {
+        lines.push("".to_string());
+        lines.push("story summary:".to_string());
+        if snapshot.story.current.initialized {
+            lines.push(story_workspace_summary_line(
+                if context.mode == RepoMode::Series {
+                    "book story"
+                } else {
+                    "story"
+                },
+                &snapshot.story.current,
+            ));
+        }
+        if let Some(shared) = &snapshot.story.shared
+            && shared.initialized
+        {
+            lines.push(story_workspace_summary_line("shared story", shared));
         }
     }
 
@@ -346,6 +415,7 @@ fn build_snapshot(
                 .unwrap_or(0),
         }),
         references: build_reference_snapshot(context),
+        story: build_story_snapshot(context),
         manga: effective
             .manga
             .as_ref()
@@ -436,6 +506,31 @@ fn build_reference_snapshot(
     ExplainConfigSnapshotReferences { current, shared }
 }
 
+fn build_story_snapshot(context: &crate::domain::RepoContext) -> ExplainConfigSnapshotStory {
+    let book = context.book.as_ref().expect("selected book must exist");
+    let current = match context.mode {
+        RepoMode::SingleBook => build_story_workspace_snapshot(
+            &context.repo_root,
+            &context.repo_root.join("story"),
+            "single-book",
+        ),
+        RepoMode::Series => {
+            build_story_workspace_snapshot(&context.repo_root, &book.root.join("story"), "book")
+        }
+    };
+    let shared = if context.mode == RepoMode::Series {
+        Some(build_story_workspace_snapshot(
+            &context.repo_root,
+            &context.repo_root.join("shared/metadata/story"),
+            "shared",
+        ))
+    } else {
+        None
+    };
+
+    ExplainConfigSnapshotStory { current, shared }
+}
+
 fn build_reference_workspace_snapshot(
     repo_root: &Path,
     references_root: &Path,
@@ -455,8 +550,89 @@ fn build_reference_workspace_snapshot(
     }
 }
 
+fn build_story_workspace_snapshot(
+    repo_root: &Path,
+    story_root: &Path,
+    scope: &str,
+) -> ExplainConfigSnapshotStoryWorkspace {
+    let scene_notes =
+        (scope != "shared").then(|| build_story_scene_notes_snapshot(repo_root, story_root));
+    let structures =
+        (scope != "shared").then(|| build_story_structure_snapshot(repo_root, story_root));
+
+    ExplainConfigSnapshotStoryWorkspace {
+        scope: scope.to_string(),
+        story_root: relative_snapshot_path(repo_root, story_root),
+        initialized: story_root.is_dir(),
+        readme_path: optional_snapshot_path(repo_root, &story_root.join("README.md")),
+        scenes_path: optional_snapshot_path(repo_root, &story_root.join("scenes.yml")),
+        scene_notes,
+        structures,
+        characters: build_story_kind_snapshot(repo_root, story_root, "characters"),
+        locations: build_story_kind_snapshot(repo_root, story_root, "locations"),
+        terms: build_story_kind_snapshot(repo_root, story_root, "terms"),
+        factions: build_story_kind_snapshot(repo_root, story_root, "factions"),
+    }
+}
+
+fn build_story_scene_notes_snapshot(
+    repo_root: &Path,
+    story_root: &Path,
+) -> ExplainConfigSnapshotStorySceneNotes {
+    let root = story_root.join("scene-notes");
+
+    ExplainConfigSnapshotStorySceneNotes {
+        root: relative_snapshot_path(repo_root, &root),
+        files: collect_markdown_snapshot_paths(repo_root, &root),
+    }
+}
+
+fn build_story_structure_snapshot(
+    repo_root: &Path,
+    story_root: &Path,
+) -> ExplainConfigSnapshotStoryStructures {
+    let root = story_root.join("structures");
+
+    ExplainConfigSnapshotStoryStructures {
+        root: relative_snapshot_path(repo_root, &root),
+        readme_path: optional_snapshot_path(repo_root, &root.join("README.md")),
+        files: collect_markdown_snapshot_paths(repo_root, &root),
+    }
+}
+
+fn build_story_kind_snapshot(
+    repo_root: &Path,
+    story_root: &Path,
+    kind: &str,
+) -> ExplainConfigSnapshotStoryKind {
+    let root = story_root.join(kind);
+
+    ExplainConfigSnapshotStoryKind {
+        kind: kind.to_string(),
+        root: relative_snapshot_path(repo_root, &root),
+        readme_path: optional_snapshot_path(repo_root, &root.join("README.md")),
+        entries: collect_story_markdown_snapshot_paths(repo_root, &root),
+    }
+}
+
 fn collect_reference_entry_snapshot_paths(repo_root: &Path, entries_root: &Path) -> Vec<String> {
-    let Ok(entries) = fs::read_dir(entries_root) else {
+    collect_markdown_snapshot_paths(repo_root, entries_root)
+}
+
+fn collect_story_markdown_snapshot_paths(repo_root: &Path, root: &Path) -> Vec<String> {
+    collect_markdown_snapshot_paths_with_skip(repo_root, root, &["README.md", "_template.md"])
+}
+
+fn collect_markdown_snapshot_paths(repo_root: &Path, root: &Path) -> Vec<String> {
+    collect_markdown_snapshot_paths_with_skip(repo_root, root, &["README.md"])
+}
+
+fn collect_markdown_snapshot_paths_with_skip(
+    repo_root: &Path,
+    root: &Path,
+    skipped_names: &[&str],
+) -> Vec<String> {
+    let Ok(entries) = fs::read_dir(root) else {
         return Vec::new();
     };
 
@@ -469,7 +645,10 @@ fn collect_reference_entry_snapshot_paths(repo_root: &Path, entries_root: &Path)
         let Some(file_name) = path.file_name().and_then(|value| value.to_str()) else {
             continue;
         };
-        if file_name.eq_ignore_ascii_case("README.md") {
+        if skipped_names
+            .iter()
+            .any(|name| file_name.eq_ignore_ascii_case(name))
+        {
             continue;
         }
         if path
@@ -506,4 +685,41 @@ fn reference_workspace_summary_line(
         workspace.entries.len(),
         workspace.entries_root
     )
+}
+
+fn story_workspace_summary_line(
+    label: &str,
+    workspace: &ExplainConfigSnapshotStoryWorkspace,
+) -> String {
+    let entity_count = workspace.characters.entries.len()
+        + workspace.locations.entries.len()
+        + workspace.terms.entries.len()
+        + workspace.factions.entries.len();
+    let scene_note_suffix = workspace
+        .scene_notes
+        .as_ref()
+        .filter(|scene_notes| !scene_notes.files.is_empty())
+        .map(|scene_notes| format!(", scene notes: {}", scene_notes.files.len()))
+        .unwrap_or_default();
+    let structure_suffix = workspace
+        .structures
+        .as_ref()
+        .filter(|structures| !structures.files.is_empty())
+        .map(|structures| format!(", structure files: {}", structures.files.len()))
+        .unwrap_or_default();
+    match &workspace.scenes_path {
+        Some(scenes_path) => format!(
+            "- {} = {} entity file(s) at {}, scenes: {}{}{}",
+            label,
+            entity_count,
+            workspace.story_root,
+            scenes_path,
+            scene_note_suffix,
+            structure_suffix
+        ),
+        None => format!(
+            "- {} = {} entity file(s) at {}{}{}",
+            label, entity_count, workspace.story_root, scene_note_suffix, structure_suffix
+        ),
+    }
 }

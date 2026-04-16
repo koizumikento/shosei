@@ -146,6 +146,66 @@ test("buildStructureItems includes single-book reference files when the workspac
   );
 });
 
+test("buildStructureItems includes single-book story files when the workspace is initialized", () => {
+  const vscode = createFakeVscode();
+  const items = view.__test.buildStructureItems(vscode, {
+    explain: {
+      repo_root: "/tmp/book",
+      manuscript: {
+        chapters: ["manuscript/01.md"],
+        frontmatter: [],
+        backmatter: []
+      },
+      story: {
+        current: {
+          initialized: true,
+          story_root: "story",
+          readme_path: "story/README.md",
+          scenes_path: "story/scenes.yml",
+          scene_notes: {
+            root: "story/scene-notes",
+            files: ["story/scene-notes/01-scene.md"]
+          },
+          structures: {
+            root: "story/structures",
+            readme_path: "story/structures/README.md",
+            files: [
+              "story/structures/kishotenketsu.md",
+              "story/structures/three-act.md"
+            ]
+          },
+          characters: {
+            kind: "characters",
+            root: "story/characters",
+            readme_path: "story/characters/README.md",
+            entries: ["story/characters/hero.md"]
+          },
+          locations: { kind: "locations", root: "story/locations", readme_path: null, entries: [] },
+          terms: { kind: "terms", root: "story/terms", readme_path: null, entries: [] },
+          factions: { kind: "factions", root: "story/factions", readme_path: null, entries: [] }
+        },
+        shared: null
+      },
+      editorial: null
+    }
+  });
+
+  assert.deepEqual(items.map((item) => item.label), ["Chapters", "Story Files"]);
+  assert.equal(
+    items[1].description,
+    "1 entity file(s) + scenes + 1 scene note(s) + 2 structure file(s)"
+  );
+  assert.equal(items[1].children[0].label, "README.md");
+  assert.equal(items[1].children[1].label, "scenes.yml");
+  assert.equal(items[1].children[2].label, "Scene Notes");
+  assert.equal(items[1].children[2].children[0].label, "01-scene.md");
+  assert.equal(items[1].children[2].children[0].contextValue, "shosei.storySceneNote");
+  assert.equal(items[1].children[3].label, "Structures");
+  assert.equal(items[1].children[3].children[1].label, "kishotenketsu.md");
+  assert.equal(items[1].children[4].label, "Characters");
+  assert.equal(items[1].children[4].children[1].label, "hero.md");
+});
+
 test("buildStructureItems includes book and shared reference groups for series repos", () => {
   const vscode = createFakeVscode();
   const items = view.__test.buildStructureItems(vscode, {
@@ -182,6 +242,75 @@ test("buildStructureItems includes book and shared reference groups for series r
   assert.equal(items[2].children[1].label, "shared.md");
 });
 
+test("buildStructureItems includes book and shared story groups for series repos", () => {
+  const vscode = createFakeVscode();
+  const items = view.__test.buildStructureItems(vscode, {
+    explain: {
+      repo_root: "/tmp/series",
+      manuscript: {
+        chapters: ["books/vol-01/manuscript/01.md"],
+        frontmatter: [],
+        backmatter: []
+      },
+      story: {
+        current: {
+          initialized: true,
+          story_root: "books/vol-01/story",
+          readme_path: "books/vol-01/story/README.md",
+          scenes_path: "books/vol-01/story/scenes.yml",
+          scene_notes: {
+            root: "books/vol-01/story/scene-notes",
+            files: ["books/vol-01/story/scene-notes/01-opening.md"]
+          },
+          structures: {
+            root: "books/vol-01/story/structures",
+            readme_path: "books/vol-01/story/structures/README.md",
+            files: ["books/vol-01/story/structures/save-the-cat.md"]
+          },
+          characters: {
+            kind: "characters",
+            root: "books/vol-01/story/characters",
+            readme_path: null,
+            entries: ["books/vol-01/story/characters/lead.md"]
+          },
+          locations: { kind: "locations", root: "books/vol-01/story/locations", readme_path: null, entries: [] },
+          terms: { kind: "terms", root: "books/vol-01/story/terms", readme_path: null, entries: [] },
+          factions: { kind: "factions", root: "books/vol-01/story/factions", readme_path: null, entries: [] }
+        },
+        shared: {
+          initialized: true,
+          story_root: "shared/metadata/story",
+          readme_path: "shared/metadata/story/README.md",
+          scenes_path: null,
+          scene_notes: null,
+          structures: null,
+          characters: {
+            kind: "characters",
+            root: "shared/metadata/story/characters",
+            readme_path: null,
+            entries: ["shared/metadata/story/characters/hero.md"]
+          },
+          locations: { kind: "locations", root: "shared/metadata/story/locations", readme_path: null, entries: [] },
+          terms: { kind: "terms", root: "shared/metadata/story/terms", readme_path: null, entries: [] },
+          factions: { kind: "factions", root: "shared/metadata/story/factions", readme_path: null, entries: [] }
+        }
+      },
+      editorial: null
+    }
+  });
+
+  assert.deepEqual(items.map((item) => item.label), ["Chapters", "Book Story", "Shared Story"]);
+  assert.equal(items[1].children[2].label, "Scene Notes");
+  assert.equal(items[1].children[2].children[0].label, "01-opening.md");
+  assert.equal(items[1].children[2].children[0].contextValue, "shosei.storySceneNote");
+  assert.equal(items[1].children[3].label, "Structures");
+  assert.equal(items[1].children[3].children[1].label, "save-the-cat.md");
+  assert.equal(items[1].children[4].label, "Characters");
+  assert.equal(items[1].children[4].children[0].label, "lead.md");
+  assert.equal(items[2].children[1].label, "Characters");
+  assert.equal(items[2].children[1].children[0].label, "hero.md");
+});
+
 test("buildActionItems includes reference actions for single-book repos", () => {
   const vscode = createFakeVscode();
   const items = view.__test.buildActionItems(vscode, {
@@ -207,6 +336,10 @@ test("buildActionItems includes reference actions for single-book repos", () => 
       "Reference Scaffold",
       "Reference Map",
       "Reference Check",
+      "Story Scaffold",
+      "Story Seed",
+      "Story Map",
+      "Story Check",
       "Doctor"
     ]
   );
@@ -230,5 +363,11 @@ test("buildActionItems includes drift and sync for series repos", () => {
   assert(items.some((item) => item.label === "Reference Check"));
   assert(items.some((item) => item.label === "Reference Drift"));
   assert(items.some((item) => item.label === "Reference Sync"));
+  assert(items.some((item) => item.label === "Story Scaffold"));
+  assert(items.some((item) => item.label === "Story Seed"));
+  assert(items.some((item) => item.label === "Story Map"));
+  assert(items.some((item) => item.label === "Story Check"));
+  assert(items.some((item) => item.label === "Story Drift"));
+  assert(items.some((item) => item.label === "Story Sync"));
   assert(items.some((item) => item.label === "Series Sync"));
 });

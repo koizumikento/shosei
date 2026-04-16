@@ -17,6 +17,7 @@ Rules in this file apply to `docs/` and documentation changes that update the pu
 - Keep command examples aligned with the current CLI name: `shosei`.
 - Do not describe commands or features as available unless the current code path actually implements them.
 - Prefer examples that reflect currently supported config fields and output behavior. Remove or rewrite stale examples instead of leaving them partially correct.
+- When documenting story workspaces, distinguish freeform `structures/` notes from the `scene_seeds` frontmatter contract that `story seed` reads.
 
 ## Spec-first Rules
 

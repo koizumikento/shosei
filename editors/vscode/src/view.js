@@ -107,6 +107,23 @@ function createPathItem(vscode, label, description, absolutePath, icon) {
   );
 }
 
+function createStorySceneNoteItem(vscode, repoRoot, repoPath, scenesPath) {
+  const item = createPathItem(
+    vscode,
+    path.basename(repoPath),
+    repoPath,
+    path.resolve(repoRoot, repoPath),
+    "markdown"
+  );
+  if (scenesPath) {
+    item.contextValue = "shosei.storySceneNote";
+    item.storyRepoRoot = repoRoot;
+    item.storySceneFile = repoPath;
+    item.storyScenesPath = scenesPath;
+  }
+  return item;
+}
+
 function createChapterItem(vscode, repoPath, absolutePath) {
   const item = createPathItem(
     vscode,
@@ -399,6 +416,7 @@ function buildStructureItems(vscode, snapshot) {
   }
 
   pushReferenceStructureItems(vscode, items, explain);
+  pushStoryStructureItems(vscode, items, explain);
 
   if (hasEditorialContent(explain.editorial)) {
     const editorialItems = [];
@@ -507,9 +525,15 @@ function buildActionItems(vscode, snapshot) {
   items.push(createActionItem(vscode, "Reference Scaffold", "shosei.referenceScaffold", "new-folder"));
   items.push(createActionItem(vscode, "Reference Map", "shosei.referenceMap", "list-selection"));
   items.push(createActionItem(vscode, "Reference Check", "shosei.referenceCheck", "checklist"));
+  items.push(createActionItem(vscode, "Story Scaffold", "shosei.storyScaffold", "new-folder"));
+  items.push(createActionItem(vscode, "Story Seed", "shosei.storySeed", "new-file"));
+  items.push(createActionItem(vscode, "Story Map", "shosei.storyMap", "list-selection"));
+  items.push(createActionItem(vscode, "Story Check", "shosei.storyCheck", "checklist"));
   if (snapshot.mode === "series") {
     items.push(createActionItem(vscode, "Reference Drift", "shosei.referenceDrift", "compare-changes"));
     items.push(createActionItem(vscode, "Reference Sync", "shosei.referenceSync", "sync"));
+    items.push(createActionItem(vscode, "Story Drift", "shosei.storyDrift", "compare-changes"));
+    items.push(createActionItem(vscode, "Story Sync", "shosei.storySync", "sync"));
   }
   items.push(createActionItem(vscode, "Doctor", "shosei.doctor", "tools"));
 
@@ -587,6 +611,223 @@ function pushReferenceWorkspaceItem(vscode, items, repoRoot, label, workspace) {
   );
 }
 
+function pushStoryStructureItems(vscode, items, explain) {
+  if (!hasStoryStructure(explain.story)) {
+    return;
+  }
+
+  if (explain.story.shared) {
+    pushStoryWorkspaceItem(vscode, items, explain.repo_root, "Book Story", explain.story.current);
+    pushStoryWorkspaceItem(vscode, items, explain.repo_root, "Shared Story", explain.story.shared);
+    return;
+  }
+
+  pushStoryWorkspaceItem(vscode, items, explain.repo_root, "Story Files", explain.story.current);
+}
+
+function pushStoryWorkspaceItem(vscode, items, repoRoot, label, workspace) {
+  if (!workspace?.initialized) {
+    return;
+  }
+
+  const children = [];
+  if (workspace.readme_path) {
+    children.push(
+      createPathItem(
+        vscode,
+        path.basename(workspace.readme_path),
+        workspace.readme_path,
+        path.resolve(repoRoot, workspace.readme_path),
+        "markdown"
+      )
+    );
+  }
+
+  if (workspace.scenes_path) {
+    children.push(
+      createPathItem(
+        vscode,
+        path.basename(workspace.scenes_path),
+        workspace.scenes_path,
+        path.resolve(repoRoot, workspace.scenes_path),
+        "symbol-array"
+      )
+    );
+  }
+
+  const sceneNotesItem = buildStorySceneNotesItem(
+    vscode,
+    repoRoot,
+    workspace.scene_notes,
+    workspace.scenes_path
+  );
+  if (sceneNotesItem) {
+    children.push(sceneNotesItem);
+  }
+
+  const structuresItem = buildStoryStructuresItem(vscode, repoRoot, workspace.structures);
+  if (structuresItem) {
+    children.push(structuresItem);
+  }
+
+  for (const kind of ["characters", "locations", "terms", "factions"]) {
+    const item = buildStoryKindItem(vscode, repoRoot, workspace[kind]);
+    if (item) {
+      children.push(item);
+    }
+  }
+
+  if (children.length === 0) {
+    children.push(createInfoItem(vscode, "No story files yet", workspace.story_root, "info"));
+  }
+
+  items.push(
+    createNestedGroupItem(
+      vscode,
+      label,
+      storyWorkspaceDescription(workspace),
+      "book",
+      children
+    )
+  );
+}
+
+function buildStoryStructuresItem(vscode, repoRoot, structures) {
+  if (!structures) {
+    return null;
+  }
+
+  const children = [];
+  if (structures.readme_path) {
+    children.push(
+      createPathItem(
+        vscode,
+        path.basename(structures.readme_path),
+        structures.readme_path,
+        path.resolve(repoRoot, structures.readme_path),
+        "markdown"
+      )
+    );
+  }
+
+  for (const file of structures.files || []) {
+    children.push(
+      createPathItem(
+        vscode,
+        path.basename(file),
+        file,
+        path.resolve(repoRoot, file),
+        "markdown"
+      )
+    );
+  }
+
+  if (children.length === 0) {
+    return null;
+  }
+
+  return createNestedGroupItem(
+    vscode,
+    "Structures",
+    `${(structures.files || []).length} file(s)`,
+    "symbol-snippet",
+    children
+  );
+}
+
+function buildStorySceneNotesItem(vscode, repoRoot, sceneNotes, scenesPath) {
+  if (!sceneNotes || (sceneNotes.files || []).length === 0) {
+    return null;
+  }
+
+  const children = (sceneNotes.files || []).map((file) =>
+    createStorySceneNoteItem(vscode, repoRoot, file, scenesPath)
+  );
+
+  return createNestedGroupItem(
+    vscode,
+    "Scene Notes",
+    `${children.length} file(s)`,
+    "note",
+    children
+  );
+}
+
+function buildStoryKindItem(vscode, repoRoot, kind) {
+  if (!kind) {
+    return null;
+  }
+
+  const children = [];
+  if (kind.readme_path) {
+    children.push(
+      createPathItem(
+        vscode,
+        path.basename(kind.readme_path),
+        kind.readme_path,
+        path.resolve(repoRoot, kind.readme_path),
+        "markdown"
+      )
+    );
+  }
+
+  for (const entry of kind.entries || []) {
+    children.push(
+      createPathItem(
+        vscode,
+        path.basename(entry),
+        entry,
+        path.resolve(repoRoot, entry),
+        "markdown"
+      )
+    );
+  }
+
+  if (children.length === 0) {
+    return null;
+  }
+
+  return createNestedGroupItem(
+    vscode,
+    storyKindLabel(kind.kind),
+    `${(kind.entries || []).length} file(s)`,
+    "library",
+    children
+  );
+}
+
+function storyKindLabel(kind) {
+  switch (kind) {
+    case "characters":
+      return "Characters";
+    case "locations":
+      return "Locations";
+    case "terms":
+      return "Terms";
+    case "factions":
+      return "Factions";
+    default:
+      return kind || "Story";
+  }
+}
+
+function storyWorkspaceDescription(workspace) {
+  const entityCount = ["characters", "locations", "terms", "factions"].reduce(
+    (total, kind) => total + (workspace[kind]?.entries?.length || 0),
+    0
+  );
+  const sceneNoteCount = workspace.scene_notes?.files?.length || 0;
+  const structureCount = workspace.structures?.files?.length || 0;
+  const sceneNoteSuffix =
+    sceneNoteCount > 0 ? ` + ${sceneNoteCount} scene note(s)` : "";
+  const structureSuffix =
+    structureCount > 0 ? ` + ${structureCount} structure file(s)` : "";
+  if (workspace.scenes_path) {
+    return `${entityCount} entity file(s) + scenes${sceneNoteSuffix}${structureSuffix}`;
+  }
+  return `${entityCount} entity file(s)${sceneNoteSuffix}${structureSuffix}`;
+}
+
 function formatWithOrigin(value, origin) {
   return origin ? `${value} [${origin}]` : value;
 }
@@ -621,6 +862,14 @@ function hasReferenceStructure(references) {
   return Boolean(
     references.current?.initialized || references.shared?.initialized
   );
+}
+
+function hasStoryStructure(story) {
+  if (!story) {
+    return false;
+  }
+
+  return Boolean(story.current?.initialized || story.shared?.initialized);
 }
 
 function editorialSummary(editorial) {
