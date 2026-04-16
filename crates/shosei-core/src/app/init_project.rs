@@ -1242,8 +1242,6 @@ fn write_git_scaffold(root: &Path, git_lfs: bool) -> Result<(), InitProjectError
     write_file(&root.join(".gitignore"), gitignore_contents())?;
     if git_lfs {
         write_file(&root.join(".gitattributes"), gitattributes_contents())?;
-    } else {
-        remove_file_if_exists(&root.join(".gitattributes"))?;
     }
     Ok(())
 }
@@ -1262,17 +1260,6 @@ fn write_style_scaffold(
     write_file(&root.join("epub.css"), epub_css_contents(template))?;
     write_file(&root.join("print.css"), print_css_contents(profile))?;
     Ok(())
-}
-
-fn remove_file_if_exists(path: &Path) -> Result<(), InitProjectError> {
-    match fs::remove_file(path) {
-        Ok(()) => Ok(()),
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
-        Err(source) => Err(InitProjectError::WriteFile {
-            path: path.display().to_string(),
-            source,
-        }),
-    }
 }
 
 fn base_css_contents(template: ProjectTemplate, writing_mode: InitWritingMode) -> &'static str {
@@ -2470,6 +2457,47 @@ mod tests {
         let base_css = fs::read_to_string(root.join("styles/base.css")).unwrap();
         assert!(base_css.contains("writing-mode: horizontal-tb"));
         assert!(base_css.contains("direction: ltr"));
+    }
+
+    #[test]
+    fn preserves_existing_gitattributes_when_git_lfs_is_disabled() {
+        let root = temp_dir("preserve-gitattributes-when-git-lfs-disabled");
+        fs::create_dir_all(&root).unwrap();
+        fs::write(root.join(".gitattributes"), "*.png text\n").unwrap();
+
+        init_project(InitProjectOptions {
+            root: root.clone(),
+            non_interactive: false,
+            force: false,
+            config_template: Some("business".to_string()),
+            config_profile: None,
+            repo_mode: Some("single-book".to_string()),
+            initial_series_book_id: None,
+            title: None,
+            author: None,
+            language: None,
+            output_preset: None,
+            writing_mode: None,
+            binding: None,
+            print_target: None,
+            print_trim_size: None,
+            print_bleed: None,
+            print_crop_marks: None,
+            print_sides: None,
+            print_max_pages: None,
+            manga_spread_policy_for_kindle: None,
+            manga_front_color_pages: None,
+            manga_body_mode: None,
+            initialize_git: false,
+            git_lfs: Some(false),
+            generate_sample: None,
+        })
+        .unwrap();
+
+        assert_eq!(
+            fs::read_to_string(root.join(".gitattributes")).unwrap(),
+            "*.png text\n"
+        );
     }
 
     #[test]
