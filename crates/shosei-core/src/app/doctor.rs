@@ -259,6 +259,10 @@ fn apply_resolved_book_context(
     detected: &mut DoctorDetectedProject,
     resolved: &ResolvedBookConfig,
 ) {
+    let requires_chromium_vertical_print = resolved.effective.project.project_type.is_prose()
+        && resolved.effective.outputs.print.is_some()
+        && resolved.effective.book.writing_mode == config::WritingMode::VerticalRl;
+
     detected.project_type = Some(resolved.effective.project.project_type.as_str().to_string());
     if resolved.effective.outputs.kindle.is_some() {
         detected.enabled_outputs.push("kindle".to_string());
@@ -279,7 +283,11 @@ fn apply_resolved_book_context(
         && resolved.effective.project.project_type.is_prose()
         && let Some(pdf) = resolved.effective.pdf.as_ref()
     {
-        let engine = pdf.engine.as_str().to_string();
+        let engine = if requires_chromium_vertical_print {
+            "chromium".to_string()
+        } else {
+            pdf.engine.as_str().to_string()
+        };
         if !detected
             .focused_required_tools
             .iter()
@@ -304,9 +312,7 @@ fn apply_resolved_book_context(
     detected.focused_optional_tools.sort();
     detected.focused_optional_tools.dedup();
 
-    if resolved.effective.project.project_type.is_prose()
-        && resolved.effective.outputs.print.is_some()
-        && resolved.effective.book.writing_mode == config::WritingMode::VerticalRl
+    if requires_chromium_vertical_print
         && resolved
             .effective
             .pdf
@@ -640,6 +646,59 @@ books:
                 .notes
                 .iter()
                 .any(|note| note.contains("series repo root detected"))
+        );
+    }
+
+    #[test]
+    fn doctor_prefers_chromium_focus_for_vertical_print_even_when_config_is_invalid() {
+        let root = std::env::temp_dir().join(format!(
+            "shosei-doctor-vertical-weasyprint-{}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(root.join("manuscript")).unwrap();
+        std::fs::write(root.join("manuscript/01.md"), "# Chapter 1\n").unwrap();
+        std::fs::write(
+            root.join("book.yml"),
+            r#"
+project:
+  type: novel
+book:
+  title: "Sample"
+  authors:
+    - "Author"
+  writing_mode: vertical-rl
+  reading_direction: rtl
+layout:
+  binding: right
+manuscript:
+  chapters:
+    - manuscript/01.md
+outputs:
+  print:
+    enabled: true
+    target: print-jp-pdfx1a
+pdf:
+  engine: weasyprint
+"#,
+        )
+        .unwrap();
+
+        let result = doctor_with_report_and_path(ToolchainReport { tools: vec![] }, Some(&root));
+        let project = result
+            .snapshot
+            .detected_project
+            .expect("project should be detected");
+
+        assert_eq!(
+            project.focused_required_tools,
+            vec!["git", "pandoc", "chromium"]
+        );
+        assert!(
+            project
+                .notes
+                .iter()
+                .any(|note| note.contains("requires chromium at build time"))
         );
     }
 }
