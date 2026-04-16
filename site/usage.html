@@ -121,7 +121,7 @@ shosei build --target print</code></pre>
                 <td>利用可能</td>
               </tr>
               <tr>
-                <td><code>shosei handoff &lt;destination&gt;</code></td>
+                <td><code>shosei handoff &lt;kindle|print|proof&gt;</code></td>
                 <td>handoff package を生成する</td>
                 <td>利用可能</td>
               </tr>
@@ -146,8 +146,10 @@ shosei preview --target print</code></pre>
           <p><code>validate</code> では target / profile の組み合わせに対する実務上の warning も出します。</p>
           <ul>
             <li><code>project.type: manga</code> では <code>outputs.kindle.target: kindle-comic</code> を推奨し、<code>kindle-ja</code> は将来互換扱いとして warning にします</li>
+            <li><code>project.type: manga</code> では <code>outputs.print.target: print-manga</code> を推奨し、prose 向け print target は warning にします</li>
             <li><code>outputs.print.target: print-jp-pdfx1a</code> と <code>print.pdf_standard: pdfx4</code> のような target / PDF standard の不一致は warning にします</li>
             <li><code>book.profile: conference-preprint</code> では <code>outputs.print.target: print-jp-pdfx4</code> を推奨し、それ以外は warning にします</li>
+            <li>prose print で <code>pdf.engine: typst|lualatex</code> を使う場合は、v0.1 では追加 proof を勧める warning を出します</li>
           </ul>
           <p><code>series sync</code> は <code>series.yml</code> を正として shared metadata を更新し、prose book では生成 backmatter を同期します。</p>
           <pre><code>shosei series sync
@@ -500,14 +502,25 @@ shosei doctor --json</code></pre>
             <li><code>pandoc</code></li>
             <li><code>weasyprint</code></li>
             <li><code>chromium</code></li>
+            <li><code>typst</code></li>
+            <li><code>lualatex</code></li>
             <li><code>epubcheck</code></li>
             <li><code>git-lfs</code></li>
             <li>Kindle Previewer</li>
           </ul>
-          <p>required tool は <code>git</code>, <code>pandoc</code>, <code>weasyprint</code>, <code>chromium</code>。optional tool は <code>epubcheck</code>, <code>git-lfs</code>, Kindle Previewer です。</p>
-          <p><code>typst</code>, <code>lualatex</code> は将来拡張候補として config 値では受け付けますが、v0.1 の doctor の必須確認対象には含めません。</p>
+          <p>required tool は <code>git</code>, <code>pandoc</code>, <code>weasyprint</code>, <code>chromium</code>。optional tool は <code>typst</code>, <code>lualatex</code>, <code>epubcheck</code>, <code>git-lfs</code>, Kindle Previewer です。</p>
+          <p><code>typst</code>, <code>lualatex</code> は config 値として受け付けますが、v0.1 では default 経路より検証が薄い。doctor では optional tool として表示し、選択中 engine の場合だけ focused required tools に含めます。</p>
           <p><code>--json</code> は editor integration 向けで、host OS、required / optional ごとの available / missing / pending 件数、各 tool の category / status / path / version / install hint に加えて、検出できた current project の repo mode / book / outputs / focused tools も機械可読で返します。</p>
-          <p><code>handoff proof</code> は validate report に加えて、<code>review-notes.md</code>、<code>reports/review-packet.json</code>、editorial sidecar のコピーも package に含めます。<code>manifest.json</code> には review packet の path と editorial summary 件数も入ります。</p>
+          <p><code>handoff</code> の destination は <code>kindle</code>, <code>print</code>, <code>proof</code> の 3 つに固定します。</p>
+          <pre><code>shosei handoff kindle
+shosei handoff print
+shosei handoff proof</code></pre>
+          <ul>
+            <li><code>handoff kindle</code>: 対応する Kindle artifact、<code>reports/validate.json</code>、<code>manifest.json</code>、設定済みなら cover asset のコピーを package に含めます</li>
+            <li><code>handoff print</code>: 対応する print artifact、<code>reports/validate.json</code>、<code>manifest.json</code> を package に含めます</li>
+            <li><code>handoff proof</code>: build できた artifact 全件、<code>reports/validate.json</code>、<code>review-notes.md</code>、<code>reports/review-packet.json</code> を package に含めます。prose では editorial sidecar もコピーします</li>
+          </ul>
+          <p><code>manifest.json</code> には <code>build_summary</code>, <code>build_stages</code>, <code>build_inputs</code>, <code>selected_artifacts</code>, <code>selected_artifact_details</code>, <code>validation_report</code>, <code>git_commit</code>, <code>git_dirty</code>, <code>dirty_worktree_warning</code> を含めます。<code>proof</code> では加えて <code>review_notes</code>, <code>review_packet</code>, <code>editorial_summary</code>, <code>editorial_files</code> も入ります。</p>
         </section>
       </article>
     </main>

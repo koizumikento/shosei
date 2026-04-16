@@ -97,6 +97,11 @@ pub(crate) fn build_book_with_toolchain(
             .iter()
             .map(|output| output.target.clone())
             .collect::<Vec<_>>();
+        let tool_summary = plan
+            .outputs
+            .iter()
+            .map(|output| format!("{} via {}", output.target, output.primary_tool))
+            .collect::<Vec<_>>();
         let source_count = plan.manuscript_files.len();
         let artifacts = match project_type {
             ProjectType::Manga => execute_manga_build_outputs(&resolved, &plan)?,
@@ -104,7 +109,7 @@ pub(crate) fn build_book_with_toolchain(
         };
         return Ok(BuildBookResult {
             summary: format!(
-                "build completed for {} with {} input file(s), outputs: {}, stages: {}, artifacts: {}",
+                "build completed for {} with {} input file(s), outputs: {}, tools: {}, stages: {}, artifacts: {}",
                 book.id,
                 source_count,
                 if outputs.is_empty() {
@@ -112,10 +117,15 @@ pub(crate) fn build_book_with_toolchain(
                 } else {
                     outputs.join(", ")
                 },
+                if tool_summary.is_empty() {
+                    "none".to_string()
+                } else {
+                    tool_summary.join(", ")
+                },
                 plan.stages.join(", "),
                 artifacts
                     .iter()
-                    .map(|path| path.display().to_string())
+                    .map(|path| relative_display(&resolved.repo.repo_root, path))
                     .collect::<Vec<_>>()
                     .join(", ")
             ),
@@ -395,6 +405,12 @@ fn push_stylesheet_candidates(stylesheets: &mut Vec<PathBuf>, path: &Path, file_
 
 fn generated_print_stylesheet_path(output: &Path) -> PathBuf {
     output.with_extension("layout.css")
+}
+
+fn relative_display(base: &Path, path: &Path) -> String {
+    path.strip_prefix(base)
+        .map(|relative| relative.display().to_string())
+        .unwrap_or_else(|_| path.display().to_string())
 }
 
 fn generated_print_html_path(output: &Path) -> PathBuf {

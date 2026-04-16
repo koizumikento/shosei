@@ -94,6 +94,7 @@ pub enum Commands {
         json: bool,
     },
     Handoff {
+        #[arg(value_parser = ["kindle", "print", "proof"])]
         destination: String,
         #[arg(long)]
         book: Option<String>,
@@ -478,6 +479,21 @@ mod tests {
         match cli.command {
             Commands::Doctor { json } => {
                 assert!(json);
+            }
+            other => panic!("unexpected command: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_handoff_destination() {
+        let cli = Cli::parse_from(["shosei", "handoff", "proof", "--book", "vol-01"]);
+
+        match cli.command {
+            Commands::Handoff {
+                destination, book, ..
+            } => {
+                assert_eq!(destination, "proof");
+                assert_eq!(book.as_deref(), Some("vol-01"));
             }
             other => panic!("unexpected command: {other:?}"),
         }

@@ -367,8 +367,8 @@ v0.1 の最小要件:
 
 - required tool と optional tool を分けて返せる
 - required tool は `git`, `pandoc`, `weasyprint`, `chromium` とする
-- optional tool は `epubcheck`, `git-lfs`, Kindle Previewer とする
-- `typst`, `lualatex` は将来拡張候補として config 値では受け付けても、v0.1 の doctor の必須確認対象には含めない
+- optional tool は `typst`, `lualatex`, `epubcheck`, `git-lfs`, Kindle Previewer とする
+- `typst`, `lualatex` は config 値では受け付けるが、v0.1 では default 経路より検証が薄い。doctor では optional tool として表示し、選択中 engine の場合だけ focused required tools に含める
 - PATH 解決結果、バージョン、導入ヒントを text 出力で返せる
 - editor integration 向けに machine-readable な `--json` 出力を返せる
 - 初期化済み repo の内側で実行した場合は、検出できた current book の project type / enabled outputs と、その book で特に重要な tool 群を追加表示できる
@@ -1250,9 +1250,14 @@ v0.1 の既定:
 
 - EPUB
 - build summary
+- build stages
+- build inputs
 - target profile
 - commit hash
+- `reports/validate.json`
+- 設定済みなら cover asset のコピー
 - `dist/handoff/<book-id>-kindle/` に成果物コピーと `manifest.json`
+- `manifest.json` には `selected_artifact_details[{channel,target,path,primary_tool}]` を含める
 
 ### 19.2 `handoff print`
 
@@ -1266,8 +1271,12 @@ v0.1 の既定:
   - bleed
   - crop marks
   - fonts embedded
+- build stages
+- build inputs
+- `reports/validate.json`
 - commit hash
 - `dist/handoff/<book-id>-print/` に成果物コピーと `manifest.json`
+- `manifest.json` には `selected_artifact_details[{channel,target,path,primary_tool}]` を含める
 
 ### 19.3 `handoff proof`
 
@@ -1282,6 +1291,7 @@ v0.1 の既定:
 - editorial sidecar のコピー
 - claim / figure / freshness の reviewer note 要約
 - v0.1 では `dist/handoff/<book-id>-proof/` に成果物コピー、`manifest.json`、`review-notes.md`、`reports/review-packet.json`、`editorial/` 配下の sidecar コピーを出す
+- `manifest.json` には `build_stages`, `build_inputs`, `selected_artifact_details`, `validation_report`, `git_dirty`, `dirty_worktree_warning` も含める
 
 ## 20. MVP の範囲
 

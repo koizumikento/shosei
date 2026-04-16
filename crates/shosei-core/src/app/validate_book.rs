@@ -331,6 +331,20 @@ fn schema_warning_issues(resolved: &config::ResolvedBookConfig) -> Vec<Validatio
         );
     }
 
+    if project_type == ProjectType::Manga
+        && resolved.effective.outputs.print.as_deref() != Some("print-manga")
+        && resolved.effective.outputs.print.is_some()
+    {
+        issues.push(
+            ValidationIssue::warning(
+                "print",
+                "manga projects usually expect outputs.print.target = print-manga".to_string(),
+                "manga では outputs.print.target を print-manga にしてください。印刷向け PDF はページ画像ベースの本文経路を前提にしています。",
+            )
+            .at(config_path.clone()),
+        );
+    }
+
     if let (Some(print_target), Some(print)) = (
         resolved.effective.outputs.print.as_deref(),
         resolved.effective.print.as_ref(),
@@ -358,6 +372,30 @@ fn schema_warning_issues(resolved: &config::ResolvedBookConfig) -> Vec<Validatio
                 .at(config_path.clone()),
             );
         }
+    }
+
+    if project_type.is_prose()
+        && resolved.effective.outputs.print.is_some()
+        && let Some(pdf) = resolved.effective.pdf.as_ref()
+        && matches!(
+            pdf.engine,
+            config::PdfEngine::Typst | config::PdfEngine::Lualatex
+        )
+    {
+        issues.push(
+            ValidationIssue::warning(
+                "print",
+                format!(
+                    "pdf.engine = {} is accepted but less validated in v0.1",
+                    pdf.engine.as_str()
+                ),
+                format!(
+                    "{} を使う場合は handoff 前に preview / print build / proof を追加確認してください。",
+                    pdf.engine.as_str()
+                ),
+            )
+            .at(config_path.clone()),
+        );
     }
 
     if resolved.effective.book.profile == "conference-preprint" {
@@ -2689,6 +2727,105 @@ manga:
         assert!(
             report.contains("manga projects usually expect outputs.kindle.target = kindle-comic")
         );
+    }
+
+    #[test]
+    fn validate_warns_when_manga_uses_prose_print_target() {
+        let root = temp_dir("manga-prose-print-target");
+        fs::create_dir_all(root.join("manga/pages")).unwrap();
+        fs::write(root.join("manga/pages/001.png"), solid_png(120, 120, 120)).unwrap();
+        fs::write(
+            root.join("book.yml"),
+            r#"
+project:
+  type: manga
+  vcs: git
+book:
+  title: "Sample Manga"
+  authors:
+    - "Author"
+  reading_direction: rtl
+layout:
+  binding: right
+outputs:
+  print:
+    enabled: true
+    target: print-jp-pdfx1a
+validation:
+  strict: true
+git:
+  lfs: true
+manga:
+  reading_direction: rtl
+  default_page_side: right
+  spread_policy_for_kindle: split
+  front_color_pages: 0
+  body_mode: mixed
+"#,
+        )
+        .unwrap();
+
+        let result = validate_book_with_toolchain(
+            &CommandContext::new(&root, None, None),
+            &fake_toolchain(ToolStatus::Missing),
+        )
+        .unwrap();
+
+        assert!(!result.has_errors);
+        let report = fs::read_to_string(result.report_path).unwrap();
+        assert!(
+            report.contains("manga projects usually expect outputs.print.target = print-manga")
+        );
+    }
+
+    #[test]
+    fn validate_warns_when_prose_uses_less_validated_pdf_engine() {
+        let root = temp_dir("prose-typst-warning");
+        fs::create_dir_all(root.join("manuscript")).unwrap();
+        fs::write(root.join("manuscript/01.md"), "# Chapter 1\n").unwrap();
+        fs::write(
+            root.join("book.yml"),
+            r#"
+project:
+  type: novel
+  vcs: git
+book:
+  title: "Sample"
+  authors:
+    - "Author"
+  reading_direction: rtl
+layout:
+  binding: right
+manuscript:
+  chapters:
+    - manuscript/01.md
+outputs:
+  kindle:
+    enabled: true
+    target: kindle-ja
+  print:
+    enabled: true
+    target: print-jp-pdfx1a
+pdf:
+  engine: typst
+validation:
+  strict: true
+git:
+  lfs: true
+"#,
+        )
+        .unwrap();
+
+        let result = validate_book_with_toolchain(
+            &CommandContext::new(&root, None, None),
+            &fake_toolchain(ToolStatus::Available),
+        )
+        .unwrap();
+
+        assert!(!result.has_errors);
+        let report = fs::read_to_string(result.report_path).unwrap();
+        assert!(report.contains("pdf.engine = typst is accepted but less validated in v0.1"));
+        assert!(report.contains("handoff 前に preview / print build / proof を追加確認"));
     }
 
     #[test]

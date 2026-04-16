@@ -98,10 +98,13 @@ struct HandoffManifest {
     destination: String,
     created_at_unix_seconds: u64,
     build_summary: String,
+    build_stages: Vec<String>,
+    build_inputs: Vec<String>,
     validation_summary: String,
     validation_issue_count: usize,
     validation_has_errors: bool,
     selected_artifacts: Vec<String>,
+    selected_artifact_details: Vec<HandoffArtifactDetail>,
     validation_report: String,
     cover_ebook_image: Option<String>,
     editorial_files: Vec<String>,
@@ -111,6 +114,14 @@ struct HandoffManifest {
     git_commit: Option<String>,
     git_dirty: Option<bool>,
     dirty_worktree_warning: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
+struct HandoffArtifactDetail {
+    channel: String,
+    target: String,
+    path: String,
+    primary_tool: String,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -304,12 +315,34 @@ fn handoff_with_toolchain(
         destination: destination.to_string(),
         created_at_unix_seconds: now_unix_seconds(),
         build_summary: build_result.summary.clone(),
+        build_stages: build_result
+            .plan
+            .stages
+            .iter()
+            .map(|stage| (*stage).to_string())
+            .collect(),
+        build_inputs: build_result
+            .plan
+            .manuscript_files
+            .iter()
+            .map(|path| relative_to(&resolved.repo.repo_root, path))
+            .collect(),
         validation_summary: validate_result.summary.clone(),
         validation_issue_count: validate_result.issue_count,
         validation_has_errors: validate_result.has_errors,
         selected_artifacts: copied_artifacts
             .iter()
             .map(|path| relative_to(&package_dir, path))
+            .collect(),
+        selected_artifact_details: selected_outputs
+            .iter()
+            .zip(copied_artifacts.iter())
+            .map(|(output, copied_path)| HandoffArtifactDetail {
+                channel: output.channel.to_string(),
+                target: output.target.clone(),
+                path: relative_to(&package_dir, copied_path),
+                primary_tool: output.primary_tool.to_string(),
+            })
             .collect(),
         validation_report: relative_to(&package_dir, &copied_report),
         cover_ebook_image: copied_cover
@@ -334,12 +367,13 @@ fn handoff_with_toolchain(
     write_manifest(&manifest_path, &manifest)?;
 
     let mut summary = format!(
-        "handoff packaged for {} ({}) at {}, artifacts: {}, validation issues: {}",
+        "handoff packaged for {} ({}) at {}, artifacts: {}, validation issues: {}, manifest: {}",
         book.id,
         destination,
         package_dir.display(),
         manifest.selected_artifacts.join(", "),
-        validate_result.issue_count
+        validate_result.issue_count,
+        manifest_path.display()
     );
     if let Some(commit) = &manifest.git_commit {
         summary.push_str(&format!(", commit: {commit}"));
@@ -942,12 +976,22 @@ editorial:
             serde_json::from_str(&fs::read_to_string(result.manifest_path).unwrap()).unwrap();
         assert_eq!(manifest["destination"], "kindle");
         assert_eq!(manifest["cover_ebook_image"], "assets/cover/front.png");
+        assert_eq!(manifest["build_inputs"][0], "manga/pages/001.png");
+        assert_eq!(manifest["build_stages"][0], "resolve-config");
         assert!(
             manifest["selected_artifacts"]
                 .as_array()
                 .unwrap()
                 .iter()
                 .any(|item| item == "artifacts/default-kindle-comic.epub")
+        );
+        assert_eq!(
+            manifest["selected_artifact_details"][0]["channel"],
+            "kindle"
+        );
+        assert_eq!(
+            manifest["selected_artifact_details"][0]["primary_tool"],
+            "shosei-fxl-epub"
         );
     }
 
@@ -972,6 +1016,13 @@ editorial:
             serde_json::from_str(&fs::read_to_string(result.manifest_path).unwrap()).unwrap();
         assert_eq!(manifest["destination"], "proof");
         assert_eq!(manifest["selected_artifacts"].as_array().unwrap().len(), 2);
+        assert_eq!(
+            manifest["selected_artifact_details"]
+                .as_array()
+                .unwrap()
+                .len(),
+            2
+        );
         assert_eq!(manifest["review_notes"], "review-notes.md");
         assert_eq!(manifest["review_packet"], "reports/review-packet.json");
         assert!(manifest["editorial_summary"].is_null());
@@ -1199,6 +1250,11 @@ printf 'fake output' > "$out"
         assert_eq!(manifest["review_notes"], "review-notes.md");
         assert_eq!(manifest["review_packet"], "reports/review-packet.json");
         assert_eq!(manifest["editorial_files"].as_array().unwrap().len(), 4);
+        assert_eq!(manifest["build_inputs"][0], "manuscript/01.md");
+        assert_eq!(
+            manifest["selected_artifact_details"][0]["path"],
+            "artifacts/default-kindle-ja.epub"
+        );
         assert_eq!(manifest["editorial_summary"]["claim_count"], 1);
         assert_eq!(manifest["editorial_summary"]["figure_count"], 1);
         assert_eq!(manifest["editorial_summary"]["freshness_item_count"], 1);

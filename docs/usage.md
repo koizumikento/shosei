@@ -50,7 +50,7 @@ shosei build --target print
 | `shosei series sync` | series metadata と prose backmatter を同期する | 利用可能 |
 | `shosei page check` | manga のページ順と見開き候補を検査する | 利用可能 |
 | `shosei doctor` | 依存解決結果と導入ヒントを表示する | 利用可能 |
-| `shosei handoff <destination>` | handoff package を生成する | 利用可能 |
+| `shosei handoff <kindle|print|proof>` | handoff package を生成する | 利用可能 |
 
 ## Repo discovery
 
@@ -75,8 +75,10 @@ shosei preview --target print
 `validate` では target / profile の組み合わせに対する実務上の warning も出す。
 
 - `project.type: manga` では `outputs.kindle.target: kindle-comic` を推奨し、`kindle-ja` は将来互換扱いとして warning にする
+- `project.type: manga` では `outputs.print.target: print-manga` を推奨し、prose 向け print target は warning にする
 - `outputs.print.target: print-jp-pdfx1a` と `print.pdf_standard: pdfx4` のような target / PDF standard の不一致は warning にする
 - `book.profile: conference-preprint` では `outputs.print.target: print-jp-pdfx4` を推奨し、それ以外は warning にする
+- prose print で `pdf.engine: typst|lualatex` を使う場合は、v0.1 では追加 proof を勧める warning を出す
 
 `series sync` は `series.yml` を正として shared metadata を更新し、prose book では生成 backmatter を同期する。
 
@@ -520,14 +522,28 @@ shosei doctor --json
 - `pandoc`
 - `weasyprint`
 - `chromium`
+- `typst`
+- `lualatex`
 - `epubcheck`
 - `git-lfs`
 - Kindle Previewer
 
-required tool は `git`, `pandoc`, `weasyprint`, `chromium`。optional tool は `epubcheck`, `git-lfs`, Kindle Previewer。
+required tool は `git`, `pandoc`, `weasyprint`, `chromium`。optional tool は `typst`, `lualatex`, `epubcheck`, `git-lfs`, Kindle Previewer。
 
-`typst`, `lualatex` は将来拡張候補として config 値では受け付けるが、v0.1 の doctor の必須確認対象には含めない。
+`typst`, `lualatex` は config 値として受け付けるが、v0.1 では default 経路より検証が薄い。doctor では optional tool として表示し、選択中 engine の場合だけ focused required tools に含める。
 
 `--json` は editor integration 向けで、host OS、required / optional ごとの available / missing / pending 件数、各 tool の category / status / path / version / install hint に加えて、検出できた current project の repo mode / book / outputs / focused tools も機械可読で返す。
 
-`handoff proof` は validate report に加えて、`review-notes.md`、`reports/review-packet.json`、editorial sidecar のコピーも package に含める。`manifest.json` には review packet の path と editorial summary 件数も入る。
+`handoff` の destination は `kindle`, `print`, `proof` の 3 つに固定する。
+
+```bash
+shosei handoff kindle
+shosei handoff print
+shosei handoff proof
+```
+
+- `handoff kindle`: 対応する Kindle artifact、`reports/validate.json`、`manifest.json`、設定済みなら cover asset のコピーを package に含める
+- `handoff print`: 対応する print artifact、`reports/validate.json`、`manifest.json` を package に含める
+- `handoff proof`: build できた artifact 全件、`reports/validate.json`、`review-notes.md`、`reports/review-packet.json` を package に含める。prose では editorial sidecar もコピーする
+
+`manifest.json` には `build_summary`, `build_stages`, `build_inputs`, `selected_artifacts`, `selected_artifact_details`, `validation_report`, `git_commit`, `git_dirty`, `dirty_worktree_warning` を含める。`proof` では加えて `review_notes`, `review_packet`, `editorial_summary`, `editorial_files` も入る。

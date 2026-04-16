@@ -187,7 +187,7 @@ repo/
 | `shosei series sync` | series metadata と prose backmatter を同期する | 利用可能 |
 | `shosei page check` | manga のページ順と見開き候補を検査する | 利用可能 |
 | `shosei doctor` | 依存解決結果と導入ヒントを表示する | 利用可能 |
-| `shosei handoff <destination>` | handoff package を生成する | 利用可能 |
+| `shosei handoff <kindle|print|proof>` | handoff package を生成する | 利用可能 |
 
 ## 生成される初期構成
 

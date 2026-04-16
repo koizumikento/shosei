@@ -1844,12 +1844,14 @@ fn write_story_scenes_file_for_seed(
     })
 }
 
+type SeedStoryNoteFileChanges = (Vec<PathBuf>, Vec<PathBuf>, Vec<PathBuf>);
+
 fn seed_story_note_files(
     workspace: &BookStoryWorkspace,
     template_name: &str,
     seeds: &[StoryStructureSceneSeed],
     force: bool,
-) -> Result<(Vec<PathBuf>, Vec<PathBuf>, Vec<PathBuf>), StorySeedError> {
+) -> Result<SeedStoryNoteFileChanges, StorySeedError> {
     let mut created = Vec::new();
     let mut overwritten = Vec::new();
     let mut kept = Vec::new();
@@ -2218,7 +2220,7 @@ fn markdown_files_in_dir(path: &Path) -> std::io::Result<Vec<PathBuf>> {
         .filter(|path| {
             path.file_name()
                 .and_then(|value| value.to_str())
-                .map_or(true, |value| !is_reserved_story_markdown(value))
+                .is_none_or(|value| !is_reserved_story_markdown(value))
         })
         .filter(|path| path.extension().and_then(|ext| ext.to_str()) == Some("md"))
         .collect::<Vec<_>>();
