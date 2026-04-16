@@ -1167,17 +1167,17 @@ fn outputs_block(scaffold: &InitScaffoldConfig) -> String {
 
 fn default_pdf_engine(profile: ProjectProfile, writing_mode: InitWritingMode) -> &'static str {
     match profile {
-        ProjectProfile::Novel | ProjectProfile::LightNovel => {
+        ProjectProfile::Business
+        | ProjectProfile::Paper
+        | ProjectProfile::Novel
+        | ProjectProfile::LightNovel => {
             if writing_mode == InitWritingMode::VerticalRl {
                 "chromium"
             } else {
                 "weasyprint"
             }
         }
-        ProjectProfile::Business
-        | ProjectProfile::Paper
-        | ProjectProfile::ConferencePreprint
-        | ProjectProfile::Manga => "weasyprint",
+        ProjectProfile::ConferencePreprint | ProjectProfile::Manga => "weasyprint",
     }
 }
 
@@ -2507,5 +2507,79 @@ mod tests {
         assert!(book.contains("spread_policy_for_kindle: single-page"));
         assert!(book.contains("front_color_pages: 4"));
         assert!(book.contains("body_mode: mixed"));
+    }
+
+    #[test]
+    fn vertical_paper_print_defaults_to_chromium() {
+        let root = temp_dir("vertical-paper-print");
+        init_project(InitProjectOptions {
+            root: root.clone(),
+            non_interactive: false,
+            force: false,
+            config_template: Some("paper".to_string()),
+            config_profile: Some("paper".to_string()),
+            repo_mode: Some("single-book".to_string()),
+            initial_series_book_id: None,
+            title: None,
+            author: None,
+            language: None,
+            output_preset: Some("print".to_string()),
+            writing_mode: Some("vertical-rl".to_string()),
+            binding: Some("right".to_string()),
+            print_target: None,
+            print_trim_size: None,
+            print_bleed: None,
+            print_crop_marks: None,
+            print_sides: None,
+            print_max_pages: None,
+            manga_spread_policy_for_kindle: None,
+            manga_front_color_pages: None,
+            manga_body_mode: None,
+            initialize_git: false,
+            git_lfs: None,
+            generate_sample: None,
+        })
+        .unwrap();
+
+        let book = fs::read_to_string(root.join("book.yml")).unwrap();
+        assert!(book.contains("writing_mode: vertical-rl"));
+        assert!(book.contains("engine: chromium"));
+    }
+
+    #[test]
+    fn conference_preprint_stays_on_weasyprint_even_if_vertical_is_requested() {
+        let root = temp_dir("vertical-conference-preprint");
+        init_project(InitProjectOptions {
+            root: root.clone(),
+            non_interactive: false,
+            force: false,
+            config_template: Some("paper".to_string()),
+            config_profile: Some("conference-preprint".to_string()),
+            repo_mode: Some("single-book".to_string()),
+            initial_series_book_id: None,
+            title: None,
+            author: None,
+            language: None,
+            output_preset: Some("print".to_string()),
+            writing_mode: Some("vertical-rl".to_string()),
+            binding: Some("right".to_string()),
+            print_target: None,
+            print_trim_size: None,
+            print_bleed: None,
+            print_crop_marks: None,
+            print_sides: Some("duplex".to_string()),
+            print_max_pages: Some(2),
+            manga_spread_policy_for_kindle: None,
+            manga_front_color_pages: None,
+            manga_body_mode: None,
+            initialize_git: false,
+            git_lfs: None,
+            generate_sample: None,
+        })
+        .unwrap();
+
+        let book = fs::read_to_string(root.join("book.yml")).unwrap();
+        assert!(book.contains("profile: conference-preprint"));
+        assert!(book.contains("engine: weasyprint"));
     }
 }

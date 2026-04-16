@@ -159,11 +159,11 @@ v0.1 で残す引数:
 - 既定 `writing_mode = horizontal-ltr`
 - 既定 `binding = left`
 - 既定 profile は `paper`
-- print を含む scaffold では `pdf.engine = weasyprint`
+- print を含む scaffold では `writing_mode = horizontal-ltr` なら `pdf.engine = weasyprint`、`vertical-rl` なら `chromium`
 - 追加質問:
   - `paper`
   - `conference-preprint`
-- `conference-preprint` では print を既定出力に寄せ、A4 / 2 段組 / 両面の preset を提示する
+- `conference-preprint` では print を既定出力に寄せ、A4 / 2 段組 / 両面の preset を提示し、`pdf.engine = weasyprint` を維持する
 
 ### `project.type = novel`
 
