@@ -130,6 +130,8 @@ repo/
     skills/
       shosei-project/
         SKILL.md
+      shosei-content-review/
+        SKILL.md
   manuscript/
   manga/
   assets/
@@ -147,6 +149,8 @@ repo/
   .agents/
     skills/
       shosei-project/
+        SKILL.md
+      shosei-content-review/
         SKILL.md
   shared/
   books/
@@ -196,6 +200,7 @@ repo/
 - `.gitignore`
 - `.gitattributes`
 - `.agents/skills/shosei-project/SKILL.md`
+- `.agents/skills/shosei-content-review/SKILL.md`
 
 prose 系テンプレートでは、最初の原稿ファイルも生成します。`paper` / `conference-preprint` は `manuscript/01-main.md`、その他の prose は `manuscript/01-chapter-1.md` です。
 

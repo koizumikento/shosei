@@ -425,6 +425,7 @@ prose の Kindle / EPUB build では `styles/base.css` と `styles/epub.css` を
 - `dist/`
 - `.gitignore`, `.gitattributes`
 - `.agents/skills/shosei-project/SKILL.md`
+- `.agents/skills/shosei-content-review/SKILL.md`
 - `single-book` では `assets/cover/`, `assets/images/`, `assets/fonts/`, `styles/`
 - `series` では `shared/assets/`, `shared/styles/`, `shared/fonts/`, `shared/metadata/`, `books/<book-id>/assets/`
 - prose 系では `single-book` に原稿ファイルと `editorial/*.yml`、`series` に `books/<book-id>/manuscript/` と `books/<book-id>/editorial/*.yml`

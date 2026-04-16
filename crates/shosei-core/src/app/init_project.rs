@@ -6,6 +6,8 @@ use std::{
 use thiserror::Error;
 
 const SHOSEI_PROJECT_SKILL_TEMPLATE: &str = include_str!("../../templates/shosei-project-skill.md");
+const SHOSEI_CONTENT_REVIEW_SKILL_TEMPLATE: &str =
+    include_str!("../../templates/shosei-content-review.md");
 
 #[derive(Debug, Clone)]
 pub struct InitProjectOptions {
@@ -331,7 +333,7 @@ fn init_single_book(root: &Path, scaffold: &InitScaffoldConfig) -> Result<(), In
     write_file(&root.join(".gitignore"), gitignore_contents())?;
     write_file(&root.join(".gitattributes"), gitattributes_contents())?;
     write_style_scaffold(&root.join("styles"), template, scaffold.profile)?;
-    write_agent_skill_template(root, template, RepoTemplate::SingleBook)?;
+    write_agent_skill_templates(root, template, RepoTemplate::SingleBook)?;
     Ok(())
 }
 
@@ -369,7 +371,7 @@ fn init_series(root: &Path, scaffold: &InitScaffoldConfig) -> Result<(), InitPro
     write_file(&root.join(".gitignore"), gitignore_contents())?;
     write_file(&root.join(".gitattributes"), gitattributes_contents())?;
     write_style_scaffold(&root.join("shared/styles"), template, scaffold.profile)?;
-    write_agent_skill_template(root, template, RepoTemplate::Series)?;
+    write_agent_skill_templates(root, template, RepoTemplate::Series)?;
     Ok(())
 }
 
@@ -688,7 +690,16 @@ fn print_css_contents(profile: ProjectProfile) -> &'static str {
     }
 }
 
-fn write_agent_skill_template(
+fn write_agent_skill_templates(
+    root: &Path,
+    template: ProjectTemplate,
+    repo_mode: RepoTemplate,
+) -> Result<(), InitProjectError> {
+    write_project_skill_template(root, template, repo_mode)?;
+    write_content_review_skill_template(root, template, repo_mode)
+}
+
+fn write_project_skill_template(
     root: &Path,
     template: ProjectTemplate,
     repo_mode: RepoTemplate,
@@ -702,28 +713,284 @@ fn write_agent_skill_template(
 }
 
 fn agent_skill_contents(template: ProjectTemplate, repo_mode: RepoTemplate) -> String {
-    let replacements = [
-        (
-            "{{DESCRIPTION}}",
-            agent_skill_description(template, repo_mode),
-        ),
-        ("{{REPO_MODE}}", repo_mode_label(repo_mode)),
-        ("{{PROJECT_TYPE}}", template.as_str()),
-        ("{{PRIMARY_CONFIG}}", primary_config_note(repo_mode)),
-        (
-            "{{PRIMARY_CONTENT_PATHS}}",
-            primary_content_paths(template, repo_mode),
-        ),
-        ("{{REPO_MODE_RULES}}", repo_mode_rules(repo_mode)),
-        ("{{EXPLAIN_COMMAND}}", explain_command(repo_mode)),
-        ("{{VALIDATE_COMMAND}}", validate_command(repo_mode)),
-        ("{{PAGE_CHECK_RULE}}", page_check_rule(template, repo_mode)),
-        ("{{BUILD_COMMAND}}", build_command(repo_mode)),
-        ("{{PREVIEW_COMMAND}}", preview_command(repo_mode)),
-        ("{{HANDOFF_COMMAND}}", handoff_command(repo_mode)),
-    ];
+    AgentSkillTemplateContext::new(template, repo_mode).render()
+}
 
-    let mut rendered = SHOSEI_PROJECT_SKILL_TEMPLATE.to_string();
+fn write_content_review_skill_template(
+    root: &Path,
+    template: ProjectTemplate,
+    repo_mode: RepoTemplate,
+) -> Result<(), InitProjectError> {
+    let skill_dir = root.join(".agents/skills/shosei-content-review");
+    ensure_dir(&skill_dir)?;
+    write_file(
+        &skill_dir.join("SKILL.md"),
+        &content_review_skill_contents(template, repo_mode),
+    )
+}
+
+fn content_review_skill_contents(template: ProjectTemplate, repo_mode: RepoTemplate) -> String {
+    ContentReviewSkillTemplateContext::new(template, repo_mode).render()
+}
+
+#[derive(Debug, Clone, Copy)]
+struct AgentSkillTemplateContext {
+    description: &'static str,
+    repo_mode_label: &'static str,
+    project_type: &'static str,
+    primary_config: &'static str,
+    primary_content_paths: &'static str,
+    repo_mode_rules: &'static str,
+    explain_command: &'static str,
+    validate_command: &'static str,
+    page_check_rule: &'static str,
+    build_command: &'static str,
+    preview_command: &'static str,
+    handoff_command: &'static str,
+}
+
+impl AgentSkillTemplateContext {
+    fn new(template: ProjectTemplate, repo_mode: RepoTemplate) -> Self {
+        Self {
+            description: agent_skill_description(template, repo_mode),
+            repo_mode_label: repo_mode_label(repo_mode),
+            project_type: template.as_str(),
+            primary_config: primary_config_note(repo_mode),
+            primary_content_paths: primary_content_paths(template, repo_mode),
+            repo_mode_rules: repo_mode_rules(repo_mode),
+            explain_command: explain_command(repo_mode),
+            validate_command: validate_command(repo_mode),
+            page_check_rule: page_check_rule(template, repo_mode),
+            build_command: build_command(repo_mode),
+            preview_command: preview_command(repo_mode),
+            handoff_command: handoff_command(repo_mode),
+        }
+    }
+
+    fn render(self) -> String {
+        render_skill_template(
+            SHOSEI_PROJECT_SKILL_TEMPLATE,
+            &[
+                self.identity_replacements().as_slice(),
+                self.layout_replacements().as_slice(),
+                self.command_replacements().as_slice(),
+            ]
+            .concat(),
+        )
+    }
+
+    fn identity_replacements(self) -> [(&'static str, &'static str); 3] {
+        [
+            ("{{DESCRIPTION}}", self.description),
+            ("{{REPO_MODE}}", self.repo_mode_label),
+            ("{{PROJECT_TYPE}}", self.project_type),
+        ]
+    }
+
+    fn layout_replacements(self) -> [(&'static str, &'static str); 3] {
+        [
+            ("{{PRIMARY_CONFIG}}", self.primary_config),
+            ("{{PRIMARY_CONTENT_PATHS}}", self.primary_content_paths),
+            ("{{REPO_MODE_RULES}}", self.repo_mode_rules),
+        ]
+    }
+
+    fn command_replacements(self) -> [(&'static str, &'static str); 6] {
+        [
+            ("{{EXPLAIN_COMMAND}}", self.explain_command),
+            ("{{VALIDATE_COMMAND}}", self.validate_command),
+            ("{{PAGE_CHECK_RULE}}", self.page_check_rule),
+            ("{{BUILD_COMMAND}}", self.build_command),
+            ("{{PREVIEW_COMMAND}}", self.preview_command),
+            ("{{HANDOFF_COMMAND}}", self.handoff_command),
+        ]
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+struct ContentReviewSkillTemplateContext {
+    description: &'static str,
+    repo_mode_label: &'static str,
+    project_type: &'static str,
+    primary_config: &'static str,
+    primary_content_paths: &'static str,
+    optional_content_paths: &'static str,
+    review_focus: &'static str,
+    repo_mode_rules: &'static str,
+    explain_command: &'static str,
+    validate_command: &'static str,
+    page_check_command: &'static str,
+    story_check_command: &'static str,
+    reference_check_command: &'static str,
+}
+
+impl ContentReviewSkillTemplateContext {
+    fn new(template: ProjectTemplate, repo_mode: RepoTemplate) -> Self {
+        Self {
+            description: content_review_skill_description(template, repo_mode),
+            repo_mode_label: repo_mode_label(repo_mode),
+            project_type: template.as_str(),
+            primary_config: primary_config_note(repo_mode),
+            primary_content_paths: content_review_primary_content_paths(template, repo_mode),
+            optional_content_paths: content_review_optional_content_paths(template, repo_mode),
+            review_focus: content_review_focus(template),
+            repo_mode_rules: content_review_repo_mode_rules(repo_mode),
+            explain_command: explain_command(repo_mode),
+            validate_command: validate_command(repo_mode),
+            page_check_command: page_check_command(template, repo_mode),
+            story_check_command: story_check_command(repo_mode),
+            reference_check_command: reference_check_command(repo_mode),
+        }
+    }
+
+    fn render(self) -> String {
+        render_skill_template(
+            SHOSEI_CONTENT_REVIEW_SKILL_TEMPLATE,
+            &[
+                self.identity_replacements().as_slice(),
+                self.layout_replacements().as_slice(),
+                self.command_replacements().as_slice(),
+            ]
+            .concat(),
+        )
+    }
+
+    fn identity_replacements(self) -> [(&'static str, &'static str); 3] {
+        [
+            ("{{DESCRIPTION}}", self.description),
+            ("{{REPO_MODE}}", self.repo_mode_label),
+            ("{{PROJECT_TYPE}}", self.project_type),
+        ]
+    }
+
+    fn layout_replacements(self) -> [(&'static str, &'static str); 5] {
+        [
+            ("{{PRIMARY_CONFIG}}", self.primary_config),
+            ("{{PRIMARY_CONTENT_PATHS}}", self.primary_content_paths),
+            ("{{OPTIONAL_CONTENT_PATHS}}", self.optional_content_paths),
+            ("{{REVIEW_FOCUS}}", self.review_focus),
+            ("{{REPO_MODE_RULES}}", self.repo_mode_rules),
+        ]
+    }
+
+    fn command_replacements(self) -> [(&'static str, &'static str); 5] {
+        [
+            ("{{EXPLAIN_COMMAND}}", self.explain_command),
+            ("{{VALIDATE_COMMAND}}", self.validate_command),
+            ("{{PAGE_CHECK_COMMAND}}", self.page_check_command),
+            ("{{STORY_CHECK_COMMAND}}", self.story_check_command),
+            ("{{REFERENCE_CHECK_COMMAND}}", self.reference_check_command),
+        ]
+    }
+}
+
+fn content_review_skill_description(
+    template: ProjectTemplate,
+    repo_mode: RepoTemplate,
+) -> &'static str {
+    match (template, repo_mode) {
+        (ProjectTemplate::Manga, RepoTemplate::Series) => {
+            "Review this `shosei` manga series repo for content quality. Use when the task is to review a volume, chapter, proof packet, page flow, spread logic, dialogue order, or metadata/read-order consistency instead of implementing edits or rewrites."
+        }
+        (ProjectTemplate::Manga, RepoTemplate::SingleBook) => {
+            "Review this `shosei` manga repo for content quality. Use when the task is to review a chapter, volume, proof packet, page flow, spread logic, dialogue order, or metadata/read-order consistency instead of implementing edits or rewrites."
+        }
+        (_, RepoTemplate::Series) => {
+            "Review this `shosei` series publishing repo for content quality. Use when the task is to review a volume, chapter, manuscript, proof packet, or source-backed nonfiction content instead of implementing edits or rewrites."
+        }
+        (_, RepoTemplate::SingleBook) => {
+            "Review this `shosei` single-book publishing repo for content quality. Use when the task is to review a chapter, manuscript, proof packet, or source-backed nonfiction content instead of implementing edits or rewrites."
+        }
+    }
+}
+
+fn content_review_primary_content_paths(
+    template: ProjectTemplate,
+    repo_mode: RepoTemplate,
+) -> &'static str {
+    match (template, repo_mode) {
+        (ProjectTemplate::Manga, RepoTemplate::Series) => {
+            "`books/<book-id>/manga/`, `books/<book-id>/book.yml`, `shared/styles/`, `shared/assets/`, `shared/fonts/`"
+        }
+        (ProjectTemplate::Manga, RepoTemplate::SingleBook) => {
+            "`manga/`, `book.yml`, `assets/`, `styles/`"
+        }
+        (_, RepoTemplate::Series) => {
+            "`books/<book-id>/manuscript/`, `books/<book-id>/editorial/`, `books/<book-id>/book.yml`, `shared/styles/`, `shared/assets/`, `shared/fonts/`"
+        }
+        (_, RepoTemplate::SingleBook) => {
+            "`manuscript/`, `editorial/`, `book.yml`, `assets/`, `styles/`"
+        }
+    }
+}
+
+fn content_review_optional_content_paths(
+    template: ProjectTemplate,
+    repo_mode: RepoTemplate,
+) -> &'static str {
+    match (template, repo_mode) {
+        (ProjectTemplate::Manga, RepoTemplate::Series) => {
+            "`shared/metadata/story/`, `shared/metadata/references/` if those sidecars exist"
+        }
+        (ProjectTemplate::Manga, RepoTemplate::SingleBook) => {
+            "`story/`, `references/` if those sidecars exist"
+        }
+        (_, RepoTemplate::Series) => {
+            "`books/<book-id>/story/`, `books/<book-id>/references/`, `shared/metadata/story/`, `shared/metadata/references/` if those sidecars exist"
+        }
+        (_, RepoTemplate::SingleBook) => "`story/`, `references/` if those sidecars exist",
+    }
+}
+
+fn content_review_focus(template: ProjectTemplate) -> &'static str {
+    match template {
+        ProjectTemplate::Business | ProjectTemplate::Paper => {
+            "claim support, stale facts, weak structure, source-to-text mismatch, and figure/table/caption consistency"
+        }
+        ProjectTemplate::Novel | ProjectTemplate::LightNovel => {
+            "scene-by-scene causality, character knowledge drift, POV / voice drift, pacing, and setup/payoff"
+        }
+        ProjectTemplate::Manga => {
+            "page-turn flow, spread logic, dialogue order, and metadata/read-order consistency"
+        }
+    }
+}
+
+fn content_review_repo_mode_rules(repo_mode: RepoTemplate) -> &'static str {
+    match repo_mode {
+        RepoTemplate::SingleBook => {
+            "Read from the repository root unless the task explicitly targets a subdirectory; the root config is `book.yml`."
+        }
+        RepoTemplate::Series => {
+            "From the repository root, use `--book <book-id>` for book-scoped checks; the series root is `series.yml` and the book root is `books/<book-id>/book.yml`."
+        }
+    }
+}
+
+fn page_check_command(template: ProjectTemplate, repo_mode: RepoTemplate) -> &'static str {
+    match (template, repo_mode) {
+        (ProjectTemplate::Manga, RepoTemplate::SingleBook) => "shosei page check",
+        (ProjectTemplate::Manga, RepoTemplate::Series) => "shosei page check --book vol-01",
+        _ => "Skip `shosei page check` unless this repo is using the manga workflow.",
+    }
+}
+
+fn story_check_command(repo_mode: RepoTemplate) -> &'static str {
+    match repo_mode {
+        RepoTemplate::SingleBook => "shosei story check",
+        RepoTemplate::Series => "shosei story check --book vol-01",
+    }
+}
+
+fn reference_check_command(repo_mode: RepoTemplate) -> &'static str {
+    match repo_mode {
+        RepoTemplate::SingleBook => "shosei reference check",
+        RepoTemplate::Series => "shosei reference check --book vol-01",
+    }
+}
+
+fn render_skill_template(template: &str, replacements: &[(&'static str, &'static str)]) -> String {
+    let mut rendered = template.to_string();
     for (placeholder, value) in replacements {
         rendered = rendered.replace(placeholder, value);
     }
@@ -842,6 +1109,10 @@ mod tests {
         dir
     }
 
+    fn read_skill(root: &Path, skill_name: &str) -> String {
+        fs::read_to_string(root.join(format!(".agents/skills/{skill_name}/SKILL.md"))).unwrap()
+    }
+
     #[test]
     fn initializes_single_book_novel_scaffold() {
         let root = temp_dir("single");
@@ -877,14 +1148,21 @@ mod tests {
         assert!(print_css.contains("font-size: 10.5pt"));
         assert!(print_css.contains("nav#TOC a"));
         assert!(!print_css.contains("page-break-after: always;"));
-        let skill =
-            fs::read_to_string(root.join(".agents/skills/shosei-project/SKILL.md")).unwrap();
+        let skill = read_skill(&root, "shosei-project");
         assert!(skill.contains("name: \"shosei-project\""));
         assert!(skill.contains("single-book"));
         assert!(skill.contains("shosei explain"));
         assert!(skill.contains("manuscript/"));
         assert!(skill.contains("shosei story scaffold"));
         assert!(skill.contains("shosei story check"));
+        let content_review_skill = read_skill(&root, "shosei-content-review");
+        assert!(content_review_skill.contains("name: \"shosei-content-review\""));
+        assert!(content_review_skill.contains("single-book"));
+        assert!(content_review_skill.contains("manuscript/"));
+        assert!(content_review_skill.contains("shosei validate"));
+        assert!(content_review_skill.contains("findings first"));
+        assert!(content_review_skill.contains("scene-by-scene causality"));
+        assert!(content_review_skill.contains("rewrite"));
         assert!(result.summary.contains("single-book scaffold"));
     }
 
@@ -911,8 +1189,7 @@ mod tests {
         assert!(root.join("shared/styles/epub.css").is_file());
         assert!(root.join("shared/styles/print.css").is_file());
         assert!(root.join("books/vol-01/manga/pages").is_dir());
-        let skill =
-            fs::read_to_string(root.join(".agents/skills/shosei-project/SKILL.md")).unwrap();
+        let skill = read_skill(&root, "shosei-project");
         assert!(skill.contains("series"));
         assert!(skill.contains("shosei explain --book vol-01"));
         assert!(skill.contains("shosei page check --book vol-01"));
@@ -924,6 +1201,13 @@ mod tests {
         assert!(skill.contains("shosei story sync --book <book-id> --from shared"));
         assert!(skill.contains("--to shared"));
         assert!(skill.contains("--report <drift-report> --force"));
+        let content_review_skill = read_skill(&root, "shosei-content-review");
+        assert!(content_review_skill.contains("series"));
+        assert!(content_review_skill.contains("books/<book-id>/manga/"));
+        assert!(content_review_skill.contains("shosei page check --book vol-01"));
+        assert!(content_review_skill.contains("proof packet"));
+        assert!(content_review_skill.contains("page-turn flow"));
+        assert!(content_review_skill.contains("dialogue order"));
     }
 
     #[test]
@@ -1030,9 +1314,13 @@ mod tests {
         assert!(book.contains("editorial:\n  style: books/vol-01/editorial/style.yml"));
         let base_css = fs::read_to_string(root.join("shared/styles/base.css")).unwrap();
         assert!(base_css.contains("writing-mode: horizontal-tb"));
-        let skill =
-            fs::read_to_string(root.join(".agents/skills/shosei-project/SKILL.md")).unwrap();
+        let skill = read_skill(&root, "shosei-project");
         assert!(skill.contains("books/<book-id>/editorial/"));
+        let content_review_skill = read_skill(&root, "shosei-content-review");
+        assert!(content_review_skill.contains("books/<book-id>/manuscript/"));
+        assert!(content_review_skill.contains("shosei reference check --book vol-01"));
+        assert!(content_review_skill.contains("claim support"));
+        assert!(content_review_skill.contains("release-readiness"));
         assert!(result.summary.contains("series scaffold"));
     }
 
@@ -1090,6 +1378,10 @@ mod tests {
         assert!(book.contains("sides: duplex"));
         let print_css = fs::read_to_string(root.join("styles/print.css")).unwrap();
         assert!(print_css.contains(".abstract"));
+        let content_review_skill = read_skill(&root, "shosei-content-review");
+        assert!(content_review_skill.contains("source-backed nonfiction"));
+        assert!(content_review_skill.contains("source-to-text mismatch"));
+        assert!(content_review_skill.contains("figure/table/caption consistency"));
         assert!(result.summary.contains("conference-preprint"));
     }
 
