@@ -16,7 +16,7 @@ env:
 
 jobs:
   rust:
-    name: Rust (${{ matrix.os }})
+    name: Rust checks + CLI smoke (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     strategy:
@@ -45,11 +45,23 @@ jobs:
       - name: Lint workspace
         run: cargo clippy --workspace --all-targets -- -D warnings
 
-      - name: Run workspace tests
+      - name: Run workspace tests (core + integration suite)
         run: cargo test --workspace
 
-      - name: Run repo discovery tests
+      - name: Smoke repo discovery (single-book + series resolution)
         run: cargo test -p shosei-core --test repo_discovery
 
-      - name: Smoke check CLI help
+      - name: Smoke CLI init (interactive scaffold)
+        run: cargo test -p shosei-cli --test cli_smoke init_cli_interactive_shows_summary_and_writes_after_confirmation -- --exact
+
+      - name: Smoke CLI validate (issue preview)
+        run: cargo test -p shosei-cli --test cli_smoke validate_cli_prints_issue_preview -- --exact
+
+      - name: Smoke CLI build (artifact output)
+        run: cargo test -p shosei-cli --test cli_smoke build_cli_prints_tools_and_writes_artifact -- --exact
+
+      - name: Smoke CLI doctor (JSON context)
+        run: cargo test -p shosei-cli --test cli_smoke doctor_json_cli_includes_detected_project_context -- --exact
+
+      - name: Smoke CLI help (entrypoint)
         run: cargo run -p shosei-cli --bin shosei -- --help

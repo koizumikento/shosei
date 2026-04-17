@@ -118,6 +118,53 @@ manga:
     .unwrap();
 }
 
+fn write_handoff_manga_fixture(root: &Path, include_print: bool) {
+    fs::create_dir_all(root.join("manga/pages")).unwrap();
+    fs::create_dir_all(root.join("assets/cover")).unwrap();
+    fs::write(root.join("manga/pages/001.png"), tiny_png()).unwrap();
+    fs::write(root.join("manga/pages/002.png"), tiny_png()).unwrap();
+    fs::write(root.join("assets/cover/front.png"), tiny_png()).unwrap();
+    let print_block = if include_print {
+        "  print:\n    enabled: true\n    target: print-manga\n"
+    } else {
+        ""
+    };
+    fs::write(
+        root.join("book.yml"),
+        format!(
+            r#"
+project:
+  type: manga
+  vcs: git
+book:
+  title: "Sample Manga"
+  authors:
+    - "Author"
+  reading_direction: rtl
+layout:
+  binding: right
+cover:
+  ebook_image: assets/cover/front.png
+outputs:
+  kindle:
+    enabled: true
+    target: kindle-comic
+{print_block}validation:
+  strict: true
+git:
+  lfs: true
+manga:
+  reading_direction: rtl
+  default_page_side: right
+  spread_policy_for_kindle: split
+  front_color_pages: 0
+  body_mode: mixed
+"#
+        ),
+    )
+    .unwrap();
+}
+
 fn write_reference_fixture(root: &Path) {
     fs::create_dir_all(root.join("manuscript")).unwrap();
     fs::write(root.join("manuscript/01.md"), "# Chapter 1\n").unwrap();
@@ -487,6 +534,24 @@ fn validate_cli_prints_issue_preview() {
         format!("location: {}:3", root.join("manuscript/01.md").display()),
     );
     assert!(stdout.contains("remedy: 画像参照に代替テキストを追加してください。"));
+}
+
+#[test]
+fn validate_cli_can_emit_json_report() {
+    let root = temp_dir("validate-json");
+    write_validate_fixture(&root);
+
+    let output = Command::new(env!("CARGO_BIN_EXE_shosei"))
+        .args(["validate", "--json", "--path", root.to_str().unwrap()])
+        .output()
+        .unwrap();
+
+    assert!(!output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let parsed: Value = serde_json::from_str(&stdout).unwrap();
+    assert_eq!(parsed["book_id"], "default");
+    assert!(parsed["issues"].is_array());
+    assert!(parsed["checks"].is_array());
 }
 
 #[test]
@@ -1046,6 +1111,33 @@ fn preview_cli_prints_summary_and_writes_artifact() {
     assert!(root.join("dist/default-kindle-ja.epub").is_file());
 }
 
+#[cfg(any(unix, windows))]
+#[test]
+fn build_cli_prints_tools_and_writes_artifact() {
+    let root = temp_dir("build-cli");
+    write_preview_fixture(&root);
+    let tools_dir = write_fake_pandoc(&root);
+
+    let output = Command::new(env!("CARGO_BIN_EXE_shosei"))
+        .args([
+            "build",
+            "--path",
+            root.to_str().unwrap(),
+            "--target",
+            "kindle",
+        ])
+        .env("PATH", prepend_path(&tools_dir))
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("build completed for default"));
+    assert!(stdout.contains("tools: kindle-ja via pandoc"));
+    assert!(stdout.contains("artifacts: dist/default-kindle-ja.epub"));
+    assert!(root.join("dist/default-kindle-ja.epub").is_file());
+}
+
 #[test]
 fn series_sync_cli_generates_catalog_and_updates_books() {
     let root = temp_dir("series-sync-cli");
@@ -1117,4 +1209,69 @@ fn handoff_proof_cli_packages_review_packet() {
     assert!(review_notes.contains("double-check the source"));
     assert!(review_notes.contains("replace logo"));
     assert!(review_notes.contains("refresh before launch"));
+}
+
+#[test]
+fn handoff_kindle_cli_packages_manifest_with_artifact_details() {
+    let root = temp_dir("handoff-kindle");
+    write_handoff_manga_fixture(&root, false);
+
+    let output = Command::new(env!("CARGO_BIN_EXE_shosei"))
+        .args(["handoff", "kindle", "--path", root.to_str().unwrap()])
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("handoff packaged for default (kindle)"));
+    assert!(stdout.contains("manifest:"));
+
+    let package_dir = root.join("dist/handoff/default-kindle");
+    let manifest: Value =
+        serde_json::from_str(&fs::read_to_string(package_dir.join("manifest.json")).unwrap())
+            .unwrap();
+    assert_eq!(
+        manifest["selected_artifact_details"][0]["channel"],
+        "kindle"
+    );
+    assert_eq!(
+        manifest["selected_artifact_details"][0]["target"],
+        "kindle-comic"
+    );
+    assert_eq!(
+        manifest["selected_artifact_details"][0]["path"],
+        "artifacts/default-kindle-comic.epub"
+    );
+}
+
+#[test]
+fn handoff_print_cli_packages_manga_pdf() {
+    let root = temp_dir("handoff-print");
+    write_handoff_manga_fixture(&root, true);
+
+    let output = Command::new(env!("CARGO_BIN_EXE_shosei"))
+        .args(["handoff", "print", "--path", root.to_str().unwrap()])
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("handoff packaged for default (print)"));
+    assert!(stdout.contains("default-print-manga.pdf"));
+
+    let package_dir = root.join("dist/handoff/default-print");
+    assert!(
+        package_dir
+            .join("artifacts/default-print-manga.pdf")
+            .is_file()
+    );
+    let manifest: Value =
+        serde_json::from_str(&fs::read_to_string(package_dir.join("manifest.json")).unwrap())
+            .unwrap();
+    assert_eq!(manifest["destination"], "print");
+    assert_eq!(manifest["selected_artifact_details"][0]["channel"], "print");
+    assert_eq!(
+        manifest["selected_artifact_details"][0]["primary_tool"],
+        "shosei-image-pdf"
+    );
 }

@@ -27,6 +27,8 @@ const DOCTOR_TOOL_MATRIX: &[(&str, DoctorToolCategory)] = &[
     ("pandoc", DoctorToolCategory::Required),
     ("weasyprint", DoctorToolCategory::Required),
     ("chromium", DoctorToolCategory::Required),
+    ("typst", DoctorToolCategory::Optional),
+    ("lualatex", DoctorToolCategory::Optional),
     ("epubcheck", DoctorToolCategory::Optional),
     ("git-lfs", DoctorToolCategory::Optional),
     ("kindle-previewer", DoctorToolCategory::Optional),
@@ -299,6 +301,15 @@ fn apply_resolved_book_context(
             .any(|tool| tool == &engine)
         {
             detected.focused_required_tools.push(engine);
+        }
+        if matches!(
+            pdf.engine,
+            config::PdfEngine::Typst | config::PdfEngine::Lualatex
+        ) {
+            detected.notes.push(format!(
+                "pdf.engine = {} is accepted in v0.1 but is less validated than the default weasyprint/chromium paths; run an extra proof build before handoff",
+                pdf.engine.as_str()
+            ));
         }
     }
     if resolved.effective.outputs.kindle.is_some() && resolved.effective.validation.epubcheck {
@@ -746,6 +757,105 @@ pdf:
             project.focused_required_tools,
             vec!["git", "pandoc", "typst"]
         );
-        assert!(project.notes.is_empty());
+        assert!(
+            project
+                .notes
+                .iter()
+                .any(|note| note.contains("less validated than the default"))
+        );
+    }
+
+    #[test]
+    fn doctor_summary_lists_typst_and_lualatex_as_optional_tools() {
+        let report = ToolchainReport {
+            tools: vec![
+                ToolRecord {
+                    key: "git",
+                    display_name: "git",
+                    status: ToolStatus::Available,
+                    detected_as: Some("git".to_string()),
+                    resolved_path: Some("/tmp/git".into()),
+                    version: Some("git version 2.0".to_string()),
+                    install_hint: "Install git.".to_string(),
+                },
+                ToolRecord {
+                    key: "pandoc",
+                    display_name: "pandoc",
+                    status: ToolStatus::Available,
+                    detected_as: Some("pandoc".to_string()),
+                    resolved_path: Some("/tmp/pandoc".into()),
+                    version: Some("pandoc 3.0".to_string()),
+                    install_hint: "Install pandoc.".to_string(),
+                },
+                ToolRecord {
+                    key: "weasyprint",
+                    display_name: "weasyprint",
+                    status: ToolStatus::Missing,
+                    detected_as: None,
+                    resolved_path: None,
+                    version: None,
+                    install_hint: "Install weasyprint.".to_string(),
+                },
+                ToolRecord {
+                    key: "chromium",
+                    display_name: "Chromium PDF",
+                    status: ToolStatus::Missing,
+                    detected_as: None,
+                    resolved_path: None,
+                    version: None,
+                    install_hint: "Install Chromium.".to_string(),
+                },
+                ToolRecord {
+                    key: "typst",
+                    display_name: "typst",
+                    status: ToolStatus::Missing,
+                    detected_as: None,
+                    resolved_path: None,
+                    version: None,
+                    install_hint: "Install typst.".to_string(),
+                },
+                ToolRecord {
+                    key: "lualatex",
+                    display_name: "lualatex",
+                    status: ToolStatus::Missing,
+                    detected_as: None,
+                    resolved_path: None,
+                    version: None,
+                    install_hint: "Install lualatex.".to_string(),
+                },
+                ToolRecord {
+                    key: "epubcheck",
+                    display_name: "epubcheck",
+                    status: ToolStatus::Missing,
+                    detected_as: None,
+                    resolved_path: None,
+                    version: None,
+                    install_hint: "Install epubcheck.".to_string(),
+                },
+                ToolRecord {
+                    key: "git-lfs",
+                    display_name: "git-lfs",
+                    status: ToolStatus::Missing,
+                    detected_as: None,
+                    resolved_path: None,
+                    version: None,
+                    install_hint: "Install git-lfs.".to_string(),
+                },
+                ToolRecord {
+                    key: "kindle-previewer",
+                    display_name: "Kindle Previewer",
+                    status: ToolStatus::Missing,
+                    detected_as: None,
+                    resolved_path: None,
+                    version: None,
+                    install_hint: "Install Kindle Previewer.".to_string(),
+                },
+            ],
+        };
+
+        let result = doctor_with_report_and_path(report, None);
+
+        assert!(result.summary.contains("- typst: missing"));
+        assert!(result.summary.contains("- lualatex: missing"));
     }
 }

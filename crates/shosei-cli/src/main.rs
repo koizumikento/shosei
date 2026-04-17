@@ -159,11 +159,20 @@ fn run() -> Result<i32> {
             output::print_line(&result.summary);
             Ok(exit_code::OK)
         }
-        Commands::Validate { book, target, path } => {
+        Commands::Validate {
+            book,
+            json,
+            target,
+            path,
+        } => {
             let result = app::validate_book(&CommandContext::new(path, book, target))?;
-            output::print_line(&result.summary);
-            if let Some(preview) = output::format_issue_preview(&result.issues) {
-                output::print_line(&preview);
+            if json {
+                output::print_line(&std::fs::read_to_string(&result.report_path)?);
+            } else {
+                output::print_line(&result.summary);
+                if let Some(preview) = output::format_issue_preview(&result.issues) {
+                    output::print_line(&preview);
+                }
             }
             Ok(if result.has_errors {
                 exit_code::FAILURE

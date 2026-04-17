@@ -1,4 +1,5 @@
 use std::{
+    collections::BTreeSet,
     ffi::OsStr,
     fs,
     io::{Cursor, Write},
@@ -43,6 +44,30 @@ pub struct FixedLayoutOptions {
     pub reading_direction: ReadingDirection,
     pub default_page_side: MangaPageSide,
     pub spread_policy_for_kindle: SpreadPolicyForKindle,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MangaPageDimensions {
+    pub width_px: u32,
+    pub height_px: u32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MangaRenderSummary {
+    pub source_page_count: usize,
+    pub rendered_page_count: usize,
+    pub spread_candidate_count: usize,
+    pub split_source_page_count: usize,
+    pub skipped_source_page_count: usize,
+    pub color_page_count: usize,
+    pub unique_page_dimensions: Vec<MangaPageDimensions>,
+}
+
+#[derive(Debug, Clone)]
+struct KindlePageResolution {
+    pages: Vec<MangaPageAsset>,
+    split_source_page_count: usize,
+    skipped_source_page_count: usize,
 }
 
 #[derive(Debug, Error)]
@@ -237,13 +262,43 @@ pub fn inspect_page_assets(
     load_page_assets(page_paths)
 }
 
+pub fn summarize_fixed_layout_render(
+    page_paths: &[PathBuf],
+    options: FixedLayoutOptions,
+) -> Result<MangaRenderSummary, MangaRenderError> {
+    let source_pages = load_page_assets(page_paths)?;
+    let resolution = apply_kindle_spread_policy(source_pages.clone(), options)?;
+    Ok(summarize_render(
+        &source_pages,
+        &resolution.pages,
+        resolution.split_source_page_count,
+        resolution.skipped_source_page_count,
+    ))
+}
+
+pub fn summarize_print_render(
+    page_paths: &[PathBuf],
+) -> Result<MangaRenderSummary, MangaRenderError> {
+    let source_pages = load_page_assets(page_paths)?;
+    Ok(summarize_render(&source_pages, &source_pages, 0, 0))
+}
+
 fn resolve_kindle_page_assets(
     page_paths: &[PathBuf],
     options: FixedLayoutOptions,
 ) -> Result<Vec<MangaPageAsset>, MangaRenderError> {
-    let mut resolved = Vec::new();
+    Ok(apply_kindle_spread_policy(load_page_assets(page_paths)?, options)?.pages)
+}
 
-    for page in load_page_assets(page_paths)? {
+fn apply_kindle_spread_policy(
+    page_assets: Vec<MangaPageAsset>,
+    options: FixedLayoutOptions,
+) -> Result<KindlePageResolution, MangaRenderError> {
+    let mut resolved = Vec::new();
+    let mut split_source_page_count = 0;
+    let mut skipped_source_page_count = 0;
+
+    for page in page_assets {
         if !page.is_wide_spread_candidate() {
             resolved.push(page);
             continue;
@@ -251,22 +306,26 @@ fn resolve_kindle_page_assets(
 
         match options.spread_policy_for_kindle {
             SpreadPolicyForKindle::Split => {
+                split_source_page_count += 1;
                 resolved.extend(split_page_asset(&page, options.reading_direction)?);
             }
             SpreadPolicyForKindle::SinglePage => resolved.push(page),
-            SpreadPolicyForKindle::Skip => {}
+            SpreadPolicyForKindle::Skip => {
+                skipped_source_page_count += 1;
+            }
         }
     }
 
     if resolved.is_empty() {
-        let path = page_paths
-            .first()
-            .and_then(|path| path.parent().map(Path::to_path_buf))
-            .unwrap_or_else(|| PathBuf::from(PAGE_DIR));
+        let path = PathBuf::from(PAGE_DIR);
         return Err(MangaRenderError::EmptyKindlePageSet { path });
     }
 
-    Ok(resolved)
+    Ok(KindlePageResolution {
+        pages: resolved,
+        split_source_page_count,
+        skipped_source_page_count,
+    })
 }
 
 fn load_page_assets(page_paths: &[PathBuf]) -> Result<Vec<MangaPageAsset>, MangaRenderError> {
@@ -357,6 +416,37 @@ fn encode_png(image: &DynamicImage, file_name: &str) -> Result<Vec<u8>, MangaRen
             source,
         })?;
     Ok(bytes)
+}
+
+fn summarize_render(
+    source_pages: &[MangaPageAsset],
+    rendered_pages: &[MangaPageAsset],
+    split_source_page_count: usize,
+    skipped_source_page_count: usize,
+) -> MangaRenderSummary {
+    let unique_page_dimensions = rendered_pages
+        .iter()
+        .map(|page| (page.width_px, page.height_px))
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .map(|(width_px, height_px)| MangaPageDimensions {
+            width_px,
+            height_px,
+        })
+        .collect();
+
+    MangaRenderSummary {
+        source_page_count: source_pages.len(),
+        rendered_page_count: rendered_pages.len(),
+        spread_candidate_count: source_pages
+            .iter()
+            .filter(|page| page.is_wide_spread_candidate())
+            .count(),
+        split_source_page_count,
+        skipped_source_page_count,
+        color_page_count: rendered_pages.iter().filter(|page| page.is_color).count(),
+        unique_page_dimensions,
+    }
 }
 
 fn image_is_color(image: &DynamicImage) -> bool {
