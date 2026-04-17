@@ -66,6 +66,7 @@ If a surface cannot be justified, do not change it.
 - Keep install and release guidance aligned across `README.md`, `editors/vscode/README.md`, and `.github/workflows/release.yml` when GitHub Release assets, Homebrew / Scoop distribution, or VSIX packaging flow changes.
 - Keep the `story seed` contract aligned across `docs/specs/story-support.md`, `docs/usage.md`, and `site/usage.html` when seeded structure templates or `scene_seeds` behavior changes.
 - Keep `docs/specs/vscode-extension.md` and `editors/vscode/README.md` aligned when extension flow, scope, or ownership changes.
+- Keep recurring concept-fulfillment reviews aligned with `docs/concept-fulfillment-rubric.md`; do not invent a new scoring standard per run.
 
 ## Safety Checks
 
@@ -73,3 +74,4 @@ If a surface cannot be justified, do not change it.
 - Before renaming config files, CLI commands, or repo model concepts, update the related specs and ADRs first.
 - Do not commit incidental build output. Treat generated directories such as `dist/` as disposable unless a spec explicitly requires checked-in artifacts.
 - If the same mistake happens twice, tighten these instruction files with a concrete rule instead of adding more prompt text elsewhere.
+- For recurring concept-fulfillment reviews, use the fixed rubric, cite evidence by file, and compare against the previous run before changing the score.

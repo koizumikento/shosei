@@ -37,6 +37,8 @@ shosei build --target print
 
 ## Commands
 
+この表の `利用可能` は、CLI surface が実装済みで、CLI smoke または workspace test で継続確認している意味で使う。target/profile ごとの外部 validator の深さはまだ差がある。
+
 | Command | Purpose | Status |
 |---|---|---|
 | `shosei init` | project scaffold を作る | 利用可能 |
@@ -371,7 +373,7 @@ severity は `validation.accessibility`, `validation.missing_image`, `validation
 issue の `location` は、特定できる場合は file path に加えて line 番号も持つ。
 CLI では summary の後に、先頭最大 5 件の issue を `原因 / 発生箇所 / 修正例` の形で続けて表示する。
 
-現時点の CLI には `validate --json` はまだなく、machine-readable な結果を即時に使いたい場合はこの report file を読む。
+`validate --json` を付けると、同じ report schema を stdout にもそのまま出せる。editor integration や script では file 出力に加えてこれを直接読める。
 
 現在の `validate` は local lint と tool availability check が中心で、`epubcheck` や Kindle/print 向け validator の実行結果を深く取り込む段階にはまだ達していない。target/profile ごとの実検証、stdout 向け `--json`、validator ログの `dist/logs/` 集約は次の remediation で強化する。
 
@@ -561,11 +563,16 @@ GitHub Actions の CI は `ubuntu-latest`, `macos-latest`, `windows-latest` の 
 現在の command-level smoke は次を step 名つきで実行している。
 
 - `shosei init`
+- `shosei validate --json`
 - `shosei validate`
 - `shosei build`
+- `shosei preview`
+- `shosei page check`
+- `shosei series sync`
+- `shosei handoff proof`
 - `shosei doctor`
 - `shosei --help`
 
-合わせて `cargo test --workspace` と `cargo test -p shosei-core --test repo_discovery` も走る。
+合わせて `cargo test --workspace` と `cargo test -p shosei-core --test repo_discovery` も走る。VS Code adapter については `node --check extension.js`, `node --check src/core.js`, `node --check src/view.js`, `node --test ./test/**/*.test.js` を別 job で継続確認している。
 
 CI 表示だけで「どの OS でどの smoke が通ったか」を読める状態を維持し、README と `site/usage.html` でも同じ保証内容を案内する。

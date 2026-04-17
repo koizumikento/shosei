@@ -30,7 +30,7 @@
     <main class="content">
       <article class="page">
         <h1>Install</h1>
-        <p class="lead">tag 付き GitHub Release 以降は Homebrew / Scoop / source install で導入できます。</p>
+        <p class="lead">tag 付き GitHub Release では CLI archive と VSIX を配布し、Homebrew / Scoop 向け manifest は package repository publish が通ったときに更新します。source install も引き続き使えます。</p>
 
         <section>
           <h2>Requirements</h2>
@@ -62,7 +62,7 @@ cargo install --path crates/shosei-cli</code></pre>
 
         <section>
           <h2>Release archives</h2>
-          <p>Linux では GitHub Release の `x86_64-unknown-linux-gnu` archive をそのまま展開して使えます。</p>
+          <p>GitHub Release には `x86_64-unknown-linux-gnu`, `x86_64-apple-darwin`, `aarch64-apple-darwin`, `x86_64-pc-windows-msvc` の CLI archive と VSIX が載ります。Linux では `x86_64-unknown-linux-gnu` archive をそのまま展開して使えます。</p>
         </section>
 
         <section>
@@ -73,7 +73,7 @@ cargo install --path crates/shosei-cli</code></pre>
 
         <section>
           <h2>What gets installed</h2>
-          <p>Homebrew / Scoop / GitHub Release archive は release asset の `shosei` binary を使います。</p>
+          <p>GitHub Release archive は release asset の `shosei` binary を使います。Homebrew / Scoop は release 後に package repository publish が成功した場合、その archive を参照する formula / manifest から導入できます。</p>
           <p>`cargo install --path crates/shosei-cli` は workspace 内の CLI crate から `shosei` バイナリを build して install します。</p>
         </section>
 

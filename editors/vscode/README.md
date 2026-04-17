@@ -137,8 +137,11 @@ release に載る asset:
 shosei-vscode-0.2.0.vsix
 shosei-v0.2.0-x86_64-unknown-linux-gnu.tar.gz
 shosei-v0.2.0-x86_64-apple-darwin.tar.gz
+shosei-v0.2.0-aarch64-apple-darwin.tar.gz
 shosei-v0.2.0-x86_64-pc-windows-msvc.zip
 ```
+
+Homebrew / Scoop 向け manifest の publish は release 後段の package repository push が通った場合だけ行う。CLI archive と VSIX 自体は GitHub Release asset として常に添付される。
 
 ## Development
 
@@ -179,3 +182,5 @@ node --check src/view.js
 ```bash
 node --test ./test/**/*.test.js
 ```
+
+PR CI でも上の syntax check と test を継続実行する。
