@@ -689,8 +689,8 @@ fn generated_print_stylesheet_path(output: &Path) -> PathBuf {
 
 fn relative_display(base: &Path, path: &Path) -> String {
     path.strip_prefix(base)
-        .map(|relative| relative.display().to_string())
-        .unwrap_or_else(|_| path.display().to_string())
+        .map(|relative| relative.display().to_string().replace('\\', "/"))
+        .unwrap_or_else(|_| path.display().to_string().replace('\\', "/"))
 }
 
 fn generated_print_html_path(output: &Path) -> PathBuf {
