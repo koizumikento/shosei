@@ -37,6 +37,8 @@ shosei build --target print
 
 ## Commands
 
+この表の `利用可能` は、CLI surface が実装済みで、CLI smoke または workspace test で継続確認している意味で使う。target/profile ごとの外部 validator の深さはまだ差がある。
+
 | Command | Purpose | Status |
 |---|---|---|
 | `shosei init` | project scaffold を作る | 利用可能 |
@@ -561,11 +563,16 @@ GitHub Actions の CI は `ubuntu-latest`, `macos-latest`, `windows-latest` の 
 現在の command-level smoke は次を step 名つきで実行している。
 
 - `shosei init`
+- `shosei validate --json`
 - `shosei validate`
 - `shosei build`
+- `shosei preview`
+- `shosei page check`
+- `shosei series sync`
+- `shosei handoff proof`
 - `shosei doctor`
 - `shosei --help`
 
-合わせて `cargo test --workspace` と `cargo test -p shosei-core --test repo_discovery` も走る。
+合わせて `cargo test --workspace` と `cargo test -p shosei-core --test repo_discovery` も走る。VS Code adapter については `node --check extension.js`, `node --check src/core.js`, `node --check src/view.js`, `node --test ./test/**/*.test.js` を別 job で継続確認している。
 
 CI 表示だけで「どの OS でどの smoke が通ったか」を読める状態を維持し、README と `site/usage.html` でも同じ保証内容を案内する。

@@ -35,6 +35,7 @@ Rules in this file apply to `docs/` and documentation changes that update the pu
 - Keep `validate --json` and `handoff <kindle|print|proof>` descriptions aligned across `specs/functional-spec.md`, `usage.md`, `../site/usage.html`, and `../README.md`.
 - Keep install and release guidance aligned across `../README.md` and `../editors/vscode/README.md` when GitHub Release assets, Homebrew / Scoop distribution, or VSIX packaging flow changes.
 - Keep `specs/vscode-extension.md` and `../editors/vscode/README.md` aligned when the extension flow, scope, or ownership changes.
+- Keep recurring concept-fulfillment reviews aligned with `concept-fulfillment-rubric.md`, including weights, rounding, and comparison rules.
 
 ## Review Checklist
 
@@ -44,3 +45,4 @@ Before finishing a docs change, verify:
 2. The rationale lives in `adr/` if a durable decision changed.
 3. Usage examples match the current CLI.
 4. Mirror docs that must stay aligned were updated together.
+5. If a concept-fulfillment score changed, the change follows `concept-fulfillment-rubric.md` and cites concrete evidence.

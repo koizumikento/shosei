@@ -57,11 +57,54 @@ jobs:
       - name: Smoke CLI validate (issue preview)
         run: cargo test -p shosei-cli --test cli_smoke validate_cli_prints_issue_preview -- --exact
 
+      - name: Smoke CLI validate (JSON report)
+        run: cargo test -p shosei-cli --test cli_smoke validate_cli_can_emit_json_report -- --exact
+
       - name: Smoke CLI build (artifact output)
         run: cargo test -p shosei-cli --test cli_smoke build_cli_prints_tools_and_writes_artifact -- --exact
+
+      - name: Smoke CLI preview (artifact output)
+        run: cargo test -p shosei-cli --test cli_smoke preview_cli_prints_summary_and_writes_artifact -- --exact
+
+      - name: Smoke CLI page check (report output)
+        run: cargo test -p shosei-cli --test cli_smoke page_check_cli_prints_summary_and_issue_preview -- --exact
+
+      - name: Smoke CLI series sync (catalog output)
+        run: cargo test -p shosei-cli --test cli_smoke series_sync_cli_generates_catalog_and_updates_books -- --exact
+
+      - name: Smoke CLI handoff (proof package)
+        run: cargo test -p shosei-cli --test cli_smoke handoff_proof_cli_packages_review_packet -- --exact
 
       - name: Smoke CLI doctor (JSON context)
         run: cargo test -p shosei-cli --test cli_smoke doctor_json_cli_includes_detected_project_context -- --exact
 
       - name: Smoke CLI help (entrypoint)
         run: cargo run -p shosei-cli --bin shosei -- --help
+
+  vscode:
+    name: VS Code adapter checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - name: Syntax check extension entrypoints
+        working-directory: editors/vscode
+        run: |
+          node --check extension.js
+          node --check src/core.js
+          node --check src/view.js
+
+      - name: Run VS Code adapter tests
+        working-directory: editors/vscode
+        run: node --test ./test/**/*.test.js
+
+      - name: Package VSIX
+        working-directory: editors/vscode
+        run: npm run package
