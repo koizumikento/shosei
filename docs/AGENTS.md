@@ -18,6 +18,7 @@ Rules in this file apply to `docs/` and documentation changes that update the pu
 - Do not describe commands or features as available unless the current code path actually implements them.
 - Prefer examples that reflect currently supported config fields and output behavior. Remove or rewrite stale examples instead of leaving them partially correct.
 - When documenting story workspaces, distinguish freeform `structures/` notes from the `scene_seeds` frontmatter contract that `story seed` reads.
+- For machine-readable command surfaces, keep `--json` docs aligned with the current CLI behavior instead of older report-file-only guidance.
 
 ## Spec-first Rules
 
@@ -31,6 +32,7 @@ Rules in this file apply to `docs/` and documentation changes that update the pu
 - When command behavior, config fields, or user-visible output changes, update the affected usage docs in the same change.
 - Keep `docs/usage.md` and `../site/usage.html` in sync.
 - Keep command status labels aligned across `../README.md`, `usage.md`, and `../site/usage.html`.
+- Keep `validate --json` and `handoff <kindle|print|proof>` descriptions aligned across `specs/functional-spec.md`, `usage.md`, `../site/usage.html`, and `../README.md`.
 - Keep install and release guidance aligned across `../README.md` and `../editors/vscode/README.md` when GitHub Release assets, Homebrew / Scoop distribution, or VSIX packaging flow changes.
 - Keep `specs/vscode-extension.md` and `../editors/vscode/README.md` aligned when the extension flow, scope, or ownership changes.
 

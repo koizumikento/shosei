@@ -51,7 +51,8 @@ Keep examples and command handling aligned with the actually implemented surface
 - Keep `story seed` examples book-scoped only. Do not imply that shared story workspaces or plain `story scaffold` populate `scenes.yml` or scene notes automatically.
 - `shosei story sync --report <path> --force` and `shosei reference sync --report <path> --force` are the batch replay flows; do not describe report-driven sync without the explicit reviewed report and `--force`.
 - `shosei page check` is for manga books only and inspects page order and spread-related issues without mutating prose chapter config.
-- `shosei handoff print` and `shosei handoff proof` are the supported handoff destinations. Keep package contents and docs aligned with the implemented destination behavior.
+- `shosei validate --json` is supported. Keep the stdout JSON payload aligned with the written report schema, and reserve the human issue preview for non-JSON output.
+- `shosei handoff kindle`, `shosei handoff print`, and `shosei handoff proof` are the supported handoff destinations. Keep package contents and docs aligned with the implemented destination behavior.
 
 ## Validation
 
@@ -60,9 +61,14 @@ Do not claim that Cargo commands have been run unless they were actually execute
 Use these exact commands when validating Rust changes:
 
 - formatting: `cargo fmt`
+- CI formatting gate: `cargo fmt --check`
 - linting: `cargo clippy --workspace --all-targets -- -D warnings`
 - tests: `cargo test --workspace`
-- CLI smoke tests: `cargo test -p shosei-cli --test cli_smoke`
+- CLI smoke tests:
+  - `cargo test -p shosei-cli --test cli_smoke init_cli_interactive_shows_summary_and_writes_after_confirmation -- --exact`
+  - `cargo test -p shosei-cli --test cli_smoke validate_cli_prints_issue_preview -- --exact`
+  - `cargo test -p shosei-cli --test cli_smoke build_cli_prints_tools_and_writes_artifact -- --exact`
+  - `cargo test -p shosei-cli --test cli_smoke doctor_json_cli_includes_detected_project_context -- --exact`
 - focused repo discovery checks: `cargo test -p shosei-core --test repo_discovery`
 - focused build / validate / handoff checks: `cargo test -p shosei-core --test book_commands`
 - focused chapter workflow checks:
@@ -72,6 +78,7 @@ Use these exact commands when validating Rust changes:
   - `cargo test -p shosei-core --test reference_commands`
   - `cargo test -p shosei-core --test story_commands`
 - smoke checks: `cargo run -p shosei-cli --bin shosei -- --help`
+- CI runs the formatting gate, linting, workspace tests, repo discovery, and the listed smoke checks on `ubuntu-latest`, `macos-latest`, and `windows-latest`.
 
 ## Safety Checks
 
