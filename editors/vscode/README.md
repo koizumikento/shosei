@@ -105,13 +105,13 @@ npm run package
 生成物:
 
 ```text
-editors/vscode/shosei-vscode-0.0.1.vsix
+editors/vscode/shosei-vscode-0.2.0.vsix
 ```
 
 インストール方法:
 
 - VS Code で `Extensions: Install from VSIX...` を実行して上の `.vsix` を選ぶ
-- `code` CLI が使える場合は `code --install-extension editors/vscode/shosei-vscode-0.0.1.vsix`
+- `code` CLI が使える場合は `code --install-extension editors/vscode/shosei-vscode-0.2.0.vsix`
 
 ローカル install 後も、実処理は `shosei` CLI に委譲する。source tree の CLI を使いたい場合は、下の `shosei.cli.command` / `shosei.cli.args` 設定を使う。
 
@@ -127,17 +127,17 @@ GitHub Release に VSIX を載せる workflow は `.github/workflows/release.yml
 例:
 
 ```bash
-git tag v0.1.0
-git push origin v0.1.0
+git tag v0.2.0
+git push origin v0.2.0
 ```
 
 release に載る asset:
 
 ```text
-shosei-vscode-0.0.1.vsix
-shosei-v0.1.0-x86_64-unknown-linux-gnu.tar.gz
-shosei-v0.1.0-x86_64-apple-darwin.tar.gz
-shosei-v0.1.0-x86_64-pc-windows-msvc.zip
+shosei-vscode-0.2.0.vsix
+shosei-v0.2.0-x86_64-unknown-linux-gnu.tar.gz
+shosei-v0.2.0-x86_64-apple-darwin.tar.gz
+shosei-v0.2.0-x86_64-pc-windows-msvc.zip
 ```
 
 ## Development

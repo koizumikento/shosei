@@ -149,7 +149,7 @@ shosei preview --target print</code></pre>
             <li><code>project.type: manga</code> では <code>outputs.print.target: print-manga</code> を推奨し、prose 向け print target は warning にします</li>
             <li><code>outputs.print.target: print-jp-pdfx1a</code> と <code>print.pdf_standard: pdfx4</code> のような target / PDF standard の不一致は warning にします</li>
             <li><code>book.profile: conference-preprint</code> では <code>outputs.print.target: print-jp-pdfx4</code> を推奨し、それ以外は warning にします</li>
-            <li>prose print で <code>pdf.engine: typst|lualatex</code> を使う場合は、v0.1 では追加 proof を勧める warning を出します</li>
+            <li>prose print で <code>pdf.engine: typst|lualatex</code> を使う場合は、v0.2 では追加 proof を勧める warning を出します</li>
           </ul>
           <p><code>series sync</code> は <code>series.yml</code> を正として shared metadata を更新し、prose book では生成 backmatter を同期します。</p>
           <pre><code>shosei series sync
@@ -238,7 +238,7 @@ status: unread</code></pre>
             <li><code>series --book &lt;book-id&gt;</code>: <code>books/&lt;book-id&gt;/references/entries/</code></li>
             <li>report: <code>single-book</code> は <code>dist/reports/default-reference-check.json</code>、<code>series --shared</code> は <code>dist/reports/shared-reference-check.json</code>、<code>series --book &lt;book-id&gt;</code> は <code>dist/reports/&lt;book-id&gt;-reference-check.json</code></li>
           </ul>
-          <p>v0.1 では invalid / unclosed frontmatter、<code>id</code> の空文字や duplicate、<code>links</code> と <code>related_sections</code> の local path、<code>claims.yml</code> の <code>ref:&lt;id&gt;</code> を対象にします。local path が存在しない場合は warning にし、解決できない <code>ref:&lt;id&gt;</code> は error にします。<code>claims.yml</code> の <code>ref:&lt;id&gt;</code> は <code>single-book</code> では current book、<code>series --book &lt;book-id&gt;</code> では current book と shared の reference id に解決します。<code>https://</code>、<code>http://</code>、<code>mailto:</code>、<code>tel:</code>、<code>#anchor</code> は存在確認しません。</p>
+          <p>v0.2 では invalid / unclosed frontmatter、<code>id</code> の空文字や duplicate、<code>links</code> と <code>related_sections</code> の local path、<code>claims.yml</code> の <code>ref:&lt;id&gt;</code> を対象にします。local path が存在しない場合は warning にし、解決できない <code>ref:&lt;id&gt;</code> は error にします。<code>claims.yml</code> の <code>ref:&lt;id&gt;</code> は <code>single-book</code> では current book、<code>series --book &lt;book-id&gt;</code> では current book と shared の reference id に解決します。<code>https://</code>、<code>http://</code>、<code>mailto:</code>、<code>tel:</code>、<code>#anchor</code> は存在確認しません。</p>
         </section>
 
         <section>
@@ -511,7 +511,7 @@ shosei doctor --json</code></pre>
             <li>Kindle Previewer</li>
           </ul>
           <p>required tool は <code>git</code>, <code>pandoc</code>, <code>weasyprint</code>, <code>chromium</code>。optional tool は <code>typst</code>, <code>lualatex</code>, <code>epubcheck</code>, <code>git-lfs</code>, Kindle Previewer です。</p>
-          <p><code>typst</code>, <code>lualatex</code> は config 値として受け付けますが、v0.1 では default 経路より検証が薄い。doctor では optional tool として表示し、選択中 engine の場合だけ focused required tools に含めます。</p>
+          <p><code>typst</code>, <code>lualatex</code> は config 値として受け付けますが、v0.2 では default 経路より検証が薄い。doctor では optional tool として表示し、選択中 engine の場合だけ focused required tools に含めます。</p>
           <p><code>--json</code> は editor integration 向けで、host OS、required / optional ごとの available / missing / pending 件数、各 tool の category / status / path / version / install hint に加えて、検出できた current project の repo mode / book / outputs / focused tools も機械可読で返します。</p>
           <p><code>handoff</code> の destination は <code>kindle</code>, <code>print</code>, <code>proof</code> の 3 つに固定します。</p>
           <pre><code>shosei handoff kindle

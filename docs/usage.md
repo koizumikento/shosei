@@ -78,7 +78,7 @@ shosei preview --target print
 - `project.type: manga` では `outputs.print.target: print-manga` を推奨し、prose 向け print target は warning にする
 - `outputs.print.target: print-jp-pdfx1a` と `print.pdf_standard: pdfx4` のような target / PDF standard の不一致は warning にする
 - `book.profile: conference-preprint` では `outputs.print.target: print-jp-pdfx4` を推奨し、それ以外は warning にする
-- prose print で `pdf.engine: typst|lualatex` を使う場合は、v0.1 では追加 proof を勧める warning を出す
+- prose print で `pdf.engine: typst|lualatex` を使う場合は、v0.2 では追加 proof を勧める warning を出す
 
 `series sync` は `series.yml` を正として shared metadata を更新し、prose book では生成 backmatter を同期する。
 
@@ -196,7 +196,7 @@ status: unread
 - `series --book <book-id>`: `books/<book-id>/references/entries/`
 - report: `single-book` は `dist/reports/default-reference-check.json`、`series --shared` は `dist/reports/shared-reference-check.json`、`series --book <book-id>` は `dist/reports/<book-id>-reference-check.json`
 
-v0.1 の検査対象:
+v0.2 の検査対象:
 
 - invalid / unclosed frontmatter
 - `id` の空文字や duplicate `id`
@@ -534,7 +534,7 @@ shosei doctor --json
 
 required tool は `git`, `pandoc`, `weasyprint`, `chromium`。optional tool は `typst`, `lualatex`, `epubcheck`, `git-lfs`, Kindle Previewer。
 
-`typst`, `lualatex` は config 値として受け付けるが、v0.1 では default 経路より検証が薄い。doctor では optional tool として表示し、選択中 engine の場合だけ focused required tools に含める。
+`typst`, `lualatex` は config 値として受け付けるが、v0.2 では default 経路より検証が薄い。doctor では optional tool として表示し、選択中 engine の場合だけ focused required tools に含める。
 
 `--json` は editor integration 向けで、host OS、required / optional ごとの available / missing / pending 件数、各 tool の category / status / path / version / install hint に加えて、検出できた current project の repo mode / book / outputs / focused tools も機械可読で返す。
 
