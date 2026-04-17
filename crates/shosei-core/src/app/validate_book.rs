@@ -2054,6 +2054,7 @@ mod tests {
         }
     }
 
+    #[cfg(unix)]
     fn fake_toolchain_with_paths(
         pandoc: Option<PathBuf>,
         epubcheck: Option<PathBuf>,
