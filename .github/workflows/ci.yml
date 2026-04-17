@@ -104,3 +104,7 @@ jobs:
       - name: Run VS Code adapter tests
         working-directory: editors/vscode
         run: node --test ./test/**/*.test.js
+
+      - name: Package VSIX
+        working-directory: editors/vscode
+        run: npm run package
