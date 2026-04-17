@@ -373,9 +373,9 @@ severity は `validation.accessibility`, `validation.missing_image`, `validation
 issue の `location` は、特定できる場合は file path に加えて line 番号も持つ。
 CLI では summary の後に、先頭最大 5 件の issue を `原因 / 発生箇所 / 修正例` の形で続けて表示する。
 
-`validate --json` を付けると、同じ report schema を stdout にもそのまま出せる。editor integration や script では file 出力に加えてこれを直接読める。
+`validate --json` は同じ report schema を stdout に出す。file へ書き出す report には `checks`, `validators`, `issues` を含み、external validator を実行した場合は `artifact`, `log_path`, `summary` も取れる。
 
-現在の `validate` は local lint と tool availability check が中心で、`epubcheck` や Kindle/print 向け validator の実行結果を深く取り込む段階にはまだ達していない。target/profile ごとの実検証と validator ログの `dist/logs/` 集約は次の remediation で強化する。
+現在の `validate` は local lint と tool availability check に加えて、Kindle 出力が有効で `validation.epubcheck: true` のときは生成した EPUB に対して `epubcheck` を走らせる。validator の詳細ログは `dist/logs/` に保存し、report から参照できる。
 
 ## Inspect resolved config
 

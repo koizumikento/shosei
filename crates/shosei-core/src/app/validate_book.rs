@@ -176,6 +176,7 @@ struct ValidateReport {
     book_id: String,
     outputs: Vec<String>,
     checks: Vec<ValidationCheckReport>,
+    #[serde(rename = "validators")]
     validator_runs: Vec<ValidatorRunReport>,
     issues: Vec<ValidationIssue>,
 }
@@ -2499,7 +2500,7 @@ manga:
 
         assert!(!result.has_errors);
         let report = fs::read_to_string(&result.report_path).unwrap();
-        assert!(report.contains("\"validator_runs\""));
+        assert!(report.contains("\"validators\""));
         assert!(report.contains("\"status\": \"passed\""));
         assert!(report.contains("\"artifact\":"));
         assert!(report.contains(".epub"));
