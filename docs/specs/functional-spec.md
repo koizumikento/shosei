@@ -295,6 +295,11 @@ v0.1 の最小要件:
 - 有効な出力 target 全体を既定対象にする
 - 例外的に `--target kindle|print` で個別実行できる
 - 人間向け summary と機械可読レポートを両方出せる
+- v0.1 の既定経路では `dist/reports/<book-id>-validate.json` を更新する
+- remediation 後は `--json` で同じ report schema を stdout にも出せる
+- target ごとの外部 validator は、対応 artifact と tool が揃う場合は実行する
+- 外部 validator を実行できない場合も、missing tool / skipped validator を report に残す
+- 外部 validator の詳細ログは `dist/logs/` に保存し、report から参照できる
 
 - 共通 lint
 - prose editorial lint
@@ -1172,6 +1177,7 @@ v0.1 の既定:
 - 端末向け summary
 - JSON レポート
 - 必要に応じて外部 validator の詳細成果物への参照
+- `--json` と file 出力は同じ report schema を共有する
 - CLI の text 出力では、JSON レポート順の先頭最大 5 件を `原因 / 発生箇所 / 修正例` の形で続けて表示できる
 - issue が 6 件以上ある場合、text 出力では末尾に残件数だけを `... and N more` で示す
 
@@ -1184,6 +1190,22 @@ v0.1 の既定:
   - 特定できる場合は line 番号
 - 原因
 - 修正例
+
+report には `validators[]` も含める。
+
+各 validator entry は次を持つ。
+
+- name
+- target
+- status
+  - `passed`
+  - `warned`
+  - `failed`
+  - `missing-tool`
+  - `skipped`
+- artifact path
+- log path
+- summary
 
 ## 16. Git / バージョン管理
 
@@ -1232,6 +1254,7 @@ v0.1 の既定:
 
 - 少なくとも macOS / Windows / Linux の 3 環境で CLI のスモークテストを持つ
 - `init`, `build`, `validate`, `doctor` は 3 OS で共通に検証する
+- CI job / step 名だけで、どの OS でどの command-level smoke が通ったか読めること
 - 外部依存がない範囲のロジックはユニットテストで閉じる
 
 ## 18. 優しいインタフェース要件
@@ -1257,7 +1280,8 @@ v0.1 の既定:
 - `reports/validate.json`
 - 設定済みなら cover asset のコピー
 - `dist/handoff/<book-id>-kindle/` に成果物コピーと `manifest.json`
-- `manifest.json` には `selected_artifact_details[{channel,target,path,primary_tool}]` を含める
+- `manifest.json` には `selected_artifact_details[{channel,target,path,primary_tool,target_profile,artifact_metadata}]` を含める
+- `artifact_metadata` には少なくとも `reading_direction`, `fixed_layout`, `cover_image` を入れられる
 
 ### 19.2 `handoff print`
 
@@ -1276,7 +1300,8 @@ v0.1 の既定:
 - `reports/validate.json`
 - commit hash
 - `dist/handoff/<book-id>-print/` に成果物コピーと `manifest.json`
-- `manifest.json` には `selected_artifact_details[{channel,target,path,primary_tool}]` を含める
+- `manifest.json` には `selected_artifact_details[{channel,target,path,primary_tool,target_profile,artifact_metadata}]` を含める
+- `artifact_metadata` には少なくとも `trim_size`, `bleed`, `sides`, `pdf_standard`, `page_count`, `fonts_embedded` を入れられる
 
 ### 19.3 `handoff proof`
 
@@ -1292,6 +1317,7 @@ v0.1 の既定:
 - claim / figure / freshness の reviewer note 要約
 - v0.1 では `dist/handoff/<book-id>-proof/` に成果物コピー、`manifest.json`、`review-notes.md`、`reports/review-packet.json`、`editorial/` 配下の sidecar コピーを出す
 - `manifest.json` には `build_stages`, `build_inputs`, `selected_artifact_details`, `validation_report`, `git_dirty`, `dirty_worktree_warning` も含める
+- `selected_artifact_details[*].artifact_metadata` には、proof で同梱した artifact の target/profile 条件や、manga の場合は `page_count`, `spread_policy`, `page_dimensions` を含めてよい
 
 ## 20. MVP の範囲
 

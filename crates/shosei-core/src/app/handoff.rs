@@ -6,6 +6,7 @@ use std::{
 };
 
 use serde::Serialize;
+use serde_json::Value;
 use thiserror::Error;
 
 use crate::{
@@ -122,6 +123,7 @@ struct HandoffArtifactDetail {
     target: String,
     path: String,
     primary_tool: String,
+    metadata: Value,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -342,6 +344,10 @@ fn handoff_with_toolchain(
                 target: output.target.clone(),
                 path: relative_to(&package_dir, copied_path),
                 primary_tool: output.primary_tool.to_string(),
+                metadata: build_result
+                    .artifact_metadata(output.channel, &output.target)
+                    .cloned()
+                    .unwrap_or(Value::Null),
             })
             .collect(),
         validation_report: relative_to(&package_dir, &copied_report),
@@ -993,6 +999,14 @@ editorial:
             manifest["selected_artifact_details"][0]["primary_tool"],
             "shosei-fxl-epub"
         );
+        assert_eq!(
+            manifest["selected_artifact_details"][0]["metadata"]["kindle"]["fixed_layout"],
+            true
+        );
+        assert_eq!(
+            manifest["selected_artifact_details"][0]["metadata"]["manga"]["source_page_count"],
+            1
+        );
     }
 
     #[test]
@@ -1254,6 +1268,14 @@ printf 'fake output' > "$out"
         assert_eq!(
             manifest["selected_artifact_details"][0]["path"],
             "artifacts/default-kindle-ja.epub"
+        );
+        assert_eq!(
+            manifest["selected_artifact_details"][0]["metadata"]["kindle"]["fixed_layout"],
+            false
+        );
+        assert_eq!(
+            manifest["selected_artifact_details"][1]["metadata"]["print"]["pdf_engine"],
+            "weasyprint"
         );
         assert_eq!(manifest["editorial_summary"]["claim_count"], 1);
         assert_eq!(manifest["editorial_summary"]["figure_count"], 1);

@@ -370,6 +370,16 @@ pub fn run_chromium_pdf(
     })
 }
 
+pub fn run_epubcheck(executable: &Path, input_epub: &Path) -> std::io::Result<ToolRunOutput> {
+    let command_output = Command::new(executable).arg(input_epub).output()?;
+
+    Ok(ToolRunOutput {
+        status: command_output.status,
+        stdout: String::from_utf8_lossy(&command_output.stdout).into_owned(),
+        stderr: String::from_utf8_lossy(&command_output.stderr).into_owned(),
+    })
+}
+
 #[cfg(test)]
 fn inspect_toolchain_with_env(
     path_var: Option<OsString>,

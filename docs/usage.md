@@ -353,7 +353,7 @@ scenes:
 
 ## Validate checks
 
-現在の `validate` は、JSON レポートを出しつつ、次のような preflight を行う。
+現在の `validate` は、`dist/reports/<book-id>-validate.json` に JSON レポートを書き出しつつ、次のような preflight を行う。
 
 - build で必要になる `pandoc` の有無
 - print build に設定された PDF engine の有無
@@ -370,6 +370,10 @@ severity は `validation.accessibility`, `validation.missing_image`, `validation
 
 issue の `location` は、特定できる場合は file path に加えて line 番号も持つ。
 CLI では summary の後に、先頭最大 5 件の issue を `原因 / 発生箇所 / 修正例` の形で続けて表示する。
+
+現時点の CLI には `validate --json` はまだなく、machine-readable な結果を即時に使いたい場合はこの report file を読む。
+
+現在の `validate` は local lint と tool availability check が中心で、`epubcheck` や Kindle/print 向け validator の実行結果を深く取り込む段階にはまだ達していない。target/profile ごとの実検証、stdout 向け `--json`、validator ログの `dist/logs/` 集約は次の remediation で強化する。
 
 ## Inspect resolved config
 
@@ -547,3 +551,21 @@ shosei handoff proof
 - `handoff proof`: build できた artifact 全件、`reports/validate.json`、`review-notes.md`、`reports/review-packet.json` を package に含める。prose では editorial sidecar もコピーする
 
 `manifest.json` には `build_summary`, `build_stages`, `build_inputs`, `selected_artifacts`, `selected_artifact_details`, `validation_report`, `git_commit`, `git_dirty`, `dirty_worktree_warning` を含める。`proof` では加えて `review_notes`, `review_packet`, `editorial_summary`, `editorial_files` も入る。
+
+`selected_artifact_details` は現状 `channel`, `target`, `path`, `primary_tool` が中心だが、次の remediation では target/profile ごとの metadata を拡張する。想定しているのは print の `trim_size`, `bleed`, `sides`, `pdf_standard`, `page_count`, `fonts_embedded`、Kindle の `reading_direction`, `fixed_layout`, `cover_image`、manga/proof の `page_count`, `spread_policy`, `page_dimensions` など。
+
+## Cross-platform smoke
+
+GitHub Actions の CI は `ubuntu-latest`, `macos-latest`, `windows-latest` の 3 OS matrix で動かす。
+
+現在の command-level smoke は次を step 名つきで実行している。
+
+- `shosei init`
+- `shosei validate`
+- `shosei build`
+- `shosei doctor`
+- `shosei --help`
+
+合わせて `cargo test --workspace` と `cargo test -p shosei-core --test repo_discovery` も走る。
+
+CI 表示だけで「どの OS でどの smoke が通ったか」を読める状態を維持し、README と `site/usage.html` でも同じ保証内容を案内する。

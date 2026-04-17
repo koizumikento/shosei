@@ -537,6 +537,24 @@ fn validate_cli_prints_issue_preview() {
 }
 
 #[test]
+fn validate_cli_can_emit_json_report() {
+    let root = temp_dir("validate-json");
+    write_validate_fixture(&root);
+
+    let output = Command::new(env!("CARGO_BIN_EXE_shosei"))
+        .args(["validate", "--json", "--path", root.to_str().unwrap()])
+        .output()
+        .unwrap();
+
+    assert!(!output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let parsed: Value = serde_json::from_str(&stdout).unwrap();
+    assert_eq!(parsed["book_id"], "default");
+    assert!(parsed["issues"].is_array());
+    assert!(parsed["checks"].is_array());
+}
+
+#[test]
 fn init_cli_interactive_shows_summary_and_writes_after_confirmation() {
     let root = temp_dir("init-interactive-confirm");
 

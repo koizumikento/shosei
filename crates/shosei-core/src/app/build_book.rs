@@ -12,7 +12,7 @@ use crate::{
     repo::{self, RepoError},
     toolchain::{self, ToolStatus},
 };
-use serde_json::json;
+use serde_json::{Value, json};
 use thiserror::Error;
 
 #[derive(Debug, Clone)]
@@ -20,6 +20,24 @@ pub struct BuildBookResult {
     pub summary: String,
     pub plan: pipeline::BuildPlan,
     pub artifacts: Vec<PathBuf>,
+    artifact_details: Vec<Value>,
+}
+
+impl BuildBookResult {
+    pub fn artifact_details(&self) -> &[Value] {
+        &self.artifact_details
+    }
+
+    pub fn artifact_metadata(&self, channel: &str, target: &str) -> Option<&Value> {
+        self.artifact_details.iter().find_map(|detail| {
+            let object = detail.as_object()?;
+            let detail_channel = object.get("channel")?.as_str()?;
+            let detail_target = object.get("target")?.as_str()?;
+            (detail_channel == channel && detail_target == target)
+                .then(|| object.get("metadata"))
+                .flatten()
+        })
+    }
 }
 
 #[derive(Debug, Error)]
@@ -103,6 +121,7 @@ pub(crate) fn build_book_with_toolchain(
             .map(|output| format!("{} via {}", output.target, output.primary_tool))
             .collect::<Vec<_>>();
         let source_count = plan.manuscript_files.len();
+        let artifact_details = build_artifact_details(&resolved, &plan)?;
         let artifacts = match project_type {
             ProjectType::Manga => execute_manga_build_outputs(&resolved, &plan)?,
             _ => execute_build_outputs(&resolved, &plan, toolchain)?,
@@ -131,10 +150,271 @@ pub(crate) fn build_book_with_toolchain(
             ),
             plan,
             artifacts,
+            artifact_details,
         });
     }
 
     unreachable!("series repositories without a selected book are rejected")
+}
+
+fn build_artifact_details(
+    resolved: &config::ResolvedBookConfig,
+    plan: &pipeline::BuildPlan,
+) -> Result<Vec<Value>, BuildBookError> {
+    let source_file_count = plan.manuscript_files.len();
+    match resolved.effective.project.project_type {
+        ProjectType::Manga => build_manga_artifact_details(resolved, plan, source_file_count),
+        _ => Ok(build_prose_artifact_details(
+            resolved,
+            plan,
+            source_file_count,
+        )),
+    }
+}
+
+fn build_prose_artifact_details(
+    resolved: &config::ResolvedBookConfig,
+    plan: &pipeline::BuildPlan,
+    source_file_count: usize,
+) -> Vec<Value> {
+    plan.outputs
+        .iter()
+        .map(|output| {
+            let metadata = match output.channel {
+                "kindle" => prose_kindle_metadata(resolved, source_file_count),
+                "print" => prose_print_metadata(resolved, source_file_count),
+                _ => json!({}),
+            };
+            json!({
+                "channel": output.channel,
+                "target": output.target,
+                "path": relative_display(&resolved.repo.repo_root, &output.artifact_path),
+                "primary_tool": output.primary_tool,
+                "metadata": metadata,
+            })
+        })
+        .collect()
+}
+
+fn build_manga_artifact_details(
+    resolved: &config::ResolvedBookConfig,
+    plan: &pipeline::BuildPlan,
+    source_file_count: usize,
+) -> Result<Vec<Value>, BuildBookError> {
+    let manga_settings = resolved
+        .effective
+        .manga
+        .as_ref()
+        .expect("manga settings must exist for manga build");
+
+    plan.outputs
+        .iter()
+        .map(|output| {
+            let render_summary = match output.channel {
+                "kindle" => manga::summarize_fixed_layout_render(
+                    &plan.manuscript_files,
+                    manga::FixedLayoutOptions {
+                        reading_direction: manga_settings.reading_direction,
+                        default_page_side: manga_settings.default_page_side,
+                        spread_policy_for_kindle: manga_settings.spread_policy_for_kindle,
+                    },
+                ),
+                "print" => manga::summarize_print_render(&plan.manuscript_files),
+                _ => Ok(manga::MangaRenderSummary {
+                    source_page_count: 0,
+                    rendered_page_count: 0,
+                    spread_candidate_count: 0,
+                    split_source_page_count: 0,
+                    skipped_source_page_count: 0,
+                    color_page_count: 0,
+                    unique_page_dimensions: Vec::new(),
+                }),
+            }
+            .map_err(|error| {
+                execution_failed_with_message(
+                    &resolved.repo.repo_root,
+                    &resolved
+                        .repo
+                        .book
+                        .as_ref()
+                        .expect("book context must exist for build")
+                        .id,
+                    &output.target,
+                    error.to_string(),
+                )
+            })?;
+
+            let metadata = match output.channel {
+                "kindle" => manga_kindle_metadata(
+                    resolved,
+                    source_file_count,
+                    manga_settings,
+                    &render_summary,
+                ),
+                "print" => manga_print_metadata(
+                    resolved,
+                    source_file_count,
+                    manga_settings,
+                    &render_summary,
+                ),
+                _ => json!({}),
+            };
+
+            Ok(json!({
+                "channel": output.channel,
+                "target": output.target,
+                "path": relative_display(&resolved.repo.repo_root, &output.artifact_path),
+                "primary_tool": output.primary_tool,
+                "metadata": metadata,
+            }))
+        })
+        .collect()
+}
+
+fn prose_kindle_metadata(resolved: &config::ResolvedBookConfig, source_file_count: usize) -> Value {
+    json!({
+        "format": "epub",
+        "book_profile": resolved.effective.book.profile,
+        "source_file_count": source_file_count,
+        "kindle": {
+            "fixed_layout": false,
+            "reading_direction": resolved.effective.book.reading_direction.as_str(),
+            "cover_ebook_image": resolved.effective.cover.ebook_image.as_ref().map(|path| path.as_str()),
+        }
+    })
+}
+
+fn prose_print_metadata(resolved: &config::ResolvedBookConfig, source_file_count: usize) -> Value {
+    let pdf = resolved
+        .effective
+        .pdf
+        .as_ref()
+        .expect("pdf settings must exist for prose print build");
+    let print = resolved.effective.print.as_ref();
+
+    json!({
+        "format": "pdf",
+        "book_profile": resolved.effective.book.profile,
+        "source_file_count": source_file_count,
+        "print": {
+            "pdf_engine": pdf.engine.as_str(),
+            "toc": pdf.toc,
+            "page_numbering": pdf.page_number,
+            "running_header": pdf.running_header.as_str(),
+            "column_count": pdf.column_count,
+            "column_gap": pdf.column_gap,
+            "base_font_size": pdf.base_font_size,
+            "line_height": pdf.line_height,
+            "trim_size": print.map(|settings| settings.trim_size.as_str()),
+            "bleed": print.map(|settings| settings.bleed.as_str()),
+            "crop_marks": print.map(|settings| settings.crop_marks),
+            "page_margin": print.and_then(|settings| settings.page_margin.as_ref()).map(|margin| json!({
+                "top": margin.top,
+                "right": margin.right,
+                "bottom": margin.bottom,
+                "left": margin.left,
+            })),
+            "sides": print.map(|settings| settings.sides.as_str()),
+            "max_pages": print.and_then(|settings| settings.max_pages),
+            "body_pdf": print.map(|settings| settings.body_pdf),
+            "cover_pdf": print.map(|settings| settings.cover_pdf),
+            "pdf_standard": print.map(|settings| settings.pdf_standard.as_str()),
+            "body_mode": print.map(|settings| settings.body_mode.as_str()),
+        }
+    })
+}
+
+fn manga_kindle_metadata(
+    resolved: &config::ResolvedBookConfig,
+    source_file_count: usize,
+    manga_settings: &config::MangaSettings,
+    render_summary: &manga::MangaRenderSummary,
+) -> Value {
+    json!({
+        "format": "epub",
+        "book_profile": resolved.effective.book.profile,
+        "source_file_count": source_file_count,
+        "kindle": {
+            "fixed_layout": true,
+            "reading_direction": manga_settings.reading_direction.as_str(),
+            "cover_ebook_image": resolved.effective.cover.ebook_image.as_ref().map(|path| path.as_str()),
+        },
+        "manga": manga_delivery_metadata(manga_settings, render_summary),
+    })
+}
+
+fn manga_print_metadata(
+    resolved: &config::ResolvedBookConfig,
+    source_file_count: usize,
+    manga_settings: &config::MangaSettings,
+    render_summary: &manga::MangaRenderSummary,
+) -> Value {
+    let print = resolved.effective.print.as_ref();
+    json!({
+        "format": "pdf",
+        "book_profile": resolved.effective.book.profile,
+        "source_file_count": source_file_count,
+        "print": {
+            "trim_size": print.map(|settings| settings.trim_size.as_str()),
+            "bleed": print.map(|settings| settings.bleed.as_str()),
+            "crop_marks": print.map(|settings| settings.crop_marks),
+            "sides": print.map(|settings| settings.sides.as_str()),
+            "max_pages": print.and_then(|settings| settings.max_pages),
+            "body_pdf": print.map(|settings| settings.body_pdf),
+            "cover_pdf": print.map(|settings| settings.cover_pdf),
+            "pdf_standard": print.map(|settings| settings.pdf_standard.as_str()),
+            "body_mode": print.map(|settings| settings.body_mode.as_str()),
+        },
+        "manga": manga_delivery_metadata(manga_settings, render_summary),
+    })
+}
+
+fn manga_delivery_metadata(
+    manga_settings: &config::MangaSettings,
+    render_summary: &manga::MangaRenderSummary,
+) -> Value {
+    json!({
+        "reading_direction": manga_settings.reading_direction.as_str(),
+        "default_page_side": manga_page_side_label(manga_settings.default_page_side),
+        "spread_policy_for_kindle": spread_policy_label(manga_settings.spread_policy_for_kindle),
+        "front_color_pages": manga_settings.front_color_pages,
+        "body_mode": manga_body_mode_label(manga_settings.body_mode),
+        "source_page_count": render_summary.source_page_count,
+        "rendered_page_count": render_summary.rendered_page_count,
+        "spread_candidate_count": render_summary.spread_candidate_count,
+        "split_source_page_count": render_summary.split_source_page_count,
+        "skipped_source_page_count": render_summary.skipped_source_page_count,
+        "color_page_count": render_summary.color_page_count,
+        "unique_page_dimensions": render_summary.unique_page_dimensions.iter().map(|page| {
+            json!({
+                "width_px": page.width_px,
+                "height_px": page.height_px,
+            })
+        }).collect::<Vec<_>>(),
+    })
+}
+
+fn manga_page_side_label(side: config::MangaPageSide) -> &'static str {
+    match side {
+        config::MangaPageSide::Left => "left",
+        config::MangaPageSide::Right => "right",
+    }
+}
+
+fn spread_policy_label(policy: config::SpreadPolicyForKindle) -> &'static str {
+    match policy {
+        config::SpreadPolicyForKindle::Split => "split",
+        config::SpreadPolicyForKindle::SinglePage => "single-page",
+        config::SpreadPolicyForKindle::Skip => "skip",
+    }
+}
+
+fn manga_body_mode_label(mode: config::MangaBodyMode) -> &'static str {
+    match mode {
+        config::MangaBodyMode::Monochrome => "monochrome",
+        config::MangaBodyMode::Color => "color",
+        config::MangaBodyMode::Mixed => "mixed",
+    }
 }
 
 fn execute_build_outputs(
@@ -1644,6 +1924,15 @@ printf 'fake pdf' > "$out"
             result.artifacts[0].extension().and_then(|ext| ext.to_str()),
             Some("pdf")
         );
+        assert_eq!(result.artifact_details()[0]["metadata"]["format"], "pdf");
+        assert_eq!(
+            result.artifact_details()[0]["metadata"]["print"]["pdf_engine"],
+            "weasyprint"
+        );
+        assert_eq!(
+            result.artifact_details()[0]["metadata"]["print"]["page_numbering"],
+            true
+        );
     }
 
     #[test]
@@ -2294,6 +2583,30 @@ printf 'fake pdf' > "$out"
         let second_page = read_epub_entry(&result.artifacts[0], "OEBPS/pages/page-0002.xhtml");
         assert!(first_page.contains("001-right.png"));
         assert!(second_page.contains("001-left.png"));
+        assert_eq!(
+            result.artifact_details()[0]["metadata"]["kindle"]["fixed_layout"],
+            true
+        );
+        assert_eq!(
+            result.artifact_details()[0]["metadata"]["manga"]["source_page_count"],
+            1
+        );
+        assert_eq!(
+            result.artifact_details()[0]["metadata"]["manga"]["rendered_page_count"],
+            2
+        );
+        assert_eq!(
+            result.artifact_details()[0]["metadata"]["manga"]["split_source_page_count"],
+            1
+        );
+        assert_eq!(
+            result.artifact_details()[0]["metadata"]["manga"]["unique_page_dimensions"][0]["width_px"],
+            1
+        );
+        assert_eq!(
+            result.artifact_details()[0]["metadata"]["manga"]["unique_page_dimensions"][0]["height_px"],
+            1
+        );
     }
 
     #[test]

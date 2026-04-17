@@ -7,6 +7,7 @@ use std::{
 use regex::Regex;
 use serde::Serialize;
 
+use super::build_book::{BuildBookError, build_book_with_toolchain};
 use crate::{
     cli_api::CommandContext,
     config,
@@ -112,6 +113,7 @@ pub(crate) fn validate_book_with_toolchain(
                     .unwrap_or_else(|| "unknown".to_string()),
             });
         }
+        let mut validator_runs = Vec::new();
         if let Some(plan) = &plan {
             issues.extend(issues_from_checks(plan));
             issues.extend(schema_warning_issues(&resolved));
@@ -119,6 +121,9 @@ pub(crate) fn validate_book_with_toolchain(
                 ProjectType::Manga => manga_validation_issues(&resolved, plan),
                 _ => prose_validation_issues(&resolved, plan, editorial.as_ref()),
             });
+            let external_validation = run_external_validators(command, &resolved, toolchain, plan);
+            issues.extend(external_validation.issues);
+            validator_runs = external_validation.runs;
         }
         issues.extend(cover_validation_issues(&resolved));
         let report = ValidateReport {
@@ -138,6 +143,7 @@ pub(crate) fn validate_book_with_toolchain(
                         .collect()
                 })
                 .unwrap_or_default(),
+            validator_runs,
             issues: issues.clone(),
         };
         write_report(&report_path, &report)?;
@@ -170,6 +176,7 @@ struct ValidateReport {
     book_id: String,
     outputs: Vec<String>,
     checks: Vec<ValidationCheckReport>,
+    validator_runs: Vec<ValidatorRunReport>,
     issues: Vec<ValidationIssue>,
 }
 
@@ -179,6 +186,17 @@ struct ValidationCheckReport {
     target: String,
     tool: Option<String>,
     status: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+struct ValidatorRunReport {
+    name: String,
+    target: String,
+    tool: String,
+    status: String,
+    summary: String,
+    artifact: Option<String>,
+    log_path: Option<String>,
 }
 
 fn issues_from_checks(plan: &pipeline::ValidatePlan) -> Vec<ValidationIssue> {
@@ -201,6 +219,218 @@ fn issues_from_checks(plan: &pipeline::ValidatePlan) -> Vec<ValidationIssue> {
             _ => None,
         })
         .collect()
+}
+
+#[derive(Debug, Default)]
+struct ExternalValidationResult {
+    runs: Vec<ValidatorRunReport>,
+    issues: Vec<ValidationIssue>,
+}
+
+fn run_external_validators(
+    command: &CommandContext,
+    resolved: &config::ResolvedBookConfig,
+    toolchain: &toolchain::ToolchainReport,
+    plan: &pipeline::ValidatePlan,
+) -> ExternalValidationResult {
+    let mut result = ExternalValidationResult::default();
+
+    if should_run_epubcheck(command, resolved) {
+        let (run, issue) = run_epubcheck_validation(command, resolved, toolchain, plan);
+        result.runs.push(run);
+        if let Some(issue) = issue {
+            result.issues.push(issue);
+        }
+    }
+
+    result
+}
+
+fn should_run_epubcheck(command: &CommandContext, resolved: &config::ResolvedBookConfig) -> bool {
+    (command.output_target.is_none() || command.output_target.as_deref() == Some("kindle"))
+        && resolved.effective.outputs.kindle.is_some()
+        && resolved.effective.validation.epubcheck
+}
+
+fn run_epubcheck_validation(
+    command: &CommandContext,
+    resolved: &config::ResolvedBookConfig,
+    toolchain: &toolchain::ToolchainReport,
+    plan: &pipeline::ValidatePlan,
+) -> (ValidatorRunReport, Option<ValidationIssue>) {
+    let book = resolved
+        .repo
+        .book
+        .as_ref()
+        .expect("book context must exist for validation");
+    let repo_root = &resolved.repo.repo_root;
+    let tool_name = "epubcheck".to_string();
+    let initial = ValidatorRunReport {
+        name: "epubcheck".to_string(),
+        target: "kindle".to_string(),
+        tool: tool_name.clone(),
+        status: "skipped".to_string(),
+        summary: "epubcheck was not run".to_string(),
+        artifact: None,
+        log_path: None,
+    };
+
+    let Some(executable) = available_tool_path(toolchain, "epubcheck") else {
+        return (
+            ValidatorRunReport {
+                summary: "epubcheck executable is unavailable".to_string(),
+                ..initial
+            },
+            None,
+        );
+    };
+
+    if plan
+        .checks
+        .iter()
+        .any(|check| check.target == "kindle" && check.tool_status == ToolStatus::Missing)
+    {
+        return (
+            ValidatorRunReport {
+                summary: "kindle validation prerequisites are missing".to_string(),
+                ..initial
+            },
+            None,
+        );
+    }
+
+    let build_command = CommandContext::new(
+        command.start_path.clone(),
+        command.book_id.clone(),
+        Some("kindle".to_string()),
+    );
+    let build_result = match build_book_with_toolchain(&build_command, toolchain) {
+        Ok(result) => result,
+        Err(BuildBookError::RequiredToolMissing { tool, .. }) => {
+            return (
+                ValidatorRunReport {
+                    summary: format!("skipped because required build tool `{tool}` is missing"),
+                    ..initial
+                },
+                None,
+            );
+        }
+        Err(BuildBookError::ExecutionFailed { log_path, .. }) => {
+            let issue = ValidationIssue::error(
+                "kindle",
+                "kindle validation prerequisite build failed".to_string(),
+                format!(
+                    "生成した EPUB を検証できませんでした。build log を確認してください: {}",
+                    relative_display(repo_root, &log_path)
+                ),
+            );
+            return (
+                ValidatorRunReport {
+                    status: "failed".to_string(),
+                    summary: "kindle build failed before epubcheck".to_string(),
+                    log_path: Some(relative_display(repo_root, &log_path)),
+                    ..initial
+                },
+                Some(issue),
+            );
+        }
+        Err(error) => {
+            let issue = ValidationIssue::error(
+                "kindle",
+                format!("kindle validation prerequisite build failed: {error}"),
+                "kindle build を通してから validate を再実行してください。".to_string(),
+            );
+            return (
+                ValidatorRunReport {
+                    status: "failed".to_string(),
+                    summary: format!("kindle build failed before epubcheck: {error}"),
+                    ..initial
+                },
+                Some(issue),
+            );
+        }
+    };
+
+    let Some(artifact) = build_result.artifacts.first() else {
+        let issue = ValidationIssue::error(
+            "kindle",
+            "epubcheck input artifact was not generated".to_string(),
+            "kindle build の成果物生成を確認してください。".to_string(),
+        );
+        return (
+            ValidatorRunReport {
+                status: "failed".to_string(),
+                summary: "kindle build did not produce an EPUB artifact".to_string(),
+                ..initial
+            },
+            Some(issue),
+        );
+    };
+
+    let log_path = validator_log_path(repo_root, &book.id, "epubcheck");
+    match toolchain::run_epubcheck(executable, artifact) {
+        Ok(output) => {
+            let _ = write_validator_log(&log_path, "epubcheck", artifact, &output);
+            if output.status.success() {
+                (
+                    ValidatorRunReport {
+                        status: "passed".to_string(),
+                        summary: "epubcheck passed on the generated EPUB".to_string(),
+                        artifact: Some(relative_display(repo_root, artifact)),
+                        log_path: Some(relative_display(repo_root, &log_path)),
+                        ..initial
+                    },
+                    None,
+                )
+            } else {
+                let issue = ValidationIssue::error(
+                    "kindle",
+                    "epubcheck failed for the generated EPUB".to_string(),
+                    format!(
+                        "epubcheck log を確認してください: {}",
+                        relative_display(repo_root, &log_path)
+                    ),
+                );
+                (
+                    ValidatorRunReport {
+                        status: "failed".to_string(),
+                        summary: "epubcheck reported validation errors".to_string(),
+                        artifact: Some(relative_display(repo_root, artifact)),
+                        log_path: Some(relative_display(repo_root, &log_path)),
+                        ..initial
+                    },
+                    Some(issue),
+                )
+            }
+        }
+        Err(error) => {
+            let issue = ValidationIssue::error(
+                "kindle",
+                format!("failed to start epubcheck: {error}"),
+                "epubcheck が起動できることを確認してください。".to_string(),
+            );
+            (
+                ValidatorRunReport {
+                    status: "failed".to_string(),
+                    summary: format!("failed to start epubcheck: {error}"),
+                    artifact: Some(relative_display(repo_root, artifact)),
+                    log_path: Some(relative_display(repo_root, &log_path)),
+                    ..initial
+                },
+                Some(issue),
+            )
+        }
+    }
+}
+
+fn available_tool_path<'a>(
+    toolchain: &'a toolchain::ToolchainReport,
+    key: &str,
+) -> Option<&'a Path> {
+    toolchain.tool(key).and_then(|tool| match tool.status {
+        ToolStatus::Available => tool.resolved_path.as_deref(),
+        _ => None,
+    })
 }
 
 fn validation_issue_from_diagnostic(
@@ -1668,6 +1898,42 @@ fn selected_outputs(
     outputs
 }
 
+fn validator_log_path(repo_root: &Path, book_id: &str, validator: &str) -> PathBuf {
+    repo_root
+        .join("dist")
+        .join("logs")
+        .join(format!("{book_id}-{validator}-validate.log"))
+}
+
+fn write_validator_log(
+    path: &Path,
+    tool_name: &str,
+    artifact: &Path,
+    run_output: &toolchain::ToolRunOutput,
+) -> std::io::Result<()> {
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    let contents = format!(
+        "tool: {tool_name}\nartifact: {}\nstatus: {}\nstdout:\n{}\n\nstderr:\n{}\n",
+        artifact.display(),
+        run_output
+            .status
+            .code()
+            .map(|code| code.to_string())
+            .unwrap_or_else(|| "signal".to_string()),
+        run_output.stdout,
+        run_output.stderr
+    );
+    fs::write(path, contents)
+}
+
+fn relative_display(repo_root: &Path, path: &Path) -> String {
+    path.strip_prefix(repo_root)
+        .map(|relative| relative.display().to_string())
+        .unwrap_or_else(|_| path.display().to_string())
+}
+
 fn write_report(path: &std::path::Path, report: &ValidateReport) -> Result<(), ValidateBookError> {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent).map_err(|source| ValidateBookError::WriteReport {
@@ -1786,6 +2052,136 @@ mod tests {
                 },
             ],
         }
+    }
+
+    fn fake_toolchain_with_paths(
+        pandoc: Option<PathBuf>,
+        epubcheck: Option<PathBuf>,
+        epubcheck_status: ToolStatus,
+    ) -> ToolchainReport {
+        ToolchainReport {
+            tools: vec![
+                ToolRecord {
+                    key: "pandoc",
+                    display_name: "pandoc",
+                    status: if pandoc.is_some() {
+                        ToolStatus::Available
+                    } else {
+                        ToolStatus::Missing
+                    },
+                    detected_as: Some("pandoc".to_string()),
+                    resolved_path: pandoc,
+                    version: None,
+                    install_hint: "Install pandoc and ensure it is available on PATH.".to_string(),
+                },
+                ToolRecord {
+                    key: "epubcheck",
+                    display_name: "epubcheck",
+                    status: epubcheck_status,
+                    detected_as: Some("epubcheck".to_string()),
+                    resolved_path: epubcheck,
+                    version: None,
+                    install_hint: "Install epubcheck and ensure the launcher is available on PATH."
+                        .to_string(),
+                },
+                ToolRecord {
+                    key: "weasyprint",
+                    display_name: "weasyprint",
+                    status: ToolStatus::Available,
+                    detected_as: Some("weasyprint".to_string()),
+                    resolved_path: None,
+                    version: None,
+                    install_hint: "Install weasyprint and ensure the launcher is on PATH."
+                        .to_string(),
+                },
+                ToolRecord {
+                    key: "chromium",
+                    display_name: "Chromium PDF",
+                    status: ToolStatus::Available,
+                    detected_as: Some("chromium".to_string()),
+                    resolved_path: None,
+                    version: None,
+                    install_hint:
+                        "Install a Chromium-based browser and ensure its executable is available."
+                            .to_string(),
+                },
+                ToolRecord {
+                    key: "typst",
+                    display_name: "typst",
+                    status: ToolStatus::Available,
+                    detected_as: Some("typst".to_string()),
+                    resolved_path: None,
+                    version: None,
+                    install_hint: "Install typst and ensure the launcher is on PATH.".to_string(),
+                },
+                ToolRecord {
+                    key: "pdf-engine",
+                    display_name: "PDF engine",
+                    status: ToolStatus::Available,
+                    detected_as: Some("weasyprint".to_string()),
+                    resolved_path: None,
+                    version: None,
+                    install_hint:
+                        "Install one supported PDF engine such as weasyprint, Chromium, typst, or lualatex."
+                            .to_string(),
+                },
+            ],
+        }
+    }
+
+    #[cfg(unix)]
+    fn write_fake_pandoc(root: &std::path::Path) -> PathBuf {
+        use std::os::unix::fs::PermissionsExt;
+
+        let pandoc = root.join("pandoc");
+        fs::write(
+            &pandoc,
+            r#"#!/bin/sh
+out=""
+prev=""
+for arg in "$@"; do
+  if [ "$prev" = "--output" ]; then
+    out="$arg"
+  fi
+  prev="$arg"
+done
+mkdir -p "$(dirname "$out")"
+printf 'fake epub' > "$out"
+"#,
+        )
+        .unwrap();
+        let mut permissions = fs::metadata(&pandoc).unwrap().permissions();
+        permissions.set_mode(0o755);
+        fs::set_permissions(&pandoc, permissions).unwrap();
+        pandoc
+    }
+
+    #[cfg(unix)]
+    fn write_fake_epubcheck(
+        root: &std::path::Path,
+        exit_code: i32,
+        args_path: &std::path::Path,
+    ) -> PathBuf {
+        use std::os::unix::fs::PermissionsExt;
+
+        let epubcheck = root.join("epubcheck");
+        fs::write(
+            &epubcheck,
+            format!(
+                r#"#!/bin/sh
+printf '%s\n' "$@" > "{}"
+echo "fake epubcheck"
+exit {}
+"#,
+                args_path.display(),
+                exit_code
+            ),
+        )
+        .unwrap();
+        let mut permissions = fs::metadata(&epubcheck).unwrap().permissions();
+        permissions.set_mode(0o755);
+        fs::set_permissions(&epubcheck, permissions).unwrap();
+        epubcheck
     }
 
     fn write_book(root: &std::path::Path) {
@@ -2083,6 +2479,64 @@ manga:
         let report = fs::read_to_string(result.report_path).unwrap();
         assert!(report.contains("required validation tool is missing"));
         assert!(report.contains("\"severity\": \"error\""));
+    }
+
+    #[test]
+    fn validate_runs_epubcheck_against_generated_kindle_artifact() {
+        if !cfg!(unix) {
+            return;
+        }
+
+        let root = temp_dir("epubcheck-success");
+        write_book_with_cover(&root, "error", true);
+        let pandoc = write_fake_pandoc(&root);
+        let args_path = root.join("epubcheck-args.txt");
+        let epubcheck = write_fake_epubcheck(&root, 0, &args_path);
+
+        let result = validate_book_with_toolchain(
+            &CommandContext::new(&root, None, None),
+            &fake_toolchain_with_paths(Some(pandoc), Some(epubcheck), ToolStatus::Available),
+        )
+        .unwrap();
+
+        assert!(!result.has_errors);
+        let report = fs::read_to_string(&result.report_path).unwrap();
+        assert!(report.contains("\"validator_runs\""));
+        assert!(report.contains("\"status\": \"passed\""));
+        assert!(report.contains("\"artifact\":"));
+        assert!(report.contains(".epub"));
+        let args = fs::read_to_string(args_path).unwrap();
+        assert!(args.contains(".epub"));
+    }
+
+    #[test]
+    fn validate_reports_epubcheck_failures() {
+        if !cfg!(unix) {
+            return;
+        }
+
+        let root = temp_dir("epubcheck-failure");
+        write_book_with_cover(&root, "error", true);
+        let pandoc = write_fake_pandoc(&root);
+        let args_path = root.join("epubcheck-args.txt");
+        let epubcheck = write_fake_epubcheck(&root, 2, &args_path);
+
+        let result = validate_book_with_toolchain(
+            &CommandContext::new(&root, None, None),
+            &fake_toolchain_with_paths(Some(pandoc), Some(epubcheck), ToolStatus::Available),
+        )
+        .unwrap();
+
+        assert!(result.has_errors);
+        let report = fs::read_to_string(&result.report_path).unwrap();
+        assert!(report.contains("epubcheck failed for the generated EPUB"));
+        assert!(report.contains("\"status\": \"failed\""));
+        assert!(
+            root.join("dist/logs/default-epubcheck-validate.log")
+                .is_file()
+        );
+        let args = fs::read_to_string(args_path).unwrap();
+        assert!(args.contains(".epub"));
     }
 
     #[test]

@@ -285,8 +285,9 @@ OS 上の実ファイルパス。
 4. target book 解決
 5. config load + merge
 6. validate / preflight plan 生成
-7. validator 実行
-8. summary と structured report を出力
+7. local lint と target 別 validator を実行
+8. report file を書き出す
+9. text summary と issue preview、必要なら stdout JSON を出力
 
 ### `shosei explain`
 
@@ -323,6 +324,7 @@ trait ToolAdapter {
 
 - 実行ファイル名差異は adapter 側で吸収
 - 生の stderr は保持するが、そのまま主表示しない
+- stdout / stderr の保存先を返せるようにする
 - core では domain 向けの error に変換する
 
 ## 10. cross-platform 方針
@@ -373,16 +375,24 @@ v0.1 の判断:
   - `cargo clippy --workspace --all-targets -- -D warnings`
   - `cargo test --workspace`
   - `cargo test -p shosei-core --test repo_discovery`
+  - `cargo test -p shosei-cli --test cli_smoke init_cli_interactive_shows_summary_and_writes_after_confirmation -- --exact`
+  - `cargo test -p shosei-cli --test cli_smoke validate_cli_prints_issue_preview -- --exact`
+  - `cargo test -p shosei-cli --test cli_smoke build_cli_prints_tools_and_writes_artifact -- --exact`
+  - `cargo test -p shosei-cli --test cli_smoke doctor_json_cli_includes_detected_project_context -- --exact`
   - `cargo run -p shosei-cli --bin shosei -- --help`
 
 最小スモーク対象:
 
+- `shosei init`
 - `shosei validate`
-- `shosei page check`
-- `shosei handoff proof`
+- `shosei build`
+- `shosei doctor`
 - `shosei --help`
 
-`init`, `build`, `doctor` の command-level smoke は fixture と外部依存の扱いが固まった段階で追加する。
+補足:
+
+- CI の job / step 名だけで、どの command-level smoke がどの OS で通ったか読めるようにする
+- `page check` と `handoff proof` は workspace test 側で引き続き検証してよい
 
 ## 13. 将来の分割条件
 
