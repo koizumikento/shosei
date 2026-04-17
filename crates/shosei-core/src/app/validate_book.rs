@@ -2481,12 +2481,9 @@ manga:
         assert!(report.contains("\"severity\": \"error\""));
     }
 
+    #[cfg(unix)]
     #[test]
     fn validate_runs_epubcheck_against_generated_kindle_artifact() {
-        if !cfg!(unix) {
-            return;
-        }
-
         let root = temp_dir("epubcheck-success");
         write_book_with_cover(&root, "error", true);
         let pandoc = write_fake_pandoc(&root);
@@ -2509,12 +2506,9 @@ manga:
         assert!(args.contains(".epub"));
     }
 
+    #[cfg(unix)]
     #[test]
     fn validate_reports_epubcheck_failures() {
-        if !cfg!(unix) {
-            return;
-        }
-
         let root = temp_dir("epubcheck-failure");
         write_book_with_cover(&root, "error", true);
         let pandoc = write_fake_pandoc(&root);
