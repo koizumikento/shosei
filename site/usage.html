@@ -387,7 +387,7 @@ status: unread</code></pre>
           <p>issue の <code>location</code> は、特定できる場合は file path に加えて line 番号も持ちます。</p>
           <p>CLI では summary の後に、先頭最大 5 件の issue を <code>原因 / 発生箇所 / 修正例</code> の形で続けて表示します。</p>
           <p><code>validate --json</code> を付けると、同じ report schema を stdout にもそのまま出せます。editor integration や script では file 出力に加えてこれを直接読めます。</p>
-          <p>現在の <code>validate</code> は local lint と tool availability check が中心で、<code>epubcheck</code> や Kindle/print 向け validator の実行結果を深く取り込む段階にはまだ達していません。target/profile ごとの実検証、stdout 向け <code>--json</code>、validator ログの <code>dist/logs/</code> 集約は次の remediation で強化します。</p>
+          <p>現在の <code>validate</code> は local lint と tool availability check が中心で、<code>epubcheck</code> や Kindle/print 向け validator の実行結果を深く取り込む段階にはまだ達していません。target/profile ごとの実検証と validator ログの <code>dist/logs/</code> 集約は次の remediation で強化します。</p>
         </section>
 
         <section>
