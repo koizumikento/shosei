@@ -2634,6 +2634,8 @@ mod tests {
                 manga_spread_policy_for_kindle: None,
                 manga_front_color_pages: None,
                 manga_body_mode: None,
+                include_introduction: None,
+                include_afterword: None,
                 initialize_git: false,
                 git_lfs: Some(false),
                 generate_sample: Some(false),
