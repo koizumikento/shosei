@@ -47,13 +47,20 @@ README のコマンド例は、今の CLI surface に合わせています。`ca
 
 ## インストール
 
-tag 付き GitHub Release では CLI archive と VSIX を配布します。Homebrew / Scoop 向け manifest は package repository publish が通ったときに更新されます。source install も引き続き使えます。
+tag 付き GitHub Release では CLI archive と VSIX を配布します。Homebrew / Scoop 向け manifest は package repository publish が通ったときに更新されます。VSIX は VS Code と Cursor の手動 install / update に使えます。source install も引き続き使えます。
 
 ### Homebrew (macOS)
 
 ```bash
 brew tap koizumikento/stray-tools https://github.com/koizumikento/stray-tools.git
 brew install koizumikento/stray-tools/shosei
+```
+
+すでに Homebrew で入れている CLI を更新するときは:
+
+```bash
+brew update
+brew upgrade koizumikento/stray-tools/shosei
 ```
 
 ### Scoop (Windows)
@@ -78,6 +85,13 @@ cargo install --path crates/shosei-cli
 ```bash
 cargo run -p shosei-cli --bin shosei -- --help
 ```
+
+### VS Code / Cursor 拡張の更新
+
+拡張は GitHub Release の `shosei-vscode-<version>.vsix` を使います。既存の拡張を更新するときも、新しい VSIX を選んで再 install すれば置き換わります。
+
+- VS Code: `Extensions: Install from VSIX...`
+- Cursor: `Extensions: Install from VSIX...`
 
 ## クイックスタート
 

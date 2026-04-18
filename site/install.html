@@ -6,7 +6,7 @@
     <title>shosei | Install</title>
     <meta
       name="description"
-      content="Install shosei with Homebrew, Scoop, or from source and run a smoke check."
+      content="Install or update shosei with Homebrew, Scoop, or from source, and update the VS Code / Cursor extension from VSIX."
     />
     <link rel="stylesheet" href="assets/style.css" />
   </head>
@@ -30,7 +30,7 @@
     <main class="content">
       <article class="page">
         <h1>Install</h1>
-        <p class="lead">tag 付き GitHub Release では CLI archive と VSIX を配布し、Homebrew / Scoop 向け manifest は package repository publish が通ったときに更新します。source install も引き続き使えます。</p>
+        <p class="lead">tag 付き GitHub Release では CLI archive と VSIX を配布し、Homebrew / Scoop 向け manifest は package repository publish が通ったときに更新します。VSIX は VS Code と Cursor の手動 install / update に使えます。source install も引き続き使えます。</p>
 
         <section>
           <h2>Requirements</h2>
@@ -44,6 +44,12 @@
           <h2>Install with Homebrew (macOS)</h2>
           <pre><code>brew tap koizumikento/stray-tools https://github.com/koizumikento/stray-tools.git
 brew install koizumikento/stray-tools/shosei</code></pre>
+        </section>
+
+        <section>
+          <h2>Update with Homebrew (macOS)</h2>
+          <pre><code>brew update
+brew upgrade koizumikento/stray-tools/shosei</code></pre>
         </section>
 
         <section>
@@ -66,6 +72,15 @@ cargo install --path crates/shosei-cli</code></pre>
         </section>
 
         <section>
+          <h2>Update the extension</h2>
+          <p>GitHub Release の <code>shosei-vscode-&lt;version&gt;.vsix</code> を使います。既存の拡張を更新するときも、新しい VSIX を選んで再 install すれば置き換わります。</p>
+          <ul>
+            <li>VS Code: <code>Extensions: Install from VSIX...</code></li>
+            <li>Cursor: <code>Extensions: Install from VSIX...</code></li>
+          </ul>
+        </section>
+
+        <section>
           <h2>Smoke check</h2>
           <p>インストール前に CLI surface を確認するだけなら、次で十分です。</p>
           <pre><code>cargo run -p shosei-cli --bin shosei -- --help</code></pre>
@@ -74,7 +89,7 @@ cargo install --path crates/shosei-cli</code></pre>
         <section>
           <h2>What gets installed</h2>
           <p>GitHub Release archive は release asset の `shosei` binary を使います。Homebrew / Scoop は release 後に package repository publish が成功した場合、その archive を参照する formula / manifest から導入できます。</p>
-          <p>`cargo install --path crates/shosei-cli` は workspace 内の CLI crate から `shosei` バイナリを build して install します。</p>
+          <p>`cargo install --path crates/shosei-cli` は workspace 内の CLI crate から `shosei` バイナリを build して install します。VSIX は VS Code と Cursor の手動 install / update に使います。</p>
         </section>
 
         <section>

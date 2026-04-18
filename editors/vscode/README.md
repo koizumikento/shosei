@@ -91,9 +91,9 @@ story surface も command palette と sidebar action から使う。`story scaff
 
 `series` repo で active file が `books/<book-id>/` 配下にない場合は、`shosei.series.defaultBookId` を設定できる。
 
-## Local install
+## Local install / update
 
-Marketplace に公開しなくても、手元の VS Code にだけ拡張を入れられる。
+Marketplace に公開しなくても、手元の VS Code や Cursor に拡張を入れられる。同じ VSIX を新しい version で再 install すれば update になる。
 
 VSIX を作る:
 
@@ -112,6 +112,7 @@ editors/vscode/shosei-vscode-0.2.1.vsix
 
 - VS Code で `Extensions: Install from VSIX...` を実行して上の `.vsix` を選ぶ
 - `code` CLI が使える場合は `code --install-extension editors/vscode/shosei-vscode-0.2.1.vsix`
+- Cursor では `Extensions: Install from VSIX...` を実行して同じ `.vsix` を選ぶ
 
 ローカル install 後も、実処理は `shosei` CLI に委譲する。source tree の CLI を使いたい場合は、下の `shosei.cli.command` / `shosei.cli.args` 設定を使う。
 
@@ -141,7 +142,7 @@ shosei-v0.2.1-aarch64-apple-darwin.tar.gz
 shosei-v0.2.1-x86_64-pc-windows-msvc.zip
 ```
 
-Homebrew / Scoop 向け manifest の publish は release 後段の package repository push が通った場合だけ行う。CLI archive と VSIX 自体は GitHub Release asset として常に添付される。
+Homebrew / Scoop 向け manifest の publish は release 後段の package repository push が通った場合だけ行う。CLI archive と VSIX 自体は GitHub Release asset として常に添付される。Cursor を含む VS Code 互換 editor の手動 update でも、この VSIX を使う。
 
 ## Development
 
