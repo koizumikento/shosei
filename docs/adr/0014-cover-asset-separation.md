@@ -33,6 +33,7 @@ cover:
 - `cover.ebook_image` は Kindle/EPUB 向けの外部カバー画像を表す
 - `manuscript` や `sections.type: cover` は本文フロー内ページを表し、`cover.ebook_image` の代替にはしない
 - `cover` は巻固有情報として扱い、`series.yml` の `defaults` では継承対象にしない
+- Kindle を含む `init` scaffold は `cover.ebook_image` と placeholder cover asset を book 単位で初期生成する
 - 印刷カバーの source 定義は別課題として扱い、`print.cover_pdf` の詳細化時に決める
 
 ## Consequences

@@ -486,6 +486,8 @@ prose の Kindle / EPUB build では `styles/base.css` と `styles/epub.css` を
 
 prose 系テンプレートでは、最初の原稿ファイルとして `paper` / `conference-preprint` は `single-book` で `manuscript/01-main.md`、`series` で `books/<book-id>/manuscript/01-main.md` を生成する。その他の prose は `01-chapter-1.md` を生成する。この `01-` prefix は初期命名の慣例で、章順の source of truth ではない。対話で opt-in した場合だけ、`single-book` では `manuscript/00-introduction.md` と `manuscript/99-afterword.md`、`series` では `books/<book-id>/manuscript/00-introduction.md` と `books/<book-id>/manuscript/99-afterword.md` も追加する。
 
+Kindle を含む scaffold では、`single-book` に `cover.ebook_image: assets/cover/front.png` と `assets/cover/front.png` を生成する。`series` では各巻の `book.yml` に `cover.ebook_image: books/<book-id>/assets/cover/front.png` を書き、対応する placeholder cover asset も `books/<book-id>/assets/cover/front.png` に置く。
+
 また、prose 系では空の `editorial/style.yml`, `editorial/claims.yml`, `editorial/figures.yml`, `editorial/freshness.yml` を生成し、`single-book` では `book.yml`、`series` では `books/<book-id>/book.yml` から参照する。style 側は `single-book` では `styles/base.css`, `styles/epub.css`, `styles/print.css`、`series` では `shared/styles/base.css`, `shared/styles/epub.css`, `shared/styles/print.css` を生成する。これらの default CSS は template/profile ごとに異なり、`init` で選んだ `book.writing_mode` に合わせて prose の `base.css` を切り替える。`novel` / `light-novel` の `print.css` は PDF 向けに本文サイズを半段締め、扉と目次を控えめに整える。本文へのページ分離は generated layout stylesheet が持つ。
 
 生成される config field の意味は [設定リファレンス](config-reference.md) にまとめる。正式な schema や制約は `docs/specs/` を参照する。

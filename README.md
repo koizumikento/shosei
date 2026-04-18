@@ -208,6 +208,8 @@ repo/
 
 prose 系テンプレートでは、最初の原稿ファイルも生成します。`paper` / `conference-preprint` は `manuscript/01-main.md`、その他の prose は `manuscript/01-chapter-1.md` です。対話で選んだ場合だけ、追加で `manuscript/00-introduction.md` と `manuscript/99-afterword.md` も scaffold します。
 
+Kindle を含む scaffold では、`cover.ebook_image` と placeholder の `assets/cover/front.png` も初期生成します。`series` では各巻の `books/<book-id>/assets/cover/front.png` を使います。
+
 この `01-` prefix は初期命名の慣例です。prose の章順は filename prefix ではなく `book.yml` の `manuscript.chapters` で決まります。prefix を整えたい場合は `shosei chapter renumber` を明示的に使います。
 
 生成される config field の意味は [docs/config-reference.md](docs/config-reference.md) にまとめています。正式な schema や制約は `docs/specs/` を参照してください。

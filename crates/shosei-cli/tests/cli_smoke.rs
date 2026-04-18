@@ -587,6 +587,9 @@ fn init_cli_interactive_shows_summary_and_writes_after_confirmation() {
     assert!(stdout.contains("if Git LFS is not set up on this machine, run: git lfs install"));
     assert!(stdout.contains("toolchain hint: run shosei doctor"));
     assert!(root.join("book.yml").is_file());
+    assert!(root.join("assets/cover/front.png").is_file());
+    let book = fs::read_to_string(root.join("book.yml")).unwrap();
+    assert!(book.contains("cover:\n  ebook_image: assets/cover/front.png"));
 }
 
 #[test]
@@ -643,6 +646,9 @@ fn init_cli_interactive_series_accepts_custom_initial_book_id() {
     assert!(stdout.contains("shosei explain --book pilot"));
     assert!(stdout.contains("shosei validate --book pilot"));
     assert!(root.join("books/pilot/book.yml").is_file());
+    assert!(root.join("books/pilot/assets/cover/front.png").is_file());
+    let book = fs::read_to_string(root.join("books/pilot/book.yml")).unwrap();
+    assert!(book.contains("cover:\n  ebook_image: books/pilot/assets/cover/front.png"));
 }
 
 #[test]

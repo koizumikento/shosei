@@ -14,6 +14,14 @@ const SHOSEI_CONTENT_REVIEW_SKILL_TEMPLATE: &str =
 const DEFAULT_SERIES_BOOK_ID: &str = "vol-01";
 const INTRODUCTION_FILE: &str = "00-introduction.md";
 const AFTERWORD_FILE: &str = "99-afterword.md";
+const COVER_FILE: &str = "front.png";
+const COVER_PLACEHOLDER_PNG: &[u8] = &[
+    0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44, 0x52,
+    0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x08, 0x06, 0x00, 0x00, 0x00, 0x1f, 0x15, 0xc4,
+    0x89, 0x00, 0x00, 0x00, 0x0d, 0x49, 0x44, 0x41, 0x54, 0x78, 0x9c, 0x63, 0xf8, 0xcf, 0xc0, 0xf0,
+    0x1f, 0x00, 0x05, 0x00, 0x01, 0xff, 0x89, 0x99, 0x3d, 0x1d, 0x00, 0x00, 0x00, 0x00, 0x49, 0x45,
+    0x4e, 0x44, 0xae, 0x42, 0x60, 0x82,
+];
 
 #[derive(Debug, Clone)]
 pub struct InitProjectOptions {
@@ -467,6 +475,10 @@ impl OutputPreset {
             }),
         }
     }
+
+    fn includes_kindle(self) -> bool {
+        matches!(self, Self::Kindle | Self::Both)
+    }
 }
 
 impl InitWritingMode {
@@ -873,6 +885,7 @@ impl ProjectProfile {
 fn init_single_book(root: &Path, scaffold: &InitScaffoldConfig) -> Result<(), InitProjectError> {
     let template = scaffold.template;
     ensure_standard_dirs(root)?;
+    write_cover_scaffold(&root.join("assets"), scaffold)?;
     if template == ProjectTemplate::Manga {
         ensure_dir(&root.join("manga/script"))?;
         ensure_dir(&root.join("manga/storyboard"))?;
@@ -927,6 +940,7 @@ fn init_series(root: &Path, scaffold: &InitScaffoldConfig) -> Result<(), InitPro
     ensure_dir(&root.join("shared/fonts"))?;
     ensure_dir(&root.join("shared/metadata"))?;
     ensure_dir(&book_root.join("assets"))?;
+    write_cover_scaffold(&book_root.join("assets"), scaffold)?;
     ensure_dir(&root.join("dist"))?;
 
     if template == ProjectTemplate::Manga {
@@ -980,9 +994,11 @@ fn init_series(root: &Path, scaffold: &InitScaffoldConfig) -> Result<(), InitPro
 
 fn book_yml(scaffold: &InitScaffoldConfig) -> String {
     let template = scaffold.template;
+    let cover_block = cover_block(scaffold, None);
     let manuscript_block = if template == ProjectTemplate::Manga {
         format!(
-            "{}validation:\n  strict: true\n  epubcheck: false\n  accessibility: warn\ngit:\n  lfs: {}\nmanga:\n  reading_direction: {}\n  default_page_side: {}\n  spread_policy_for_kindle: {}\n  front_color_pages: {}\n  body_mode: {}\n",
+            "{}{}validation:\n  strict: true\n  epubcheck: false\n  accessibility: warn\ngit:\n  lfs: {}\nmanga:\n  reading_direction: {}\n  default_page_side: {}\n  spread_policy_for_kindle: {}\n  front_color_pages: {}\n  body_mode: {}\n",
+            cover_block,
             outputs_block(scaffold),
             if scaffold.git_lfs { "true" } else { "false" },
             scaffold.writing_mode.reading_direction(),
@@ -1011,7 +1027,8 @@ fn book_yml(scaffold: &InitScaffoldConfig) -> String {
         )
     } else {
         format!(
-            "{}{}validation:\n  strict: true\n  epubcheck: true\n  accessibility: warn\ngit:\n  lfs: {}\neditorial:\n  style: editorial/style.yml\n  claims: editorial/claims.yml\n  figures: editorial/figures.yml\n  freshness: editorial/freshness.yml\n",
+            "{}{}{}validation:\n  strict: true\n  epubcheck: true\n  accessibility: warn\ngit:\n  lfs: {}\neditorial:\n  style: editorial/style.yml\n  claims: editorial/claims.yml\n  figures: editorial/figures.yml\n  freshness: editorial/freshness.yml\n",
+            cover_block,
             prose_manuscript_block(scaffold, None),
             outputs_block(scaffold),
             if scaffold.git_lfs { "true" } else { "false" }
@@ -1066,14 +1083,16 @@ fn series_yml(scaffold: &InitScaffoldConfig) -> String {
 fn series_book_yml(scaffold: &InitScaffoldConfig) -> String {
     let template = scaffold.template;
     let book_root = format!("books/{}", scaffold.series_book_id());
+    let cover_block = cover_block(scaffold, Some(&book_root));
     if template == ProjectTemplate::Manga {
         format!(
-            "project:\n  type: {}\n  vcs: git\n  version: 1\nbook:\n  title: \"{}\"\n  authors:\n    - \"{}\"\n  language: {}\nlayout:\n  binding: {}\n  chapter_start_page: odd\n  allow_blank_pages: true\nmanga:\n  reading_direction: {}\n  default_page_side: {}\n  spread_policy_for_kindle: {}\n  front_color_pages: {}\n  body_mode: {}\n",
+            "project:\n  type: {}\n  vcs: git\n  version: 1\nbook:\n  title: \"{}\"\n  authors:\n    - \"{}\"\n  language: {}\nlayout:\n  binding: {}\n  chapter_start_page: odd\n  allow_blank_pages: true\n{}manga:\n  reading_direction: {}\n  default_page_side: {}\n  spread_policy_for_kindle: {}\n  front_color_pages: {}\n  body_mode: {}\n",
             template.as_str(),
             scaffold.title,
             scaffold.author,
             scaffold.language,
             scaffold.binding.as_str(),
+            cover_block,
             scaffold.writing_mode.reading_direction(),
             if scaffold.binding == InitBinding::Left {
                 "left"
@@ -1100,7 +1119,7 @@ fn series_book_yml(scaffold: &InitScaffoldConfig) -> String {
         )
     } else {
         format!(
-            "project:\n  type: {}\n  vcs: git\n  version: 1\nbook:\n  title: \"{}\"\n  authors:\n    - \"{}\"\n  language: {}\nlayout:\n  binding: {}\n  chapter_start_page: {}\n  allow_blank_pages: {}\n{}editorial:\n  style: {}/editorial/style.yml\n  claims: {}/editorial/claims.yml\n  figures: {}/editorial/figures.yml\n  freshness: {}/editorial/freshness.yml\n",
+            "project:\n  type: {}\n  vcs: git\n  version: 1\nbook:\n  title: \"{}\"\n  authors:\n    - \"{}\"\n  language: {}\nlayout:\n  binding: {}\n  chapter_start_page: {}\n  allow_blank_pages: {}\n{}{}editorial:\n  style: {}/editorial/style.yml\n  claims: {}/editorial/claims.yml\n  figures: {}/editorial/figures.yml\n  freshness: {}/editorial/freshness.yml\n",
             template.as_str(),
             scaffold.title,
             scaffold.author,
@@ -1108,6 +1127,7 @@ fn series_book_yml(scaffold: &InitScaffoldConfig) -> String {
             scaffold.binding.as_str(),
             scaffold.profile.chapter_start_page(),
             scaffold.profile.allow_blank_pages(),
+            cover_block,
             prose_manuscript_block(scaffold, Some(&book_root)),
             book_root,
             book_root,
@@ -1134,6 +1154,24 @@ fn prose_manuscript_block(scaffold: &InitScaffoldConfig, prefix: Option<&str>) -
         lines.push(format!("    - {prefix}manuscript/{AFTERWORD_FILE}"));
     }
     lines.join("\n") + "\n"
+}
+
+fn cover_block(scaffold: &InitScaffoldConfig, prefix: Option<&str>) -> String {
+    if !scaffold.output_preset.includes_kindle() {
+        return String::new();
+    }
+
+    format!(
+        "cover:\n  ebook_image: {}\n",
+        cover_repo_path(prefix).replace('\\', "/")
+    )
+}
+
+fn cover_repo_path(prefix: Option<&str>) -> String {
+    match prefix {
+        Some(prefix) => format!("{prefix}/assets/cover/{COVER_FILE}"),
+        None => format!("assets/cover/{COVER_FILE}"),
+    }
 }
 
 fn outputs_block(scaffold: &InitScaffoldConfig) -> String {
@@ -1296,6 +1334,26 @@ fn write_file(path: &Path, contents: &str) -> Result<(), InitProjectError> {
         path: path.display().to_string(),
         source,
     })
+}
+
+fn write_bytes(path: &Path, contents: &[u8]) -> Result<(), InitProjectError> {
+    fs::write(path, contents).map_err(|source| InitProjectError::WriteFile {
+        path: path.display().to_string(),
+        source,
+    })
+}
+
+fn write_cover_scaffold(
+    assets_root: &Path,
+    scaffold: &InitScaffoldConfig,
+) -> Result<(), InitProjectError> {
+    if !scaffold.output_preset.includes_kindle() {
+        return Ok(());
+    }
+
+    let cover_dir = assets_root.join("cover");
+    ensure_dir(&cover_dir)?;
+    write_bytes(&cover_dir.join(COVER_FILE), COVER_PLACEHOLDER_PNG)
 }
 
 fn gitignore_contents() -> &'static str {
@@ -1909,9 +1967,11 @@ mod tests {
         assert!(root.join("styles/base.css").is_file());
         assert!(root.join("styles/epub.css").is_file());
         assert!(root.join("styles/print.css").is_file());
+        assert!(root.join("assets/cover/front.png").is_file());
         let book = fs::read_to_string(root.join("book.yml")).unwrap();
         assert!(!book.contains("frontmatter:"));
         assert!(!book.contains("backmatter:"));
+        assert!(book.contains("cover:\n  ebook_image: assets/cover/front.png"));
         assert!(book.contains("editorial:\n  style: editorial/style.yml"));
         assert!(book.contains("engine: chromium"));
         crate::config::load_book_config(&root.join("book.yml")).unwrap();
@@ -1999,8 +2059,13 @@ mod tests {
         assert!(root.join("shared/styles/epub.css").is_file());
         assert!(root.join("shared/styles/print.css").is_file());
         assert!(book_root.join("manga/pages").is_dir());
+        assert!(book_root.join("assets/cover/front.png").is_file());
         crate::config::load_series_config(&root.join("series.yml")).unwrap();
         crate::config::load_book_config(&book_root.join("book.yml")).unwrap();
+        let book = fs::read_to_string(book_root.join("book.yml")).unwrap();
+        assert!(book.contains(&format!(
+            "cover:\n  ebook_image: books/{DEFAULT_SERIES_BOOK_ID}/assets/cover/front.png"
+        )));
         let skill = read_skill(&root, "shosei-project");
         assert!(skill.contains("series"));
         assert!(skill.contains(&format!("shosei explain --book {DEFAULT_SERIES_BOOK_ID}")));
@@ -2592,10 +2657,12 @@ mod tests {
         assert!(book.contains("crop_marks: false"));
         assert!(book.contains("engine: weasyprint"));
         assert!(book.contains("git:\n  lfs: false"));
+        assert!(!book.contains("cover:\n"));
         assert_eq!(
             fs::read_to_string(root.join("manuscript/01-chapter-1.md")).unwrap(),
             ""
         );
+        assert!(!root.join("assets/cover/front.png").exists());
         assert!(!root.join(".gitattributes").exists());
         let base_css = fs::read_to_string(root.join("styles/base.css")).unwrap();
         assert!(base_css.contains("writing-mode: horizontal-tb"));

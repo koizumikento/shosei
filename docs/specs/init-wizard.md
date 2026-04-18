@@ -214,6 +214,7 @@ v0.1 で残す引数:
 - Kindle target
   - prose: `kindle-ja`
   - manga: `kindle-comic`
+- Kindle を含む scaffold では `cover.ebook_image` と placeholder cover asset も初期生成する
 
 ### `print`
 
@@ -364,6 +365,7 @@ v0.1 で残す引数:
 - `series` では `paper` / `conference-preprint` に `books/<book-id>/manuscript/01-main.md`、それ以外に `books/<book-id>/manuscript/01-chapter-1.md`
 - `series` では `books/<book-id>/editorial/style.yml`, `books/<book-id>/editorial/claims.yml`, `books/<book-id>/editorial/figures.yml`, `books/<book-id>/editorial/freshness.yml`
 - `series` では `shared/styles/base.css`, `shared/styles/epub.css`, `shared/styles/print.css`
+- Kindle を含む scaffold では `single-book` に `cover.ebook_image: assets/cover/front.png` と `assets/cover/front.png`、`series` に `cover.ebook_image: books/<book-id>/assets/cover/front.png` と `books/<book-id>/assets/cover/front.png`
 - prose の style file は template/profile ごとの既定見た目を持つ
   - `business`, `paper`: 横組み prose 向け
   - `novel`, `light-novel`: 縦組み prose 向け
