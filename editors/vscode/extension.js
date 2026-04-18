@@ -769,6 +769,8 @@ async function runInitCommand(vscode, output, extensionContext, viewProvider) {
       author: initOptions.author,
       language: initOptions.language,
       outputPreset: initOptions.outputPreset,
+      includeIntroduction: initOptions.includeIntroduction,
+      includeAfterword: initOptions.includeAfterword,
       force: initOptions.force
     }),
     extensionContext,
@@ -2290,6 +2292,34 @@ async function promptInitOptions(vscode, targetRoot) {
     return null;
   }
 
+  const includeIntroduction =
+    configTemplate !== "manga"
+      ? await promptBooleanChoice(vscode, {
+          title: "Introduction scaffold",
+          placeHolder: "Add a frontmatter scaffold such as はじめに?",
+          trueLabel: "Add introduction",
+          falseLabel: "Skip introduction",
+          defaultValue: false
+        })
+      : null;
+  if (configTemplate !== "manga" && includeIntroduction === undefined) {
+    return null;
+  }
+
+  const includeAfterword =
+    configTemplate !== "manga"
+      ? await promptBooleanChoice(vscode, {
+          title: "Afterword scaffold",
+          placeHolder: "Add a backmatter scaffold such as おわりに?",
+          trueLabel: "Add afterword",
+          falseLabel: "Skip afterword",
+          defaultValue: false
+        })
+      : null;
+  if (configTemplate !== "manga" && includeAfterword === undefined) {
+    return null;
+  }
+
   let force = false;
   if (hasInitConfig(targetRoot)) {
     const overwrite = await promptBooleanChoice(vscode, {
@@ -2325,6 +2355,8 @@ async function promptInitOptions(vscode, targetRoot) {
     author: author.trim(),
     language: language.trim(),
     outputPreset,
+    includeIntroduction: Boolean(includeIntroduction),
+    includeAfterword: Boolean(includeAfterword),
     force,
     runDoctor
   };

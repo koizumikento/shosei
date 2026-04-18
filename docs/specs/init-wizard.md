@@ -99,12 +99,15 @@ v0.1 で残す引数:
 - `--author`
 - `--language`
 - `--output-preset`
+- `--include-introduction`
+- `--include-afterword`
 - positional `PATH`
 
 補足:
 
 - 本文方向、綴じ方向、print 設定、Git、sample 生成は現在 interactive 質問で受ける
-- これらの値を個別に上書きする dedicated CLI flag はまだ持たない
+- `--include-introduction`, `--include-afterword` は non-interactive で prose の前付き / 後付き scaffold を opt-in するためのフラグとする
+- 本文方向、綴じ方向、print 設定、Git、sample 生成は dedicated CLI flag をまだ持たない
 
 ## 5. 質問一覧
 

@@ -718,6 +718,39 @@ fn init_cli_with_config_template_still_runs_interactive_wizard() {
 }
 
 #[test]
+fn init_cli_non_interactive_can_include_introduction_and_afterword() {
+    let root = temp_dir("init-non-interactive-front-back-matter");
+
+    let output = Command::new(env!("CARGO_BIN_EXE_shosei"))
+        .args([
+            "init",
+            root.to_str().unwrap(),
+            "--non-interactive",
+            "--config-template",
+            "business",
+            "--title",
+            "Business Title",
+            "--author",
+            "Sample Author",
+            "--language",
+            "ja",
+            "--output-preset",
+            "kindle",
+            "--include-introduction",
+            "--include-afterword",
+        ])
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    let book = fs::read_to_string(root.join("book.yml")).unwrap();
+    assert!(book.contains("frontmatter:\n    - manuscript/00-introduction.md"));
+    assert!(book.contains("backmatter:\n    - manuscript/99-afterword.md"));
+    assert!(root.join("manuscript/00-introduction.md").is_file());
+    assert!(root.join("manuscript/99-afterword.md").is_file());
+}
+
+#[test]
 fn page_check_cli_prints_summary_and_issue_preview() {
     let root = temp_dir("page-check-preview");
     write_page_check_fixture(&root);

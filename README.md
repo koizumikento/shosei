@@ -106,7 +106,7 @@ shosei build
 shosei validate
 ```
 
-`init` は現在、作品カテゴリ、repo mode、出力先、本文方向、綴じ方向、print 設定、prose の前付き / 後付き、Git、sample 生成を含む対話式です。既定値で一気に scaffold を作る場合は `--non-interactive --config-template <template>` を使えます。`--title`, `--author`, `--language`, `--output-preset`, `--repo-mode` で対話項目を明示 override できます。`series` を選ぶ場合は `--initial-book-id <book-id>` も使え、既定値は `vol-01` です。利用できるテンプレートは `business`, `paper`, `novel`, `light-novel`, `manga` です。`paper` では `--config-profile paper|conference-preprint` を受け付けます。
+`init` は現在、作品カテゴリ、repo mode、出力先、本文方向、綴じ方向、print 設定、prose の前付き / 後付き、Git、sample 生成を含む対話式です。既定値で一気に scaffold を作る場合は `--non-interactive --config-template <template>` を使えます。`--title`, `--author`, `--language`, `--output-preset`, `--repo-mode` で対話項目を明示 override でき、prose の前付き / 後付き scaffold は `--include-introduction`, `--include-afterword` で non-interactive でも opt-in できます。`series` を選ぶ場合は `--initial-book-id <book-id>` も使え、既定値は `vol-01` です。利用できるテンプレートは `business`, `paper`, `novel`, `light-novel`, `manga` です。`paper` では `--config-profile paper|conference-preprint` を受け付けます。
 
 ```bash
 shosei init ./preprint --config-template paper --config-profile conference-preprint --non-interactive

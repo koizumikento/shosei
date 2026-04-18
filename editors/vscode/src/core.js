@@ -187,6 +187,12 @@ function buildInitCommandParts(options = {}) {
   appendOptionArg(args, "--author", options.author);
   appendOptionArg(args, "--language", options.language);
   appendOptionArg(args, "--output-preset", options.outputPreset);
+  if (options.includeIntroduction) {
+    args.push("--include-introduction");
+  }
+  if (options.includeAfterword) {
+    args.push("--include-afterword");
+  }
 
   return args;
 }

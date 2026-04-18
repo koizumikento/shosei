@@ -238,6 +238,7 @@ v0.1 の現行質問項目:
 
 - `--non-interactive --config-template <template>` を使うと既定値で scaffold を生成できる
 - `--title`, `--author`, `--language`, `--output-preset`, `--repo-mode` を付けると対話で決める値を明示 override できる
+- prose の前付き / 後付き scaffold は `--include-introduction`, `--include-afterword` で non-interactive でも opt-in できる
 - `series` を選ぶ場合は `--initial-book-id <book-id>` も使え、既定値は `vol-01` とする
 - 初期 book id は 1 つの path segment とし、空文字、`/`, `\\`, 空白, `.`, `..` は受け付けない
 - `paper` を選んだ場合は prose 系のまま扱い、`paper` または `conference-preprint` の profile を後続質問で選べるようにする

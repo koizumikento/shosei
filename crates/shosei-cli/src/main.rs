@@ -38,6 +38,8 @@ fn run() -> Result<i32> {
             author,
             language,
             output_preset,
+            include_introduction,
+            include_afterword,
         } => {
             output::print_line(prompts::init_mode_banner());
             let target = path.unwrap_or(std::env::current_dir()?);
@@ -132,10 +134,16 @@ fn run() -> Result<i32> {
                     .and_then(|answers| answers.manga_body_mode.clone()),
                 include_introduction: wizard_answers
                     .as_ref()
-                    .and_then(|answers| answers.include_introduction),
+                    .and_then(|answers| answers.include_introduction)
+                    .or(if include_introduction {
+                        Some(true)
+                    } else {
+                        None
+                    }),
                 include_afterword: wizard_answers
                     .as_ref()
-                    .and_then(|answers| answers.include_afterword),
+                    .and_then(|answers| answers.include_afterword)
+                    .or(if include_afterword { Some(true) } else { None }),
                 initialize_git: wizard_answers
                     .as_ref()
                     .map(|answers| answers.initialize_git)

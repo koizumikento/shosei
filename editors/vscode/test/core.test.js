@@ -82,6 +82,8 @@ test("buildInitCommandParts maps guided init answers to flags", () => {
     author: "Ken",
     language: "ja-JP",
     outputPreset: "both",
+    includeIntroduction: true,
+    includeAfterword: true,
     force: true
   });
 
@@ -101,7 +103,9 @@ test("buildInitCommandParts maps guided init answers to flags", () => {
     "--language",
     "ja-JP",
     "--output-preset",
-    "both"
+    "both",
+    "--include-introduction",
+    "--include-afterword"
   ]);
 });
 

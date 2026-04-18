@@ -470,7 +470,7 @@ prose の Kindle / EPUB build では `styles/base.css` と `styles/epub.css` を
 
 ## Generated scaffold
 
-`init` は標準では対話式で、作品カテゴリ、`paper` の場合は profile、repo mode、`series` の場合は初期 book id、タイトル、著者名、言語、出力先、本文方向、綴じ方向を確認してから、必要に応じて print 設定、manga 設定、prose の前付き / 後付き、Git、sample 生成も質問する。最後に scaffold plan の summary を表示し、確認後に生成する。`--non-interactive --config-template <template>` を使うと既定値で生成できる。`--title`, `--author`, `--language`, `--output-preset`, `--repo-mode` で対話項目を explicit に上書きできる。`series` では追加で `--initial-book-id <book-id>` を受け付け、既定値は `vol-01` になる。`paper` では追加で `--config-profile paper|conference-preprint` を受け付ける。
+`init` は標準では対話式で、作品カテゴリ、`paper` の場合は profile、repo mode、`series` の場合は初期 book id、タイトル、著者名、言語、出力先、本文方向、綴じ方向を確認してから、必要に応じて print 設定、manga 設定、prose の前付き / 後付き、Git、sample 生成も質問する。最後に scaffold plan の summary を表示し、確認後に生成する。`--non-interactive --config-template <template>` を使うと既定値で生成できる。`--title`, `--author`, `--language`, `--output-preset`, `--repo-mode` で対話項目を explicit に上書きできる。`series` では追加で `--initial-book-id <book-id>` を受け付け、既定値は `vol-01` になる。prose の前付き / 後付き scaffold が必要な場合は `--include-introduction`, `--include-afterword` を追加で指定できる。`paper` では追加で `--config-profile paper|conference-preprint` を受け付ける。
 
 テンプレートに応じて、次のような土台を生成する。
 

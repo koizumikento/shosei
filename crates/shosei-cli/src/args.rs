@@ -34,6 +34,10 @@ pub enum Commands {
         language: Option<String>,
         #[arg(long, value_name = "OUTPUT", value_parser = ["kindle", "print", "both"])]
         output_preset: Option<String>,
+        #[arg(long)]
+        include_introduction: bool,
+        #[arg(long)]
+        include_afterword: bool,
     },
     Explain {
         #[arg(long)]
@@ -404,6 +408,8 @@ mod tests {
             "ja-JP",
             "--output-preset",
             "both",
+            "--include-introduction",
+            "--include-afterword",
         ]);
 
         match cli.command {
@@ -416,6 +422,8 @@ mod tests {
                 author,
                 language,
                 output_preset,
+                include_introduction,
+                include_afterword,
                 ..
             } => {
                 assert_eq!(path, Some(PathBuf::from("./my-book")));
@@ -426,6 +434,8 @@ mod tests {
                 assert_eq!(author.as_deref(), Some("Ken"));
                 assert_eq!(language.as_deref(), Some("ja-JP"));
                 assert_eq!(output_preset.as_deref(), Some("both"));
+                assert!(include_introduction);
+                assert!(include_afterword);
             }
             other => panic!("unexpected command: {other:?}"),
         }
