@@ -24,6 +24,8 @@ pub struct InitWizardAnswers {
     pub manga_spread_policy_for_kindle: Option<String>,
     pub manga_front_color_pages: Option<u64>,
     pub manga_body_mode: Option<String>,
+    pub include_introduction: Option<bool>,
+    pub include_afterword: Option<bool>,
     pub initialize_git: bool,
     pub git_lfs: bool,
     pub generate_sample: bool,
@@ -196,6 +198,15 @@ pub fn prompt_init_wizard() -> io::Result<InitWizardAnswers> {
             (None, None, None)
         };
 
+    let (include_introduction, include_afterword) = if config_template != "manga" {
+        (
+            Some(prompt_yes_no("前付きを追加しますか（はじめに等）", false)?),
+            Some(prompt_yes_no("後付きを追加しますか（おわりに等）", false)?),
+        )
+    } else {
+        (None, None)
+    };
+
     let initialize_git = prompt_yes_no("Git リポジトリを初期化しますか", false)?;
     let git_lfs = prompt_yes_no("Git LFS を前提にしますか", true)?;
     let generate_sample = prompt_yes_no("サンプル原稿を生成しますか", true)?;
@@ -221,6 +232,8 @@ pub fn prompt_init_wizard() -> io::Result<InitWizardAnswers> {
         manga_spread_policy_for_kindle,
         manga_front_color_pages,
         manga_body_mode,
+        include_introduction,
+        include_afterword,
         initialize_git,
         git_lfs,
         generate_sample,
@@ -285,6 +298,18 @@ pub fn render_init_summary(target: &Path, answers: &InitWizardAnswers) -> String
     }
     if let Some(body_mode) = answers.manga_body_mode.as_ref() {
         lines.push(format!("- manga body mode: {body_mode}"));
+    }
+    if let Some(include_introduction) = answers.include_introduction {
+        lines.push(format!(
+            "- include introduction: {}",
+            if include_introduction { "yes" } else { "no" }
+        ));
+    }
+    if let Some(include_afterword) = answers.include_afterword {
+        lines.push(format!(
+            "- include afterword: {}",
+            if include_afterword { "yes" } else { "no" }
+        ));
     }
     lines.extend([
         format!("- initialize git: {initialize_git}"),

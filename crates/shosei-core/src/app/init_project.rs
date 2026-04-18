@@ -12,6 +12,8 @@ const SHOSEI_PROJECT_SKILL_TEMPLATE: &str = include_str!("../../templates/shosei
 const SHOSEI_CONTENT_REVIEW_SKILL_TEMPLATE: &str =
     include_str!("../../templates/shosei-content-review.md");
 const DEFAULT_SERIES_BOOK_ID: &str = "vol-01";
+const INTRODUCTION_FILE: &str = "00-introduction.md";
+const AFTERWORD_FILE: &str = "99-afterword.md";
 
 #[derive(Debug, Clone)]
 pub struct InitProjectOptions {
@@ -37,6 +39,8 @@ pub struct InitProjectOptions {
     pub manga_spread_policy_for_kindle: Option<String>,
     pub manga_front_color_pages: Option<u64>,
     pub manga_body_mode: Option<String>,
+    pub include_introduction: Option<bool>,
+    pub include_afterword: Option<bool>,
     pub initialize_git: bool,
     pub git_lfs: Option<bool>,
     pub generate_sample: Option<bool>,
@@ -197,6 +201,8 @@ struct InitScaffoldConfig {
     binding: InitBinding,
     print: Option<InitPrintConfig>,
     manga: Option<InitMangaConfig>,
+    include_introduction: bool,
+    include_afterword: bool,
     git_lfs: bool,
     generate_sample: bool,
 }
@@ -228,6 +234,8 @@ pub fn init_project(options: InitProjectOptions) -> Result<InitProjectResult, In
         options.manga_front_color_pages,
         options.manga_body_mode.as_deref(),
     )?;
+    let include_introduction = options.include_introduction.unwrap_or(false);
+    let include_afterword = options.include_afterword.unwrap_or(false);
     let git_lfs = options.git_lfs.unwrap_or(true);
     let generate_sample = options.generate_sample.unwrap_or(true);
     let scaffold = InitScaffoldConfig {
@@ -242,6 +250,8 @@ pub fn init_project(options: InitProjectOptions) -> Result<InitProjectResult, In
         binding,
         print,
         manga,
+        include_introduction,
+        include_afterword,
         git_lfs,
         generate_sample,
     };
@@ -366,6 +376,22 @@ fn maybe_init_git(
 impl InitScaffoldConfig {
     fn series_book_id(&self) -> &str {
         &self.initial_series_book_id
+    }
+
+    fn introduction_heading(&self) -> &'static str {
+        if self.generate_sample {
+            "# Introduction\n\nWrite here.\n"
+        } else {
+            ""
+        }
+    }
+
+    fn afterword_heading(&self) -> &'static str {
+        if self.generate_sample {
+            "# Afterword\n\nWrite here.\n"
+        } else {
+            ""
+        }
     }
 }
 
@@ -855,12 +881,24 @@ fn init_single_book(root: &Path, scaffold: &InitScaffoldConfig) -> Result<(), In
         ensure_dir(&root.join("manga/metadata"))?;
     } else {
         ensure_dir(&root.join("manuscript"))?;
+        if scaffold.include_introduction {
+            write_file(
+                &root.join("manuscript").join(INTRODUCTION_FILE),
+                scaffold.introduction_heading(),
+            )?;
+        }
         write_file(
             &root.join(format!("manuscript/{}", scaffold.profile.manuscript_file())),
             scaffold
                 .profile
                 .manuscript_heading(scaffold.generate_sample),
         )?;
+        if scaffold.include_afterword {
+            write_file(
+                &root.join("manuscript").join(AFTERWORD_FILE),
+                scaffold.afterword_heading(),
+            )?;
+        }
         write_editorial_scaffold(&root.join("editorial"))?;
     }
 
@@ -900,6 +938,12 @@ fn init_series(root: &Path, scaffold: &InitScaffoldConfig) -> Result<(), InitPro
     } else {
         ensure_dir(&book_root.join("manuscript"))?;
         write_editorial_scaffold(&book_root.join("editorial"))?;
+        if scaffold.include_introduction {
+            write_file(
+                &book_root.join("manuscript").join(INTRODUCTION_FILE),
+                scaffold.introduction_heading(),
+            )?;
+        }
         write_file(
             &book_root
                 .join("manuscript")
@@ -908,6 +952,12 @@ fn init_series(root: &Path, scaffold: &InitScaffoldConfig) -> Result<(), InitPro
                 .profile
                 .manuscript_heading(scaffold.generate_sample),
         )?;
+        if scaffold.include_afterword {
+            write_file(
+                &book_root.join("manuscript").join(AFTERWORD_FILE),
+                scaffold.afterword_heading(),
+            )?;
+        }
     }
 
     write_file(&root.join("series.yml"), &series_yml(scaffold))?;
@@ -961,8 +1011,8 @@ fn book_yml(scaffold: &InitScaffoldConfig) -> String {
         )
     } else {
         format!(
-            "manuscript:\n  chapters:\n    - manuscript/{}\n{}validation:\n  strict: true\n  epubcheck: true\n  accessibility: warn\ngit:\n  lfs: {}\neditorial:\n  style: editorial/style.yml\n  claims: editorial/claims.yml\n  figures: editorial/figures.yml\n  freshness: editorial/freshness.yml\n",
-            scaffold.profile.manuscript_file(),
+            "{}{}validation:\n  strict: true\n  epubcheck: true\n  accessibility: warn\ngit:\n  lfs: {}\neditorial:\n  style: editorial/style.yml\n  claims: editorial/claims.yml\n  figures: editorial/figures.yml\n  freshness: editorial/freshness.yml\n",
+            prose_manuscript_block(scaffold, None),
             outputs_block(scaffold),
             if scaffold.git_lfs { "true" } else { "false" }
         )
@@ -1050,7 +1100,7 @@ fn series_book_yml(scaffold: &InitScaffoldConfig) -> String {
         )
     } else {
         format!(
-            "project:\n  type: {}\n  vcs: git\n  version: 1\nbook:\n  title: \"{}\"\n  authors:\n    - \"{}\"\n  language: {}\nlayout:\n  binding: {}\n  chapter_start_page: {}\n  allow_blank_pages: {}\nmanuscript:\n  chapters:\n    - {}/manuscript/{}\neditorial:\n  style: {}/editorial/style.yml\n  claims: {}/editorial/claims.yml\n  figures: {}/editorial/figures.yml\n  freshness: {}/editorial/freshness.yml\n",
+            "project:\n  type: {}\n  vcs: git\n  version: 1\nbook:\n  title: \"{}\"\n  authors:\n    - \"{}\"\n  language: {}\nlayout:\n  binding: {}\n  chapter_start_page: {}\n  allow_blank_pages: {}\n{}editorial:\n  style: {}/editorial/style.yml\n  claims: {}/editorial/claims.yml\n  figures: {}/editorial/figures.yml\n  freshness: {}/editorial/freshness.yml\n",
             template.as_str(),
             scaffold.title,
             scaffold.author,
@@ -1058,14 +1108,32 @@ fn series_book_yml(scaffold: &InitScaffoldConfig) -> String {
             scaffold.binding.as_str(),
             scaffold.profile.chapter_start_page(),
             scaffold.profile.allow_blank_pages(),
-            book_root,
-            scaffold.profile.manuscript_file(),
+            prose_manuscript_block(scaffold, Some(&book_root)),
             book_root,
             book_root,
             book_root,
             book_root,
         )
     }
+}
+
+fn prose_manuscript_block(scaffold: &InitScaffoldConfig, prefix: Option<&str>) -> String {
+    let prefix = prefix.map(|value| format!("{value}/")).unwrap_or_default();
+    let mut lines = vec!["manuscript:".to_string()];
+    if scaffold.include_introduction {
+        lines.push("  frontmatter:".to_string());
+        lines.push(format!("    - {prefix}manuscript/{INTRODUCTION_FILE}"));
+    }
+    lines.push("  chapters:".to_string());
+    lines.push(format!(
+        "    - {prefix}manuscript/{}",
+        scaffold.profile.manuscript_file()
+    ));
+    if scaffold.include_afterword {
+        lines.push("  backmatter:".to_string());
+        lines.push(format!("    - {prefix}manuscript/{AFTERWORD_FILE}"));
+    }
+    lines.join("\n") + "\n"
 }
 
 fn outputs_block(scaffold: &InitScaffoldConfig) -> String {
@@ -1824,6 +1892,8 @@ mod tests {
             manga_spread_policy_for_kindle: None,
             manga_front_color_pages: None,
             manga_body_mode: None,
+            include_introduction: None,
+            include_afterword: None,
             initialize_git: false,
             git_lfs: None,
             generate_sample: None,
@@ -1840,6 +1910,8 @@ mod tests {
         assert!(root.join("styles/epub.css").is_file());
         assert!(root.join("styles/print.css").is_file());
         let book = fs::read_to_string(root.join("book.yml")).unwrap();
+        assert!(!book.contains("frontmatter:"));
+        assert!(!book.contains("backmatter:"));
         assert!(book.contains("editorial:\n  style: editorial/style.yml"));
         assert!(book.contains("engine: chromium"));
         crate::config::load_book_config(&root.join("book.yml")).unwrap();
@@ -1913,6 +1985,8 @@ mod tests {
             manga_spread_policy_for_kindle: None,
             manga_front_color_pages: None,
             manga_body_mode: None,
+            include_introduction: None,
+            include_afterword: None,
             initialize_git: false,
             git_lfs: None,
             generate_sample: None,
@@ -1998,6 +2072,8 @@ mod tests {
             manga_spread_policy_for_kindle: None,
             manga_front_color_pages: None,
             manga_body_mode: None,
+            include_introduction: None,
+            include_afterword: None,
             initialize_git: false,
             git_lfs: None,
             generate_sample: None,
@@ -2036,6 +2112,8 @@ mod tests {
             manga_spread_policy_for_kindle: None,
             manga_front_color_pages: None,
             manga_body_mode: None,
+            include_introduction: None,
+            include_afterword: None,
             initialize_git: false,
             git_lfs: None,
             generate_sample: None,
@@ -2074,6 +2152,8 @@ mod tests {
             manga_spread_policy_for_kindle: None,
             manga_front_color_pages: None,
             manga_body_mode: None,
+            include_introduction: None,
+            include_afterword: None,
             initialize_git: false,
             git_lfs: None,
             generate_sample: None,
@@ -2110,6 +2190,8 @@ mod tests {
             manga_spread_policy_for_kindle: None,
             manga_front_color_pages: None,
             manga_body_mode: None,
+            include_introduction: None,
+            include_afterword: None,
             initialize_git: false,
             git_lfs: None,
             generate_sample: None,
@@ -2148,6 +2230,8 @@ mod tests {
             manga_spread_policy_for_kindle: None,
             manga_front_color_pages: None,
             manga_body_mode: None,
+            include_introduction: None,
+            include_afterword: None,
             initialize_git: false,
             git_lfs: None,
             generate_sample: None,
@@ -2186,6 +2270,8 @@ mod tests {
             manga_spread_policy_for_kindle: None,
             manga_front_color_pages: None,
             manga_body_mode: None,
+            include_introduction: None,
+            include_afterword: None,
             initialize_git: false,
             git_lfs: None,
             generate_sample: None,
@@ -2225,6 +2311,8 @@ mod tests {
             manga_spread_policy_for_kindle: None,
             manga_front_color_pages: None,
             manga_body_mode: None,
+            include_introduction: None,
+            include_afterword: None,
             initialize_git: false,
             git_lfs: None,
             generate_sample: None,
@@ -2290,6 +2378,8 @@ mod tests {
             manga_spread_policy_for_kindle: None,
             manga_front_color_pages: None,
             manga_body_mode: None,
+            include_introduction: None,
+            include_afterword: None,
             initialize_git: false,
             git_lfs: None,
             generate_sample: None,
@@ -2318,6 +2408,53 @@ mod tests {
     }
 
     #[test]
+    fn scaffolds_optional_introduction_and_afterword_when_requested() {
+        let root = temp_dir("prose-front-back-matter");
+        init_project(InitProjectOptions {
+            root: root.clone(),
+            non_interactive: false,
+            force: false,
+            config_template: Some("business".to_string()),
+            config_profile: None,
+            repo_mode: Some("single-book".to_string()),
+            initial_series_book_id: None,
+            title: Some("Business Book".to_string()),
+            author: Some("Ken".to_string()),
+            language: Some("ja".to_string()),
+            output_preset: Some("both".to_string()),
+            writing_mode: None,
+            binding: None,
+            print_target: None,
+            print_trim_size: None,
+            print_bleed: None,
+            print_crop_marks: None,
+            print_sides: None,
+            print_max_pages: None,
+            manga_spread_policy_for_kindle: None,
+            manga_front_color_pages: None,
+            manga_body_mode: None,
+            include_introduction: Some(true),
+            include_afterword: Some(true),
+            initialize_git: false,
+            git_lfs: None,
+            generate_sample: Some(true),
+        })
+        .unwrap();
+
+        assert_eq!(
+            fs::read_to_string(root.join(format!("manuscript/{INTRODUCTION_FILE}"))).unwrap(),
+            "# Introduction\n\nWrite here.\n"
+        );
+        assert_eq!(
+            fs::read_to_string(root.join(format!("manuscript/{AFTERWORD_FILE}"))).unwrap(),
+            "# Afterword\n\nWrite here.\n"
+        );
+        let book = fs::read_to_string(root.join("book.yml")).unwrap();
+        assert!(book.contains("frontmatter:\n    - manuscript/00-introduction.md"));
+        assert!(book.contains("backmatter:\n    - manuscript/99-afterword.md"));
+    }
+
+    #[test]
     fn initializes_conference_preprint_scaffold() {
         let root = temp_dir("conference-preprint");
         let result = init_project(InitProjectOptions {
@@ -2343,6 +2480,8 @@ mod tests {
             manga_spread_policy_for_kindle: None,
             manga_front_color_pages: None,
             manga_body_mode: None,
+            include_introduction: None,
+            include_afterword: None,
             initialize_git: false,
             git_lfs: None,
             generate_sample: None,
@@ -2394,6 +2533,8 @@ mod tests {
             manga_spread_policy_for_kindle: None,
             manga_front_color_pages: None,
             manga_body_mode: None,
+            include_introduction: None,
+            include_afterword: None,
             initialize_git: false,
             git_lfs: None,
             generate_sample: None,
@@ -2433,6 +2574,8 @@ mod tests {
             manga_spread_policy_for_kindle: None,
             manga_front_color_pages: None,
             manga_body_mode: None,
+            include_introduction: None,
+            include_afterword: None,
             initialize_git: false,
             git_lfs: Some(false),
             generate_sample: Some(false),
@@ -2488,6 +2631,8 @@ mod tests {
             manga_spread_policy_for_kindle: None,
             manga_front_color_pages: None,
             manga_body_mode: None,
+            include_introduction: None,
+            include_afterword: None,
             initialize_git: false,
             git_lfs: Some(false),
             generate_sample: None,
@@ -2526,6 +2671,8 @@ mod tests {
             manga_spread_policy_for_kindle: None,
             manga_front_color_pages: None,
             manga_body_mode: None,
+            include_introduction: None,
+            include_afterword: None,
             initialize_git: true,
             git_lfs: None,
             generate_sample: None,
@@ -2563,6 +2710,8 @@ mod tests {
             manga_spread_policy_for_kindle: Some("single-page".to_string()),
             manga_front_color_pages: Some(4),
             manga_body_mode: Some("mixed".to_string()),
+            include_introduction: None,
+            include_afterword: None,
             initialize_git: false,
             git_lfs: Some(true),
             generate_sample: None,
@@ -2605,6 +2754,8 @@ mod tests {
             manga_spread_policy_for_kindle: None,
             manga_front_color_pages: None,
             manga_body_mode: None,
+            include_introduction: None,
+            include_afterword: None,
             initialize_git: false,
             git_lfs: None,
             generate_sample: None,
@@ -2642,6 +2793,8 @@ mod tests {
             manga_spread_policy_for_kindle: None,
             manga_front_color_pages: None,
             manga_body_mode: None,
+            include_introduction: None,
+            include_afterword: None,
             initialize_git: false,
             git_lfs: None,
             generate_sample: None,

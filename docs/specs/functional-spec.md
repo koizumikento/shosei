@@ -227,10 +227,12 @@ v0.1 の現行質問項目:
 17. `manga` の場合の Kindle 見開きポリシー: `split | single-page | skip`
 18. `manga` の場合の巻頭カラー枚数
 19. `manga` の場合の本文ページモード: `monochrome | mixed | color`
-20. Git リポジトリを初期化するか
-21. Git LFS を前提にするか
-22. サンプル原稿を生成するか
-23. 実行後に `doctor` を流すか
+20. prose の場合に前付きを追加するか
+21. prose の場合に後付きを追加するか
+22. Git リポジトリを初期化するか
+23. Git LFS を前提にするか
+24. サンプル原稿を生成するか
+25. 実行後に `doctor` を流すか
 
 補足:
 
@@ -239,6 +241,7 @@ v0.1 の現行質問項目:
 - `series` を選ぶ場合は `--initial-book-id <book-id>` も使え、既定値は `vol-01` とする
 - 初期 book id は 1 つの path segment とし、空文字、`/`, `\\`, 空白, `.`, `..` は受け付けない
 - `paper` を選んだ場合は prose 系のまま扱い、`paper` または `conference-preprint` の profile を後続質問で選べるようにする
+- prose では `init` 対話で前付き / 後付きの scaffold 有無を選べるようにし、不要なら `manuscript.frontmatter` / `manuscript.backmatter` を書かない
 - prose project では `editorial/style.yml`, `claims.yml`, `figures.yml`, `freshness.yml` も scaffold に含める
 - prose project では template/profile が所有する `base.css`, `epub.css`, `print.css` を scaffold し、`series` では `shared/styles/` に置く
   - `novel`, `light-novel` の `print.css` は PDF 向けに本文サイズを半段締め、扉と目次まわりの見た目を整える

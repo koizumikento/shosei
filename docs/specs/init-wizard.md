@@ -53,6 +53,7 @@ v0.1 の現行実装は、このフローを次の範囲で満たす。
 - print target / trim size / bleed / crop marks
 - `conference-preprint` の場合の sides / max pages
 - `manga` の場合の Kindle 見開きポリシー / 巻頭カラー枚数 / 本文ページモード
+- prose の場合の `はじめに` / `おわりに` scaffold 有無
 - Git 初期化
 - Git LFS
 - サンプル生成有無
@@ -137,13 +138,18 @@ v0.1 で残す引数:
 
 ### 5.4 Git 質問
 
-20. Git リポジトリを初期化するか
-21. Git LFS を使う前提にするか
+22. Git リポジトリを初期化するか
+23. Git LFS を使う前提にするか
 
-### 5.5 サンプル質問
+### 5.5 prose 補助質問
 
-22. サンプル原稿を生成するか
-23. 実行後に `shosei doctor` を走らせるか
+20. 前付きを追加するか
+21. 後付きを追加するか
+
+### 5.6 サンプル質問
+
+24. サンプル原稿を生成するか
+25. 実行後に `shosei doctor` を走らせるか
 
 ## 6. 分岐ルール
 
@@ -152,6 +158,7 @@ v0.1 で残す引数:
 - 既定 `writing_mode = horizontal-ltr`
 - 既定 `binding = left`
 - 既定 profile は `business`
+- 必要なら `00-introduction.md` と `99-afterword.md` を opt-in で追加できる
 - サンプルは本文 + 図表ダミー画像
 
 ### `project.type = paper`
@@ -160,6 +167,7 @@ v0.1 で残す引数:
 - 既定 `binding = left`
 - 既定 profile は `paper`
 - print を含む scaffold では `writing_mode = horizontal-ltr` なら `pdf.engine = weasyprint`、`vertical-rl` なら `chromium`
+- 必要なら `00-introduction.md` と `99-afterword.md` を opt-in で追加できる
 - 追加質問:
   - `paper`
   - `conference-preprint`
@@ -172,6 +180,7 @@ v0.1 で残す引数:
 - 既定 profile は `novel`
 - print を含む scaffold では `pdf.engine = chromium`
 - scaffold する `styles/print.css` は PDF 向けに本文 10.5pt を既定とし、扉と目次を本文より控えめに整える
+- 必要なら `00-introduction.md` と `99-afterword.md` を opt-in で追加できる
 - サンプルは `prologue`, `chapter`, `colophon`
 
 ### `project.type = light-novel`
@@ -181,6 +190,7 @@ v0.1 で残す引数:
 - 既定 profile は `light-novel`
 - print を含む scaffold では `pdf.engine = chromium`
 - scaffold する `styles/print.css` は PDF 向けに本文 10pt を既定とし、扉と目次を本文より控えめに整える
+- 必要なら `00-introduction.md` と `99-afterword.md` を opt-in で追加できる
 - 画像方針確認は future 拡張に残す
 
 ### `project.type = manga`
@@ -225,6 +235,7 @@ v0.1 で残す引数:
 ### `both`
 
 - `kindle` と `print` の両質問を行う
+- prose では layout 質問の後に前付き / 後付きの opt-in 質問を行う
 
 ## 8. 詳細質問定義
 

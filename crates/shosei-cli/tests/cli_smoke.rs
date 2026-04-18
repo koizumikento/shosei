@@ -569,7 +569,7 @@ fn init_cli_interactive_shows_summary_and_writes_after_confirmation() {
         .as_mut()
         .unwrap()
         .write_all(
-            b"novel\nsingle-book\nSample Title\nSample Author\nja\nboth\n\n\n\n\n\n\nn\ny\ny\nn\ny\n",
+            b"novel\nsingle-book\nSample Title\nSample Author\nja\nboth\n\n\n\n\n\n\nn\nn\nn\ny\ny\nn\ny\n",
         )
         .unwrap();
 
@@ -604,7 +604,7 @@ fn init_cli_interactive_can_cancel_before_writing_files() {
         .as_mut()
         .unwrap()
         .write_all(
-            b"novel\nsingle-book\nCanceled Title\nSample Author\nja\nkindle\n\n\nn\ny\ny\nn\nn\n",
+            b"novel\nsingle-book\nCanceled Title\nSample Author\nja\nkindle\n\n\nn\nn\nn\ny\ny\nn\nn\n",
         )
         .unwrap();
 
@@ -631,7 +631,7 @@ fn init_cli_interactive_series_accepts_custom_initial_book_id() {
         .as_mut()
         .unwrap()
         .write_all(
-            b"novel\nseries\npilot\nSeries Title\nSample Author\nja\nboth\n\n\n\n\n\n\nn\ny\ny\nn\ny\n",
+            b"novel\nseries\npilot\nSeries Title\nSample Author\nja\nboth\n\n\n\n\n\n\nn\nn\nn\ny\ny\nn\ny\n",
         )
         .unwrap();
 
@@ -643,6 +643,38 @@ fn init_cli_interactive_series_accepts_custom_initial_book_id() {
     assert!(stdout.contains("shosei explain --book pilot"));
     assert!(stdout.contains("shosei validate --book pilot"));
     assert!(root.join("books/pilot/book.yml").is_file());
+}
+
+#[test]
+fn init_cli_interactive_can_include_introduction_and_afterword() {
+    let root = temp_dir("init-interactive-front-back-matter");
+
+    let mut child = Command::new(env!("CARGO_BIN_EXE_shosei"))
+        .args(["init", root.to_str().unwrap()])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .spawn()
+        .unwrap();
+    child
+        .stdin
+        .as_mut()
+        .unwrap()
+        .write_all(
+            b"business\nsingle-book\nBusiness Title\nSample Author\nja\nkindle\n\n\ny\ny\nn\ny\ny\nn\ny\n",
+        )
+        .unwrap();
+
+    let output = child.wait_with_output().unwrap();
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("- include introduction: yes"));
+    assert!(stdout.contains("- include afterword: yes"));
+    let book = fs::read_to_string(root.join("book.yml")).unwrap();
+    assert!(book.contains("frontmatter:\n    - manuscript/00-introduction.md"));
+    assert!(book.contains("backmatter:\n    - manuscript/99-afterword.md"));
+    assert!(root.join("manuscript/00-introduction.md").is_file());
+    assert!(root.join("manuscript/99-afterword.md").is_file());
 }
 
 #[test]

@@ -127,6 +127,12 @@ fn run() -> Result<i32> {
                 manga_body_mode: wizard_answers
                     .as_ref()
                     .and_then(|answers| answers.manga_body_mode.clone()),
+                include_introduction: wizard_answers
+                    .as_ref()
+                    .and_then(|answers| answers.include_introduction),
+                include_afterword: wizard_answers
+                    .as_ref()
+                    .and_then(|answers| answers.include_afterword),
                 initialize_git: wizard_answers
                     .as_ref()
                     .map(|answers| answers.initialize_git)
