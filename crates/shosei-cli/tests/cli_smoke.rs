@@ -684,6 +684,40 @@ fn init_cli_interactive_can_include_introduction_and_afterword() {
 }
 
 #[test]
+fn init_cli_with_config_template_still_runs_interactive_wizard() {
+    let root = temp_dir("init-interactive-config-template");
+
+    let mut child = Command::new(env!("CARGO_BIN_EXE_shosei"))
+        .args([
+            "init",
+            root.to_str().unwrap(),
+            "--config-template",
+            "business",
+        ])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .spawn()
+        .unwrap();
+    child
+        .stdin
+        .as_mut()
+        .unwrap()
+        .write_all(
+            b"single-book\nBusiness Title\nSample Author\nja\nkindle\n\n\ny\nn\nn\ny\ny\nn\ny\n",
+        )
+        .unwrap();
+
+    let output = child.wait_with_output().unwrap();
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("前付きを追加しますか（はじめに等）"));
+    assert!(stdout.contains("- template: business"));
+    assert!(stdout.contains("- include introduction: yes"));
+    assert!(root.join("manuscript/00-introduction.md").is_file());
+}
+
+#[test]
 fn page_check_cli_prints_summary_and_issue_preview() {
     let root = temp_dir("page-check-preview");
     write_page_check_fixture(&root);

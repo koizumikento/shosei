@@ -36,18 +36,29 @@ pub fn init_mode_banner() -> &'static str {
     "init: answer a few questions or use --non-interactive for scaffold defaults"
 }
 
-pub fn prompt_init_wizard() -> io::Result<InitWizardAnswers> {
-    let config_template = prompt_choice_with_default(
-        "作品カテゴリ [business|paper|novel|light-novel|manga]",
-        "novel",
-        &["business", "paper", "novel", "light-novel", "manga"],
-    )?;
+pub fn prompt_init_wizard(
+    config_template_override: Option<&str>,
+    config_profile_override: Option<&str>,
+) -> io::Result<InitWizardAnswers> {
+    let config_template = if let Some(config_template) = config_template_override {
+        config_template.to_string()
+    } else {
+        prompt_choice_with_default(
+            "作品カテゴリ [business|paper|novel|light-novel|manga]",
+            "novel",
+            &["business", "paper", "novel", "light-novel", "manga"],
+        )?
+    };
     let config_profile = if config_template == "paper" {
-        Some(prompt_choice_with_default(
-            "paper profile [paper|conference-preprint]",
-            "paper",
-            &["paper", "conference-preprint"],
-        )?)
+        if let Some(config_profile) = config_profile_override {
+            Some(config_profile.to_string())
+        } else {
+            Some(prompt_choice_with_default(
+                "paper profile [paper|conference-preprint]",
+                "paper",
+                &["paper", "conference-preprint"],
+            )?)
+        }
     } else {
         None
     };

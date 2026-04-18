@@ -41,10 +41,13 @@ fn run() -> Result<i32> {
         } => {
             output::print_line(prompts::init_mode_banner());
             let target = path.unwrap_or(std::env::current_dir()?);
-            let wizard_answers = if non_interactive || config_template.is_some() {
+            let wizard_answers = if non_interactive {
                 None
             } else {
-                Some(prompts::prompt_init_wizard()?)
+                Some(prompts::prompt_init_wizard(
+                    config_template.as_deref(),
+                    config_profile.as_deref(),
+                )?)
             };
             if let Some(answers) = wizard_answers.as_ref() {
                 output::print_line(&prompts::render_init_summary(&target, answers));
