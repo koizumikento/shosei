@@ -364,16 +364,19 @@ scenes:
 - prose 原稿の alt 欠落
 - chapter ファイルの level-1 heading 不足
 - heading hierarchy の飛び級
+- prose 原稿の文字数集計
 - prose project の editorial sidecar に基づく表記ゆれ、claim / figure / freshness の検査
 - Kindle / print / manga 向けの target 別警告
 - `conference-preprint` profile の print preset 逸脱 warning
 
 severity は `validation.accessibility`, `validation.missing_image`, `validation.missing_alt`, `validation.broken_link` の設定で調整できる。
 
+文字数は YAML frontmatter を除き、Markdown 記法を落とした plain text を基準に集計する。summary には total character count を出し、JSON report には `manuscript_stats` として total / frontmatter / chapters / backmatter と file ごとの内訳を含める。
+
 issue の `location` は、特定できる場合は file path に加えて line 番号も持つ。
 CLI では summary の後に、先頭最大 5 件の issue を `原因 / 発生箇所 / 修正例` の形で続けて表示する。
 
-`validate --json` は同じ report schema を stdout に出す。file へ書き出す report には `checks`, `validators`, `issues` を含み、external validator を実行した場合は `artifact`, `log_path`, `summary` も取れる。
+`validate --json` は同じ report schema を stdout に出す。file へ書き出す report には `checks`, `validators`, `issues` を含み、prose では `manuscript_stats` も含む。external validator を実行した場合は `artifact`, `log_path`, `summary` も取れる。
 
 現在の `validate` は local lint と tool availability check に加えて、Kindle 出力が有効で `validation.epubcheck: true` のときは生成した EPUB に対して `epubcheck` を走らせる。validator の詳細ログは `dist/logs/` に保存し、report から参照できる。
 

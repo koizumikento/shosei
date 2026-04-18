@@ -205,3 +205,16 @@ test("validateSeriesBookIdInput matches init CLI constraints", () => {
     "Book id must not contain whitespace"
   );
 });
+
+test("formatManuscriptStatsSummary renders validate report character counts", () => {
+  assert.equal(
+    extension.__test.formatManuscriptStatsSummary({
+      total_characters: 12345,
+      chapter_characters: 12000,
+      frontmatter_characters: 200,
+      backmatter_characters: 145
+    }),
+    "manuscript characters: 12,345 total (chapters 12,000, frontmatter 200, backmatter 145)"
+  );
+  assert.equal(extension.__test.formatManuscriptStatsSummary(null), null);
+});

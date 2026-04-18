@@ -4,6 +4,7 @@ use std::{
     path::{Component, Path, PathBuf},
 };
 
+use pulldown_cmark::{Event, Options as MarkdownOptions, Parser, Tag, TagEnd};
 use regex::Regex;
 use serde::Serialize;
 
@@ -15,7 +16,7 @@ use crate::{
     domain::{ProjectType, RepoPath},
     editorial,
     fs::join_repo_path,
-    manga, pipeline,
+    manga, markdown, pipeline,
     repo::{self, RepoError},
     toolchain::{self, ToolStatus},
 };
@@ -26,9 +27,34 @@ pub struct ValidateBookResult {
     pub summary: String,
     pub plan: Option<pipeline::ValidatePlan>,
     pub report_path: PathBuf,
+    pub manuscript_stats: Option<ManuscriptStats>,
     pub issues: Vec<ValidationIssue>,
     pub issue_count: usize,
     pub has_errors: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct ManuscriptStats {
+    pub total_characters: usize,
+    pub frontmatter_characters: usize,
+    pub chapter_characters: usize,
+    pub backmatter_characters: usize,
+    pub files: Vec<ManuscriptFileStats>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct ManuscriptFileStats {
+    pub path: String,
+    pub role: ManuscriptFileRole,
+    pub characters: usize,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum ManuscriptFileRole {
+    Frontmatter,
+    Chapter,
+    Backmatter,
 }
 
 #[derive(Debug, Error)]
@@ -114,6 +140,7 @@ pub(crate) fn validate_book_with_toolchain(
             });
         }
         let mut validator_runs = Vec::new();
+        let mut manuscript_stats = None;
         if let Some(plan) = &plan {
             issues.extend(issues_from_checks(plan));
             issues.extend(schema_warning_issues(&resolved));
@@ -121,6 +148,9 @@ pub(crate) fn validate_book_with_toolchain(
                 ProjectType::Manga => manga_validation_issues(&resolved, plan),
                 _ => prose_validation_issues(&resolved, plan, editorial.as_ref()),
             });
+            if project_type.is_prose() {
+                manuscript_stats = Some(compute_manuscript_stats(&resolved, plan));
+            }
             let external_validation = run_external_validators(command, &resolved, toolchain, plan);
             issues.extend(external_validation.issues);
             validator_runs = external_validation.runs;
@@ -144,13 +174,14 @@ pub(crate) fn validate_book_with_toolchain(
                 })
                 .unwrap_or_default(),
             validator_runs,
+            manuscript_stats: manuscript_stats.clone(),
             issues: issues.clone(),
         };
         write_report(&report_path, &report)?;
         let has_errors = issues.iter().any(|issue| issue.severity == Severity::Error);
         return Ok(ValidateBookResult {
             summary: format!(
-                "validation completed for {} with outputs: {}, issues: {}, report: {}",
+                "validation completed for {} with outputs: {}, issues: {}, {}report: {}",
                 book.id,
                 if outputs.is_empty() {
                     "none".to_string()
@@ -158,10 +189,15 @@ pub(crate) fn validate_book_with_toolchain(
                     outputs.join(", ")
                 },
                 issues.len(),
+                manuscript_stats
+                    .as_ref()
+                    .map(|stats| format!("manuscript characters: {}, ", stats.total_characters))
+                    .unwrap_or_default(),
                 report_path.display()
             ),
             plan,
             report_path,
+            manuscript_stats,
             issues: issues.clone(),
             issue_count: issues.len(),
             has_errors,
@@ -178,6 +214,8 @@ struct ValidateReport {
     checks: Vec<ValidationCheckReport>,
     #[serde(rename = "validators")]
     validator_runs: Vec<ValidatorRunReport>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    manuscript_stats: Option<ManuscriptStats>,
     issues: Vec<ValidationIssue>,
 }
 
@@ -198,6 +236,96 @@ struct ValidatorRunReport {
     summary: String,
     artifact: Option<String>,
     log_path: Option<String>,
+}
+
+fn compute_manuscript_stats(
+    resolved: &config::ResolvedBookConfig,
+    plan: &pipeline::ValidatePlan,
+) -> ManuscriptStats {
+    let Some(manuscript) = resolved.effective.manuscript.as_ref() else {
+        return ManuscriptStats {
+            total_characters: 0,
+            frontmatter_characters: 0,
+            chapter_characters: 0,
+            backmatter_characters: 0,
+            files: Vec::new(),
+        };
+    };
+
+    let frontmatter_paths = manuscript
+        .frontmatter
+        .iter()
+        .map(|path| path.as_str())
+        .collect::<BTreeSet<_>>();
+    let chapter_paths = manuscript
+        .chapters
+        .iter()
+        .map(|path| path.as_str())
+        .collect::<BTreeSet<_>>();
+    let backmatter_paths = manuscript
+        .backmatter
+        .iter()
+        .map(|path| path.as_str())
+        .collect::<BTreeSet<_>>();
+
+    let mut stats = ManuscriptStats {
+        total_characters: 0,
+        frontmatter_characters: 0,
+        chapter_characters: 0,
+        backmatter_characters: 0,
+        files: Vec::new(),
+    };
+
+    for file_path in &plan.manuscript_files {
+        let repo_relative = relative_display(&resolved.repo.repo_root, file_path);
+        let role = if frontmatter_paths.contains(repo_relative.as_str()) {
+            ManuscriptFileRole::Frontmatter
+        } else if chapter_paths.contains(repo_relative.as_str()) {
+            ManuscriptFileRole::Chapter
+        } else if backmatter_paths.contains(repo_relative.as_str()) {
+            ManuscriptFileRole::Backmatter
+        } else {
+            continue;
+        };
+
+        let characters = fs::read_to_string(file_path)
+            .ok()
+            .map(|contents| markdown_character_count(&contents))
+            .unwrap_or(0);
+
+        stats.total_characters += characters;
+        match role {
+            ManuscriptFileRole::Frontmatter => stats.frontmatter_characters += characters,
+            ManuscriptFileRole::Chapter => stats.chapter_characters += characters,
+            ManuscriptFileRole::Backmatter => stats.backmatter_characters += characters,
+        }
+        stats.files.push(ManuscriptFileStats {
+            path: repo_relative,
+            role,
+            characters,
+        });
+    }
+
+    stats
+}
+
+fn markdown_character_count(contents: &str) -> usize {
+    let body = markdown::body_without_frontmatter(contents).unwrap_or(contents);
+    let mut image_depth = 0usize;
+    let mut plain_text = String::new();
+
+    for event in Parser::new_ext(body, MarkdownOptions::all()) {
+        match event {
+            Event::Start(Tag::Image { .. }) => image_depth += 1,
+            Event::End(TagEnd::Image) => image_depth = image_depth.saturating_sub(1),
+            Event::Text(text) | Event::Code(text) if image_depth == 0 => {
+                plain_text.push_str(&text);
+            }
+            _ => {}
+        }
+    }
+
+    plain_text.chars().count()
 }
 
 fn issues_from_checks(plan: &pipeline::ValidatePlan) -> Vec<ValidationIssue> {
@@ -2254,6 +2382,49 @@ git:
             ),
         )
         .unwrap();
+    }
+
+    #[test]
+    fn markdown_character_count_ignores_frontmatter_and_markdown_syntax() {
+        let count = markdown_character_count(
+            "---\nstatus: draft\n---\n# 章題\n本文と[リンク](notes.md)\n![図](assets/figure.png)\n",
+        );
+
+        assert_eq!(count, "章題本文とリンク".chars().count());
+    }
+
+    #[test]
+    fn validate_includes_manuscript_stats_for_prose_books() {
+        let root = temp_dir("manuscript-stats");
+        write_book_with_chapter_contents(
+            &root,
+            "---\nstatus: draft\n---\n# 章題\n本文と[リンク](notes.md)\n",
+            "validation:\n  strict: true\n  epubcheck: false\n",
+        );
+
+        let result = validate_book_with_toolchain(
+            &CommandContext::new(&root, None, None),
+            &fake_toolchain(ToolStatus::Missing),
+        )
+        .unwrap();
+
+        let stats = result.manuscript_stats.as_ref().expect("manuscript stats");
+        assert_eq!(stats.total_characters, "章題本文とリンク".chars().count());
+        assert_eq!(stats.chapter_characters, "章題本文とリンク".chars().count());
+        assert_eq!(stats.files.len(), 1);
+        assert_eq!(stats.files[0].path, "manuscript/01.md");
+        assert_eq!(stats.files[0].role, ManuscriptFileRole::Chapter);
+        assert!(result.summary.contains("manuscript characters: 8"));
+
+        let report: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(result.report_path).unwrap()).unwrap();
+        assert_eq!(report["manuscript_stats"]["total_characters"], 8);
+        assert_eq!(report["manuscript_stats"]["chapter_characters"], 8);
+        assert_eq!(
+            report["manuscript_stats"]["files"][0]["path"],
+            "manuscript/01.md"
+        );
+        assert_eq!(report["manuscript_stats"]["files"][0]["role"], "chapter");
     }
 
     fn write_book_with_cover(root: &std::path::Path, missing_image: &str, create_cover: bool) {

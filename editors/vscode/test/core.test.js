@@ -233,6 +233,27 @@ test("extractReportPath picks the final report path from command output", () => 
   assert.equal(core.extractReportPath(output), "/tmp/b.json");
 });
 
+test("readReport returns parsed JSON payload including manuscript stats", () => {
+  const root = tempDir("report");
+  const reportPath = path.join(root, "validate.json");
+  fs.writeFileSync(
+    reportPath,
+    JSON.stringify({
+      issues: [{ severity: "warning", cause: "example", remedy: "fix" }],
+      manuscript_stats: {
+        total_characters: 1234,
+        chapter_characters: 1200,
+        frontmatter_characters: 20,
+        backmatter_characters: 14
+      }
+    })
+  );
+
+  const report = core.readReport(reportPath);
+  assert.equal(report.manuscript_stats.total_characters, 1234);
+  assert.equal(core.readIssuesFromReport(reportPath).length, 1);
+});
+
 test("classifyCommandResult treats exit code 1 with stderr as fatal", () => {
   const outcome = core.classifyCommandResult(
     {

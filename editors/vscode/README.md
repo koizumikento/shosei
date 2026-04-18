@@ -7,6 +7,7 @@
 - 出版ロジックは `shosei` CLI に委譲する
 - VS Code 側では command 実行、output channel、Problems 反映を担当する
 - `validate` と `page check` は既存 JSON report を再利用する
+- prose の `validate` report に `manuscript_stats` があれば、output channel に文字数サマリも出す
 - 専用 sidebar view から repo 状態と主要操作にアクセスする
 
 ## Commands

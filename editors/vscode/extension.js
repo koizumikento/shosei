@@ -522,9 +522,11 @@ async function applyDiagnosticsFromReport(vscode, output, collection, source, re
   }
 
   const absolutePath = core.toAbsolutePath(resolved.repoRoot, reportPath);
+  let report;
   let issues;
   try {
-    issues = core.readIssuesFromReport(absolutePath);
+    report = core.readReport(absolutePath);
+    issues = Array.isArray(report.issues) ? report.issues : [];
   } catch (error) {
     output.appendLine(`[shosei] ${source}: failed to read report ${absolutePath}: ${error.message}`);
     return;
@@ -560,6 +562,39 @@ async function applyDiagnosticsFromReport(vscode, output, collection, source, re
   output.appendLine(
     `[shosei] ${source}: loaded ${issues.length} issue(s) from ${absolutePath}`
   );
+
+  const manuscriptStatsSummary = formatManuscriptStatsSummary(report?.manuscript_stats);
+  if (manuscriptStatsSummary) {
+    output.appendLine(`[shosei] ${source}: ${manuscriptStatsSummary}`);
+  }
+}
+
+function formatManuscriptStatsSummary(manuscriptStats) {
+  if (!manuscriptStats || typeof manuscriptStats !== "object") {
+    return null;
+  }
+
+  const total = normalizeNonNegativeInteger(manuscriptStats.total_characters);
+  const chapters = normalizeNonNegativeInteger(manuscriptStats.chapter_characters);
+  const frontmatter = normalizeNonNegativeInteger(manuscriptStats.frontmatter_characters);
+  const backmatter = normalizeNonNegativeInteger(manuscriptStats.backmatter_characters);
+
+  if (total === null || chapters === null || frontmatter === null || backmatter === null) {
+    return null;
+  }
+
+  return `manuscript characters: ${formatInteger(total)} total (chapters ${formatInteger(chapters)}, frontmatter ${formatInteger(frontmatter)}, backmatter ${formatInteger(backmatter)})`;
+}
+
+function normalizeNonNegativeInteger(value) {
+  if (!Number.isInteger(value) || value < 0) {
+    return null;
+  }
+  return value;
+}
+
+function formatInteger(value) {
+  return new Intl.NumberFormat("en-US").format(value);
 }
 
 function resolveDiagnosticLocation(repoRoot, issue) {
@@ -3101,6 +3136,7 @@ module.exports = {
     storyScenesPath,
     storyStructuresRoot,
     storyWorkspaceRoot,
+    formatManuscriptStatsSummary,
     resolveDiagnosticLocation,
     suggestChapterPath,
     validateChapterPathInput,

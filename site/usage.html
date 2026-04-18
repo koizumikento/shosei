@@ -379,14 +379,16 @@ status: unread</code></pre>
             <li>prose 原稿の alt 欠落</li>
             <li>chapter ファイルの level-1 heading 不足</li>
             <li>heading hierarchy の飛び級</li>
+            <li>prose 原稿の文字数集計</li>
             <li>prose project の editorial sidecar に基づく表記ゆれ、claim / figure / freshness の検査</li>
             <li>Kindle / print / manga 向けの target 別警告</li>
             <li><code>conference-preprint</code> profile の print preset 逸脱 warning</li>
           </ul>
           <p>severity は <code>validation.accessibility</code>, <code>validation.missing_image</code>, <code>validation.missing_alt</code>, <code>validation.broken_link</code> の設定で調整できます。</p>
+          <p>文字数は YAML frontmatter を除き、Markdown 記法を落とした plain text を基準に集計します。summary には total character count を出し、JSON report には <code>manuscript_stats</code> として total / frontmatter / chapters / backmatter と file ごとの内訳を含めます。</p>
           <p>issue の <code>location</code> は、特定できる場合は file path に加えて line 番号も持ちます。</p>
           <p>CLI では summary の後に、先頭最大 5 件の issue を <code>原因 / 発生箇所 / 修正例</code> の形で続けて表示します。</p>
-          <p><code>validate --json</code> は同じ report schema を stdout に出します。file へ書き出す report には <code>checks</code>, <code>validators</code>, <code>issues</code> を含み、external validator を実行した場合は <code>artifact</code>, <code>log_path</code>, <code>summary</code> も取れます。</p>
+          <p><code>validate --json</code> は同じ report schema を stdout に出します。file へ書き出す report には <code>checks</code>, <code>validators</code>, <code>issues</code> を含み、prose では <code>manuscript_stats</code> も含みます。external validator を実行した場合は <code>artifact</code>, <code>log_path</code>, <code>summary</code> も取れます。</p>
           <p>現在の <code>validate</code> は local lint と tool availability check に加えて、Kindle 出力が有効で <code>validation.epubcheck: true</code> のときは生成した EPUB に対して <code>epubcheck</code> を走らせます。validator の詳細ログは <code>dist/logs/</code> に保存し、report から参照できます。</p>
         </section>
 

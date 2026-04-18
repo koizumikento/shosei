@@ -526,6 +526,7 @@ fn validate_cli_prints_issue_preview() {
     assert!(!output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("validation completed for default"));
+    assert!(stdout.contains("manuscript characters:"));
     assert!(stdout.contains("issues:"));
     assert!(stdout.contains("[error] image is missing alt text: assets/missing.png"));
     assert!(stdout.contains("[warn] link target not found: missing.md"));
@@ -550,6 +551,8 @@ fn validate_cli_can_emit_json_report() {
     let stdout = String::from_utf8_lossy(&output.stdout);
     let parsed: Value = serde_json::from_str(&stdout).unwrap();
     assert_eq!(parsed["book_id"], "default");
+    assert!(parsed["manuscript_stats"].is_object());
+    assert!(parsed["manuscript_stats"]["total_characters"].is_number());
     assert!(parsed["issues"].is_array());
     assert!(parsed["checks"].is_array());
 }

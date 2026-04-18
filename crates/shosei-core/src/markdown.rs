@@ -44,6 +44,25 @@ pub fn parse_frontmatter(contents: &str) -> Result<Option<Mapping>, FrontmatterE
     }
 }
 
+pub fn body_without_frontmatter(contents: &str) -> Result<&str, FrontmatterError> {
+    let Some(body_start) = opening_delimiter_end(contents) else {
+        return Ok(contents);
+    };
+
+    let remaining = &contents[body_start..];
+    let mut consumed = 0usize;
+
+    for segment in remaining.split_inclusive('\n') {
+        let line = segment.trim_end_matches(['\r', '\n']);
+        consumed += segment.len();
+        if line == "---" || line == "..." {
+            return Ok(&remaining[consumed..]);
+        }
+    }
+
+    Err(FrontmatterError::MissingClosingDelimiter)
+}
+
 fn opening_delimiter_end(contents: &str) -> Option<usize> {
     if let Some(rest) = contents.strip_prefix("---\r\n") {
         Some(contents.len() - rest.len())
@@ -86,5 +105,11 @@ mod tests {
     fn rejects_unclosed_frontmatter() {
         let error = parse_frontmatter("---\nid: hero\n").unwrap_err();
         assert!(matches!(error, FrontmatterError::MissingClosingDelimiter));
+    }
+
+    #[test]
+    fn returns_body_without_frontmatter() {
+        let body = body_without_frontmatter("---\nid: hero\n---\n# Chapter\n本文\n").unwrap();
+        assert_eq!(body, "# Chapter\n本文\n");
     }
 }

@@ -234,9 +234,13 @@ function toAbsolutePath(repoRoot, candidatePath) {
 }
 
 function readIssuesFromReport(reportPath) {
-  const contents = fs.readFileSync(reportPath, "utf8");
-  const parsed = JSON.parse(contents);
+  const parsed = readReport(reportPath);
   return Array.isArray(parsed.issues) ? parsed.issues : [];
+}
+
+function readReport(reportPath) {
+  const contents = fs.readFileSync(reportPath, "utf8");
+  return JSON.parse(contents);
 }
 
 function classifyCommandResult(result, options = {}) {
@@ -283,6 +287,7 @@ module.exports = {
   findRepoRoot,
   inferSeriesBookId,
   listSeriesBookIds,
+  readReport,
   readIssuesFromReport,
   resolveCliTooling,
   sanitizeCliArgs,

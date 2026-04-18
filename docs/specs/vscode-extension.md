@@ -138,6 +138,8 @@ book が必要な command では `--book <book-id> --path <repo-root>` を付け
 
 `shosei validate` は既存の `dist/reports/*-validate.json` を出力する。拡張は CLI 実行後に report path を読み取り、`issues[].location` を VS Code Problems に反映する。
 
+- report に `manuscript_stats` が含まれる prose project では、拡張は output channel に total / chapters / frontmatter / backmatter の文字数 summary を追加表示してよい
+
 ### 6.2 `page check`
 
 `shosei page check` も同様に `dist/reports/*-page-check.json` を読み、manga page まわりの issue を Problems に反映する。

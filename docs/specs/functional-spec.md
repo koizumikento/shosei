@@ -1130,6 +1130,10 @@ v0.1 の既定:
 - metadata 不足
 - 章順不正
 - 画像参照不整合
+- prose 原稿の文字数集計
+  - YAML frontmatter は除外する
+  - Markdown 記法は除いた plain text を数える
+  - total / frontmatter / chapters / backmatter と file ごとの内訳を report に含める
 
 ### 15.2 EPUB
 
@@ -1185,6 +1189,7 @@ v0.1 の既定:
 - `--json` と file 出力は同じ report schema を共有する
 - CLI の text 出力では、JSON レポート順の先頭最大 5 件を `原因 / 発生箇所 / 修正例` の形で続けて表示できる
 - issue が 6 件以上ある場合、text 出力では末尾に残件数だけを `... and N more` で示す
+- prose の summary では total character count を併記できる
 
 各 issue は次を持つ。
 
