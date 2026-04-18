@@ -1334,7 +1334,7 @@ fn base_css_contents(template: ProjectTemplate, writing_mode: InitWritingMode) -
     match template {
         ProjectTemplate::Business => match writing_mode {
             InitWritingMode::HorizontalLtr => {
-                "html {\n  line-height: 1.7;\n}\n\nbody {\n  font-family: sans-serif;\n  line-height: 1.7;\n  writing-mode: horizontal-tb;\n  direction: ltr;\n}\n\np {\n  margin: 0 0 1em;\n}\n\nh1, h2, h3 {\n  line-height: 1.3;\n  margin: 1.4em 0 0.6em;\n}\n\nimg, svg {\n  max-width: 100%;\n  height: auto;\n}\n\nfigure, table, pre, blockquote {\n  margin: 1.2em 0;\n}\n"
+                "html {\n  line-height: 1.7;\n}\n\nbody {\n  font-family: sans-serif;\n  line-height: 1.7;\n  writing-mode: horizontal-tb;\n}\n\np {\n  margin: 0 0 1em;\n}\n\nh1, h2, h3 {\n  line-height: 1.3;\n  margin: 1.4em 0 0.6em;\n}\n\nimg, svg {\n  max-width: 100%;\n  height: auto;\n}\n\nfigure, table, pre, blockquote {\n  margin: 1.2em 0;\n}\n"
             }
             InitWritingMode::VerticalRl => {
                 "html {\n  line-height: 1.7;\n}\n\nbody {\n  font-family: sans-serif;\n  line-height: 1.7;\n  writing-mode: vertical-rl;\n  -epub-writing-mode: vertical-rl;\n  -webkit-writing-mode: vertical-rl;\n  text-orientation: mixed;\n}\n\np {\n  margin: 0;\n  margin-block-end: 1em;\n}\n\nh1, h2, h3 {\n  line-height: 1.3;\n  margin: 0;\n  margin-block-end: 0.8em;\n}\n\nimg, svg {\n  max-width: 100%;\n  height: auto;\n}\n\nfigure, table, pre, blockquote {\n  margin: 0;\n  margin-block-end: 1em;\n}\n"
@@ -1342,7 +1342,7 @@ fn base_css_contents(template: ProjectTemplate, writing_mode: InitWritingMode) -
         },
         ProjectTemplate::Paper => match writing_mode {
             InitWritingMode::HorizontalLtr => {
-                "html {\n  line-height: 1.65;\n}\n\nbody {\n  font-family: serif;\n  line-height: 1.65;\n  writing-mode: horizontal-tb;\n  direction: ltr;\n}\n\np {\n  margin: 0 0 0.9em;\n}\n\nh1, h2, h3 {\n  line-height: 1.3;\n  margin: 1.3em 0 0.5em;\n}\n\nimg, svg {\n  max-width: 100%;\n  height: auto;\n}\n\nfigure, table, pre, blockquote {\n  margin: 1em 0;\n}\n\nfigcaption {\n  font-size: 0.9em;\n}\n"
+                "html {\n  line-height: 1.65;\n}\n\nbody {\n  font-family: serif;\n  line-height: 1.65;\n  writing-mode: horizontal-tb;\n}\n\np {\n  margin: 0 0 0.9em;\n}\n\nh1, h2, h3 {\n  line-height: 1.3;\n  margin: 1.3em 0 0.5em;\n}\n\nimg, svg {\n  max-width: 100%;\n  height: auto;\n}\n\nfigure, table, pre, blockquote {\n  margin: 1em 0;\n}\n\nfigcaption {\n  font-size: 0.9em;\n}\n"
             }
             InitWritingMode::VerticalRl => {
                 "html {\n  line-height: 1.65;\n}\n\nbody {\n  font-family: serif;\n  line-height: 1.65;\n  writing-mode: vertical-rl;\n  -epub-writing-mode: vertical-rl;\n  -webkit-writing-mode: vertical-rl;\n  text-orientation: mixed;\n}\n\np {\n  margin: 0;\n  margin-block-end: 0.9em;\n}\n\nh1, h2, h3 {\n  line-height: 1.3;\n  margin: 0;\n  margin-block-end: 0.7em;\n}\n\nimg, svg {\n  max-width: 100%;\n  height: auto;\n}\n\nfigure, table, pre, blockquote {\n  margin: 0;\n  margin-block-end: 1em;\n}\n\nfigcaption {\n  font-size: 0.9em;\n}\n"
@@ -1350,7 +1350,7 @@ fn base_css_contents(template: ProjectTemplate, writing_mode: InitWritingMode) -
         },
         ProjectTemplate::Novel => match writing_mode {
             InitWritingMode::HorizontalLtr => {
-                "html {\n  line-height: 1.9;\n}\n\nbody {\n  font-family: serif;\n  line-height: 1.9;\n  writing-mode: horizontal-tb;\n  direction: ltr;\n}\n\np {\n  margin: 0 0 1em;\n}\n\nh1, h2, h3 {\n  line-height: 1.4;\n  margin: 1.2em 0 0.6em;\n}\n\nimg, svg {\n  max-width: 100%;\n  height: auto;\n}\n\nfigure, table, pre, blockquote {\n  margin: 1em 0;\n}\n"
+                "html {\n  line-height: 1.9;\n}\n\nbody {\n  font-family: serif;\n  line-height: 1.9;\n  writing-mode: horizontal-tb;\n}\n\np {\n  margin: 0 0 1em;\n}\n\nh1, h2, h3 {\n  line-height: 1.4;\n  margin: 1.2em 0 0.6em;\n}\n\nimg, svg {\n  max-width: 100%;\n  height: auto;\n}\n\nfigure, table, pre, blockquote {\n  margin: 1em 0;\n}\n"
             }
             InitWritingMode::VerticalRl => {
                 "html {\n  line-height: 1.9;\n}\n\nbody {\n  font-family: serif;\n  line-height: 1.9;\n  writing-mode: vertical-rl;\n  -epub-writing-mode: vertical-rl;\n  -webkit-writing-mode: vertical-rl;\n  text-orientation: mixed;\n}\n\np {\n  margin: 0;\n  margin-block-end: 1em;\n}\n\nh1, h2, h3 {\n  line-height: 1.4;\n  margin: 0;\n  margin-block-end: 1em;\n}\n\nimg, svg {\n  max-width: 100%;\n  height: auto;\n}\n\nfigure, table, pre, blockquote {\n  margin: 0;\n  margin-block-end: 1em;\n}\n"
@@ -1358,7 +1358,7 @@ fn base_css_contents(template: ProjectTemplate, writing_mode: InitWritingMode) -
         },
         ProjectTemplate::LightNovel => match writing_mode {
             InitWritingMode::HorizontalLtr => {
-                "html {\n  line-height: 1.9;\n}\n\nbody {\n  font-family: serif;\n  line-height: 1.9;\n  writing-mode: horizontal-tb;\n  direction: ltr;\n}\n\np {\n  margin: 0 0 1em;\n}\n\nh1, h2, h3 {\n  line-height: 1.4;\n  margin: 1.2em 0 0.6em;\n}\n\nfigure {\n  margin: 1em 0;\n  text-align: center;\n}\n\nimg, svg {\n  display: block;\n  margin: 0 auto;\n  max-width: 100%;\n  height: auto;\n}\n"
+                "html {\n  line-height: 1.9;\n}\n\nbody {\n  font-family: serif;\n  line-height: 1.9;\n  writing-mode: horizontal-tb;\n}\n\np {\n  margin: 0 0 1em;\n}\n\nh1, h2, h3 {\n  line-height: 1.4;\n  margin: 1.2em 0 0.6em;\n}\n\nfigure {\n  margin: 1em 0;\n  text-align: center;\n}\n\nimg, svg {\n  display: block;\n  margin: 0 auto;\n  max-width: 100%;\n  height: auto;\n}\n"
             }
             InitWritingMode::VerticalRl => {
                 "html {\n  line-height: 1.9;\n}\n\nbody {\n  font-family: serif;\n  line-height: 1.9;\n  writing-mode: vertical-rl;\n  -epub-writing-mode: vertical-rl;\n  -webkit-writing-mode: vertical-rl;\n  text-orientation: mixed;\n}\n\np {\n  margin: 0;\n  margin-block-end: 1em;\n}\n\nh1, h2, h3 {\n  line-height: 1.4;\n  margin: 0;\n  margin-block-end: 1em;\n}\n\nfigure {\n  margin: 0;\n  margin-block-end: 1em;\n  text-align: center;\n}\n\nimg, svg {\n  display: block;\n  margin: 0 auto;\n  max-width: 100%;\n  height: auto;\n}\n"
@@ -2599,7 +2599,51 @@ mod tests {
         assert!(!root.join(".gitattributes").exists());
         let base_css = fs::read_to_string(root.join("styles/base.css")).unwrap();
         assert!(base_css.contains("writing-mode: horizontal-tb"));
-        assert!(base_css.contains("direction: ltr"));
+        assert!(!base_css.contains("direction: ltr"));
+    }
+
+    #[test]
+    fn horizontal_scaffolds_do_not_emit_epub_unsupported_direction_css() {
+        for (name, template) in [
+            ("business-horizontal-css", "business"),
+            ("paper-horizontal-css", "paper"),
+            ("novel-horizontal-css", "novel"),
+            ("light-novel-horizontal-css", "light-novel"),
+        ] {
+            let root = temp_dir(name);
+            init_project(InitProjectOptions {
+                root: root.clone(),
+                non_interactive: false,
+                force: false,
+                config_template: Some(template.to_string()),
+                config_profile: None,
+                repo_mode: Some("single-book".to_string()),
+                initial_series_book_id: None,
+                title: None,
+                author: None,
+                language: None,
+                output_preset: Some("kindle".to_string()),
+                writing_mode: Some("horizontal-ltr".to_string()),
+                binding: Some("left".to_string()),
+                print_target: None,
+                print_trim_size: None,
+                print_bleed: None,
+                print_crop_marks: None,
+                print_sides: None,
+                print_max_pages: None,
+                manga_spread_policy_for_kindle: None,
+                manga_front_color_pages: None,
+                manga_body_mode: None,
+                initialize_git: false,
+                git_lfs: Some(false),
+                generate_sample: Some(false),
+            })
+            .unwrap();
+
+            let base_css = fs::read_to_string(root.join("styles/base.css")).unwrap();
+            assert!(base_css.contains("writing-mode: horizontal-tb"));
+            assert!(!base_css.contains("direction: ltr"));
+        }
     }
 
     #[test]
