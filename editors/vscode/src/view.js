@@ -55,19 +55,22 @@ class ShoseiViewProvider {
   }
 }
 
-function createGroupItem(vscode, label, group, icon) {
-  const item = new vscode.TreeItem(label, vscode.TreeItemCollapsibleState.Expanded);
+function createGroupItem(vscode, label, group, icon, collapsibleState) {
+  const item = new vscode.TreeItem(
+    label,
+    collapsibleState ?? vscode.TreeItemCollapsibleState.Expanded
+  );
   item.group = group;
   item.iconPath = new vscode.ThemeIcon(icon);
   item.contextValue = `shosei.group.${group}`;
   return item;
 }
 
-function createNestedGroupItem(vscode, label, description, icon, children) {
+function createNestedGroupItem(vscode, label, description, icon, children, collapsibleState) {
   const item = new vscode.TreeItem(
     label,
     children.length > 0
-      ? vscode.TreeItemCollapsibleState.Expanded
+      ? collapsibleState ?? vscode.TreeItemCollapsibleState.Expanded
       : vscode.TreeItemCollapsibleState.None
   );
   item.description = description || "";
@@ -145,6 +148,23 @@ function createActionItem(vscode, label, command, icon) {
   return item;
 }
 
+function createActionGroup(vscode, label, icon, actions, options) {
+  if (actions.length === 0) {
+    return null;
+  }
+
+  return createNestedGroupItem(
+    vscode,
+    label,
+    `${actions.length} action(s)`,
+    icon,
+    actions,
+    options?.collapsed
+      ? vscode.TreeItemCollapsibleState.Collapsed
+      : vscode.TreeItemCollapsibleState.Expanded
+  );
+}
+
 function createToolItem(vscode, tool) {
   const item = new vscode.TreeItem(tool.display_name, vscode.TreeItemCollapsibleState.None);
   item.description = toolDescription(tool);
@@ -163,18 +183,30 @@ function buildRootItems(vscode, snapshot) {
         "Open a folder with book.yml or series.yml",
         "warning"
       ),
-      createGroupItem(vscode, "Toolchain", "toolchain", "tools"),
+      createGroupItem(
+        vscode,
+        "Toolchain",
+        "toolchain",
+        "tools",
+        vscode.TreeItemCollapsibleState.Collapsed
+      ),
       createActionItem(vscode, "Init", "shosei.init", "new-folder"),
       createActionItem(vscode, "Doctor", "shosei.doctor", "tools")
     ];
   }
 
   return [
-    createGroupItem(vscode, "Context", "context", "info"),
+    createGroupItem(vscode, "Context", "context", "info", vscode.TreeItemCollapsibleState.Collapsed),
     createGroupItem(vscode, "Structure", "structure", "list-tree"),
     createGroupItem(vscode, "Actions", "actions", "play"),
-    createGroupItem(vscode, "Resolved Config", "config", "settings-gear"),
-    createGroupItem(vscode, "Toolchain", "toolchain", "tools")
+    createGroupItem(
+      vscode,
+      "Resolved Config",
+      "config",
+      "settings-gear",
+      vscode.TreeItemCollapsibleState.Collapsed
+    ),
+    createGroupItem(vscode, "Toolchain", "toolchain", "tools", vscode.TreeItemCollapsibleState.Collapsed)
   ];
 }
 
@@ -495,54 +527,78 @@ function pushReferenceStructureItems(vscode, items, explain) {
 }
 
 function buildActionItems(vscode, snapshot) {
-  const items = [];
   const projectType = snapshot.explain?.project_type || null;
   const chapterCount = snapshot.explain?.manuscript?.chapters?.length || 0;
   const hasManuscript = Boolean(snapshot.explain?.manuscript);
+  const items = [];
+  const projectActions = [
+    createActionItem(vscode, "Explain", "shosei.explain", "search"),
+    createActionItem(vscode, "Validate", "shosei.validate", "check"),
+    createActionItem(vscode, "Build", "shosei.build", "gear"),
+    createActionItem(vscode, "Preview", "shosei.preview", "eye"),
+    createActionItem(vscode, "Preview (Watch)", "shosei.previewWatch", "debug-start"),
+    createActionItem(vscode, "Doctor", "shosei.doctor", "tools")
+  ];
+  const chapterActions = [];
+  const referenceActions = [
+    createActionItem(vscode, "Reference Scaffold", "shosei.referenceScaffold", "new-folder"),
+    createActionItem(vscode, "Reference Map", "shosei.referenceMap", "list-selection"),
+    createActionItem(vscode, "Reference Check", "shosei.referenceCheck", "checklist")
+  ];
+  const storyActions = [
+    createActionItem(vscode, "Story Scaffold", "shosei.storyScaffold", "new-folder"),
+    createActionItem(vscode, "Story Seed", "shosei.storySeed", "new-file"),
+    createActionItem(vscode, "Story Map", "shosei.storyMap", "list-selection"),
+    createActionItem(vscode, "Story Check", "shosei.storyCheck", "checklist")
+  ];
+  const seriesActions = [];
 
   if (snapshot.mode === "series") {
-    items.push(createActionItem(vscode, "Select Book", "shosei.selectBook", "list-selection"));
+    seriesActions.push(createActionItem(vscode, "Select Book", "shosei.selectBook", "list-selection"));
   }
 
   if (hasManuscript) {
-    items.push(createActionItem(vscode, "Chapter Add", "shosei.chapterAdd", "add"));
+    chapterActions.push(createActionItem(vscode, "Chapter Add", "shosei.chapterAdd", "add"));
     if (chapterCount > 1) {
-      items.push(createActionItem(vscode, "Chapter Move", "shosei.chapterMove", "move"));
-      items.push(createActionItem(vscode, "Chapter Remove", "shosei.chapterRemove", "trash"));
+      chapterActions.push(createActionItem(vscode, "Chapter Move", "shosei.chapterMove", "move"));
+      chapterActions.push(createActionItem(vscode, "Chapter Remove", "shosei.chapterRemove", "trash"));
     }
     if (chapterCount > 0) {
-      items.push(
+      chapterActions.push(
         createActionItem(vscode, "Chapter Renumber", "shosei.chapterRenumber", "symbol-number")
       );
     }
   }
 
-  items.push(createActionItem(vscode, "Explain", "shosei.explain", "search"));
-  items.push(createActionItem(vscode, "Validate", "shosei.validate", "check"));
-  items.push(createActionItem(vscode, "Build", "shosei.build", "gear"));
-  items.push(createActionItem(vscode, "Preview", "shosei.preview", "eye"));
-  items.push(createActionItem(vscode, "Preview (Watch)", "shosei.previewWatch", "debug-start"));
-  items.push(createActionItem(vscode, "Reference Scaffold", "shosei.referenceScaffold", "new-folder"));
-  items.push(createActionItem(vscode, "Reference Map", "shosei.referenceMap", "list-selection"));
-  items.push(createActionItem(vscode, "Reference Check", "shosei.referenceCheck", "checklist"));
-  items.push(createActionItem(vscode, "Story Scaffold", "shosei.storyScaffold", "new-folder"));
-  items.push(createActionItem(vscode, "Story Seed", "shosei.storySeed", "new-file"));
-  items.push(createActionItem(vscode, "Story Map", "shosei.storyMap", "list-selection"));
-  items.push(createActionItem(vscode, "Story Check", "shosei.storyCheck", "checklist"));
   if (snapshot.mode === "series") {
-    items.push(createActionItem(vscode, "Reference Drift", "shosei.referenceDrift", "compare-changes"));
-    items.push(createActionItem(vscode, "Reference Sync", "shosei.referenceSync", "sync"));
-    items.push(createActionItem(vscode, "Story Drift", "shosei.storyDrift", "compare-changes"));
-    items.push(createActionItem(vscode, "Story Sync", "shosei.storySync", "sync"));
+    referenceActions.push(
+      createActionItem(vscode, "Reference Drift", "shosei.referenceDrift", "compare-changes")
+    );
+    referenceActions.push(createActionItem(vscode, "Reference Sync", "shosei.referenceSync", "sync"));
+    storyActions.push(createActionItem(vscode, "Story Drift", "shosei.storyDrift", "compare-changes"));
+    storyActions.push(createActionItem(vscode, "Story Sync", "shosei.storySync", "sync"));
   }
-  items.push(createActionItem(vscode, "Doctor", "shosei.doctor", "tools"));
 
   if (projectType === "manga") {
-    items.push(createActionItem(vscode, "Page Check", "shosei.pageCheck", "check"));
+    projectActions.push(createActionItem(vscode, "Page Check", "shosei.pageCheck", "check"));
   }
 
   if (snapshot.mode === "series") {
-    items.push(createActionItem(vscode, "Series Sync", "shosei.seriesSync", "sync"));
+    seriesActions.push(createActionItem(vscode, "Series Sync", "shosei.seriesSync", "sync"));
+  }
+
+  const groups = [
+    createActionGroup(vscode, "Project", "play", projectActions),
+    createActionGroup(vscode, "Chapters", "list-ordered", chapterActions, { collapsed: true }),
+    createActionGroup(vscode, "Reference", "bookmark", referenceActions, { collapsed: true }),
+    createActionGroup(vscode, "Story", "book", storyActions, { collapsed: true }),
+    createActionGroup(vscode, "Series", "library", seriesActions, { collapsed: true })
+  ];
+
+  for (const group of groups) {
+    if (group) {
+      items.push(group);
+    }
   }
 
   return items;

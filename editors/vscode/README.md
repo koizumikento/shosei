@@ -44,9 +44,11 @@ Activity Bar に `Shosei` view container を追加する。
 
 - `Context`: repo mode、repo root、series の target book
 - `Structure`: config file、chapter list、初期化済み reference workspace file、初期化済み story workspace file、book-scoped な story structure template file、editorial sidecar file
-- `Actions`: explain / validate / build / preview / doctor / reference / story などの主要操作
+- `Actions`: `Project` / `Chapters` / `Reference` / `Story` / `Series` に分けて主要操作を表示する
 - `Resolved Config`: title、project type、language、outputs、writing mode、binding、editorial summary
 - `Toolchain`: host OS、required / optional summary、tool status
+
+初期表示では `Structure` と `Actions` を優先し、`Context` / `Resolved Config` / `Toolchain` は折りたたんだ状態で始まる。`Actions` のうち `Reference` / `Story` / `Series` も折りたたみで始め、必要なときだけ展開する。
 
 repo が見つからない場合は、view から `Init` を直接起動できる。
 

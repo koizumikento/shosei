@@ -44,6 +44,11 @@ test("buildRootItems keeps the sidebar groups in the frequent-use order", () => 
     items.map((item) => item.label),
     ["Context", "Structure", "Actions", "Resolved Config", "Toolchain"]
   );
+  assert.equal(items[0].collapsibleState, vscode.TreeItemCollapsibleState.Collapsed);
+  assert.equal(items[1].collapsibleState, vscode.TreeItemCollapsibleState.Expanded);
+  assert.equal(items[2].collapsibleState, vscode.TreeItemCollapsibleState.Expanded);
+  assert.equal(items[3].collapsibleState, vscode.TreeItemCollapsibleState.Collapsed);
+  assert.equal(items[4].collapsibleState, vscode.TreeItemCollapsibleState.Collapsed);
 });
 
 test("buildStructureItems nests chapters and editorial files under structure groups", () => {
@@ -311,7 +316,7 @@ test("buildStructureItems includes book and shared story groups for series repos
   assert.equal(items[2].children[1].children[0].label, "hero.md");
 });
 
-test("buildActionItems includes reference actions for single-book repos", () => {
+test("buildActionItems groups single-book actions by workflow", () => {
   const vscode = createFakeVscode();
   const items = view.__test.buildActionItems(vscode, {
     mode: "single-book",
@@ -325,27 +330,28 @@ test("buildActionItems includes reference actions for single-book repos", () => 
 
   assert.deepEqual(
     items.map((item) => item.label),
-    [
-      "Chapter Add",
-      "Chapter Renumber",
-      "Explain",
-      "Validate",
-      "Build",
-      "Preview",
-      "Preview (Watch)",
-      "Reference Scaffold",
-      "Reference Map",
-      "Reference Check",
-      "Story Scaffold",
-      "Story Seed",
-      "Story Map",
-      "Story Check",
-      "Doctor"
-    ]
+    ["Project", "Chapters", "Reference", "Story"]
+  );
+  assert.equal(items[0].collapsibleState, vscode.TreeItemCollapsibleState.Expanded);
+  assert.equal(items[1].collapsibleState, vscode.TreeItemCollapsibleState.Collapsed);
+  assert.equal(items[2].collapsibleState, vscode.TreeItemCollapsibleState.Collapsed);
+  assert.equal(items[3].collapsibleState, vscode.TreeItemCollapsibleState.Collapsed);
+  assert.deepEqual(
+    items[0].children.map((item) => item.label),
+    ["Explain", "Validate", "Build", "Preview", "Preview (Watch)", "Doctor"]
+  );
+  assert.deepEqual(items[1].children.map((item) => item.label), ["Chapter Add", "Chapter Renumber"]);
+  assert.deepEqual(
+    items[2].children.map((item) => item.label),
+    ["Reference Scaffold", "Reference Map", "Reference Check"]
+  );
+  assert.deepEqual(
+    items[3].children.map((item) => item.label),
+    ["Story Scaffold", "Story Seed", "Story Map", "Story Check"]
   );
 });
 
-test("buildActionItems includes drift and sync for series repos", () => {
+test("buildActionItems keeps advanced series actions under collapsed groups", () => {
   const vscode = createFakeVscode();
   const items = view.__test.buildActionItems(vscode, {
     mode: "series",
@@ -357,17 +363,21 @@ test("buildActionItems includes drift and sync for series repos", () => {
     }
   });
 
-  assert(items.some((item) => item.label === "Select Book"));
-  assert(items.some((item) => item.label === "Reference Scaffold"));
-  assert(items.some((item) => item.label === "Reference Map"));
-  assert(items.some((item) => item.label === "Reference Check"));
-  assert(items.some((item) => item.label === "Reference Drift"));
-  assert(items.some((item) => item.label === "Reference Sync"));
-  assert(items.some((item) => item.label === "Story Scaffold"));
-  assert(items.some((item) => item.label === "Story Seed"));
-  assert(items.some((item) => item.label === "Story Map"));
-  assert(items.some((item) => item.label === "Story Check"));
-  assert(items.some((item) => item.label === "Story Drift"));
-  assert(items.some((item) => item.label === "Story Sync"));
-  assert(items.some((item) => item.label === "Series Sync"));
+  assert.deepEqual(items.map((item) => item.label), [
+    "Project",
+    "Chapters",
+    "Reference",
+    "Story",
+    "Series"
+  ]);
+  assert(items[2].children.some((item) => item.label === "Reference Drift"));
+  assert(items[2].children.some((item) => item.label === "Reference Sync"));
+  assert(items[3].children.some((item) => item.label === "Story Drift"));
+  assert(items[3].children.some((item) => item.label === "Story Sync"));
+  assert(items[4].children.some((item) => item.label === "Select Book"));
+  assert(items[4].children.some((item) => item.label === "Series Sync"));
+  assert.equal(items[1].collapsibleState, vscode.TreeItemCollapsibleState.Collapsed);
+  assert.equal(items[2].collapsibleState, vscode.TreeItemCollapsibleState.Collapsed);
+  assert.equal(items[3].collapsibleState, vscode.TreeItemCollapsibleState.Collapsed);
+  assert.equal(items[4].collapsibleState, vscode.TreeItemCollapsibleState.Collapsed);
 });
