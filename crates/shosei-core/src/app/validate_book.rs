@@ -310,7 +310,10 @@ fn compute_manuscript_stats(
 }
 
 fn markdown_character_count(contents: &str) -> usize {
-    let body = markdown::body_without_frontmatter(contents).unwrap_or(contents);
+    let body = match markdown::parse_frontmatter(contents) {
+        Ok(Some(_)) => markdown::body_without_frontmatter(contents).unwrap_or(contents),
+        Ok(None) | Err(_) => contents,
+    };
     let mut image_depth = 0usize;
     let mut plain_text = String::new();
 
@@ -2391,6 +2394,13 @@ git:
         );
 
         assert_eq!(count, "章題本文とリンク".chars().count());
+    }
+
+    #[test]
+    fn markdown_character_count_keeps_leading_non_yaml_blocks() {
+        let count = markdown_character_count("---\n# Interlude\n---\n本文\n");
+
+        assert!(count > markdown_character_count("本文\n"));
     }
 
     #[test]
