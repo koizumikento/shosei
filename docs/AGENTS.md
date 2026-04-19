@@ -32,8 +32,10 @@ Rules in this file apply to `docs/` and documentation changes that update the pu
 - When command behavior, config fields, or user-visible output changes, update the affected usage docs in the same change.
 - Keep `docs/usage.md` and `../site/usage.html` in sync.
 - Keep command status labels aligned across `../README.md`, `usage.md`, and `../site/usage.html`.
+- Keep `series sync` descriptions aligned across `specs/functional-spec.md`, `usage.md`, `../site/usage.html`, and `../README.md`, especially the generated catalog/backmatter scope.
 - Keep `validate --json` and `handoff <kindle|print|proof>` descriptions aligned across `specs/functional-spec.md`, `usage.md`, `../site/usage.html`, and `../README.md`.
-- Keep install and release guidance aligned across `../README.md` and `../editors/vscode/README.md` when GitHub Release assets, Homebrew / Scoop distribution, or VSIX packaging flow changes.
+- Keep install and release guidance aligned across `../README.md`, `../site/install.html`, and `../editors/vscode/README.md` when GitHub Release assets, Homebrew / Scoop distribution, or VSIX packaging/update flow changes.
+- Keep prose `validate --json` docs aligned on the `manuscript_stats` payload across `specs/functional-spec.md`, `usage.md`, `../site/usage.html`, and `../editors/vscode/README.md`.
 - Keep `specs/vscode-extension.md` and `../editors/vscode/README.md` aligned when the extension flow, scope, or ownership changes.
 - Keep recurring concept-fulfillment reviews aligned with `concept-fulfillment-rubric.md`, including weights, rounding, and comparison rules.
 

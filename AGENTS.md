@@ -63,7 +63,7 @@ If a surface cannot be justified, do not change it.
 - Prefer examples that reflect currently supported config fields and output behavior. Remove or rewrite stale examples instead of leaving them partially correct.
 - Keep `docs/usage.md` and `site/usage.html` in sync.
 - Keep command status labels aligned across `README.md`, `docs/usage.md`, and `site/usage.html`.
-- Keep install and release guidance aligned across `README.md`, `editors/vscode/README.md`, and `.github/workflows/release.yml` when GitHub Release assets, Homebrew / Scoop distribution, or VSIX packaging flow changes.
+- Keep install and release guidance aligned across `README.md`, `site/install.html`, `editors/vscode/README.md`, and `.github/workflows/release.yml` when GitHub Release assets, Homebrew / Scoop distribution, or VSIX packaging/update flow changes.
 - Keep the `story seed` contract aligned across `docs/specs/story-support.md`, `docs/usage.md`, and `site/usage.html` when seeded structure templates or `scene_seeds` behavior changes.
 - Keep `docs/specs/vscode-extension.md` and `editors/vscode/README.md` aligned when extension flow, scope, or ownership changes.
 - Keep recurring concept-fulfillment reviews aligned with `docs/concept-fulfillment-rubric.md`; do not invent a new scoring standard per run.
