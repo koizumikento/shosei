@@ -934,7 +934,7 @@ fn story_seed_cli_creates_scenes_and_notes_from_template() {
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("story seed: applied 4 seed(s)"));
-    assert!(stdout.contains("story/structures/kishotenketsu.md"));
+    assert_contains_normalized_path(&stdout, "story/structures/kishotenketsu.md");
     let scenes = fs::read_to_string(root.join("story/scenes.yml")).unwrap();
     assert!(scenes.contains("story/scene-notes/01-scene.md"));
     assert!(root.join("story/scene-notes/01-scene.md").is_file());
