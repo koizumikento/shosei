@@ -193,6 +193,56 @@ outputs:
     .unwrap();
 }
 
+fn write_chapter_fixture(root: &Path) {
+    fs::create_dir_all(root.join("manuscript")).unwrap();
+    fs::write(root.join("manuscript/01.md"), "# Chapter 1\n").unwrap();
+    fs::write(root.join("manuscript/02.md"), "# Chapter 2\n").unwrap();
+    fs::write(
+        root.join("book.yml"),
+        r#"
+project:
+  type: novel
+  vcs: git
+book:
+  title: "Sample"
+  authors:
+    - "Author"
+  reading_direction: rtl
+layout:
+  binding: right
+manuscript:
+  chapters:
+    - manuscript/01.md
+    - manuscript/02.md
+outputs:
+  kindle:
+    enabled: true
+    target: kindle-ja
+"#,
+    )
+    .unwrap();
+}
+
+fn write_story_fixture(root: &Path) {
+    fs::write(
+        root.join("book.yml"),
+        r#"
+project:
+  type: novel
+  vcs: git
+book:
+  title: "Story Sample"
+  authors:
+    - "Author"
+outputs:
+  kindle:
+    enabled: true
+    target: kindle-ja
+"#,
+    )
+    .unwrap();
+}
+
 fn write_doctor_fixture(root: &Path) {
     fs::create_dir_all(root.join("manuscript")).unwrap();
     fs::write(root.join("manuscript/01.md"), "# Chapter 1\n").unwrap();
@@ -810,6 +860,38 @@ fn doctor_json_cli_includes_detected_project_context() {
 }
 
 #[test]
+fn chapter_add_cli_updates_config_and_creates_stub_file() {
+    let root = temp_dir("chapter-add");
+    write_chapter_fixture(&root);
+
+    let output = Command::new(env!("CARGO_BIN_EXE_shosei"))
+        .args([
+            "chapter",
+            "add",
+            "manuscript/03.md",
+            "--title",
+            "Chapter 3",
+            "--after",
+            "manuscript/02.md",
+            "--path",
+            root.to_str().unwrap(),
+        ])
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("chapter add: default updated"));
+    assert!(stdout.contains("inserted manuscript/03.md at position 3"));
+    assert_eq!(
+        fs::read_to_string(root.join("manuscript/03.md")).unwrap(),
+        "# Chapter 3\n"
+    );
+    let book = fs::read_to_string(root.join("book.yml")).unwrap();
+    assert!(book.contains("- manuscript/03.md"));
+}
+
+#[test]
 fn reference_scaffold_cli_creates_workspace() {
     let root = temp_dir("reference-scaffold");
     write_reference_fixture(&root);
@@ -824,6 +906,38 @@ fn reference_scaffold_cli_creates_workspace() {
     assert!(stdout.contains("reference scaffold: initialized single-book reference workspace"));
     assert!(root.join("references/README.md").is_file());
     assert!(root.join("references/entries/README.md").is_file());
+}
+
+#[test]
+fn story_seed_cli_creates_scenes_and_notes_from_template() {
+    let root = temp_dir("story-seed");
+    write_story_fixture(&root);
+
+    let scaffold = Command::new(env!("CARGO_BIN_EXE_shosei"))
+        .args(["story", "scaffold", "--path", root.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(scaffold.status.success());
+
+    let output = Command::new(env!("CARGO_BIN_EXE_shosei"))
+        .args([
+            "story",
+            "seed",
+            "--template",
+            "kishotenketsu",
+            "--path",
+            root.to_str().unwrap(),
+        ])
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("story seed: applied 4 seed(s)"));
+    assert!(stdout.contains("story/structures/kishotenketsu.md"));
+    let scenes = fs::read_to_string(root.join("story/scenes.yml")).unwrap();
+    assert!(scenes.contains("story/scene-notes/01-scene.md"));
+    assert!(root.join("story/scene-notes/01-scene.md").is_file());
 }
 
 #[test]

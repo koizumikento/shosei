@@ -28,6 +28,7 @@
 - `Shosei: Reference Drift`
 - `Shosei: Reference Sync`
 - `Shosei: Story Scaffold`
+- `Shosei: Story Seed`
 - `Shosei: Story Map`
 - `Shosei: Reveal Scene In Index`
 - `Shosei: Story Check`
