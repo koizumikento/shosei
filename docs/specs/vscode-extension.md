@@ -29,6 +29,7 @@ v0.1 の VS Code 拡張は次を扱う。
 - `shosei preview --watch`
 - `shosei reference scaffold|map|check|drift|sync`
 - `shosei story scaffold|seed|map|check|drift|sync`
+- `Shosei: Reveal Scene In Index`
 - `shosei chapter add|move|remove|renumber`
 - `shosei doctor`
 - `shosei page check`
