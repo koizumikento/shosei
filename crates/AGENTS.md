@@ -74,8 +74,14 @@ Use these exact commands when validating Rust changes:
   - `cargo test -p shosei-cli --test cli_smoke build_cli_prints_tools_and_writes_artifact -- --exact`
   - `cargo test -p shosei-cli --test cli_smoke preview_cli_prints_summary_and_writes_artifact -- --exact`
   - `cargo test -p shosei-cli --test cli_smoke page_check_cli_prints_summary_and_issue_preview -- --exact`
+  - `cargo test -p shosei-cli --test cli_smoke chapter_add_cli_updates_config_and_creates_stub_file -- --exact`
+  - `cargo test -p shosei-cli --test cli_smoke reference_scaffold_cli_creates_workspace -- --exact`
+  - `cargo test -p shosei-cli --test cli_smoke reference_check_cli_prints_issue_preview_and_fails_on_errors -- --exact`
+  - `cargo test -p shosei-cli --test cli_smoke story_seed_cli_creates_scenes_and_notes_from_template -- --exact`
   - `cargo test -p shosei-cli --test cli_smoke series_sync_cli_generates_catalog_and_updates_books -- --exact`
   - `cargo test -p shosei-cli --test cli_smoke handoff_proof_cli_packages_review_packet -- --exact`
+  - `cargo test -p shosei-cli --test cli_smoke handoff_kindle_cli_packages_manifest_with_artifact_details -- --exact`
+  - `cargo test -p shosei-cli --test cli_smoke handoff_print_cli_packages_manga_pdf -- --exact`
   - `cargo test -p shosei-cli --test cli_smoke doctor_json_cli_includes_detected_project_context -- --exact`
 - focused repo discovery checks: `cargo test -p shosei-core --test repo_discovery`
 - focused build / validate / handoff checks: `cargo test -p shosei-core --test book_commands`
