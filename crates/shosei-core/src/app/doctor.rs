@@ -30,6 +30,7 @@ const DOCTOR_TOOL_MATRIX: &[(&str, DoctorToolCategory)] = &[
     ("typst", DoctorToolCategory::Optional),
     ("lualatex", DoctorToolCategory::Optional),
     ("epubcheck", DoctorToolCategory::Optional),
+    ("qpdf", DoctorToolCategory::Optional),
     ("git-lfs", DoctorToolCategory::Optional),
     ("kindle-previewer", DoctorToolCategory::Optional),
 ];
@@ -321,6 +322,9 @@ fn apply_resolved_book_context(
         detected
             .focused_optional_tools
             .push("kindle-previewer".to_string());
+    }
+    if resolved.effective.outputs.print.is_some() {
+        detected.focused_optional_tools.push("qpdf".to_string());
     }
     if resolved.effective.git.lfs {
         detected.focused_optional_tools.push("git-lfs".to_string());
@@ -619,7 +623,7 @@ git:
         );
         assert_eq!(
             project.focused_optional_tools,
-            vec!["epubcheck", "git-lfs", "kindle-previewer"]
+            vec!["epubcheck", "git-lfs", "kindle-previewer", "qpdf"]
         );
     }
 
@@ -833,6 +837,15 @@ pdf:
                     install_hint: "Install epubcheck.".to_string(),
                 },
                 ToolRecord {
+                    key: "qpdf",
+                    display_name: "qpdf",
+                    status: ToolStatus::Missing,
+                    detected_as: None,
+                    resolved_path: None,
+                    version: None,
+                    install_hint: "Install qpdf.".to_string(),
+                },
+                ToolRecord {
                     key: "git-lfs",
                     display_name: "git-lfs",
                     status: ToolStatus::Missing,
@@ -857,5 +870,6 @@ pdf:
 
         assert!(result.summary.contains("- typst: missing"));
         assert!(result.summary.contains("- lualatex: missing"));
+        assert!(result.summary.contains("- qpdf: missing"));
     }
 }

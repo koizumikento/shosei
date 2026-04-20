@@ -250,6 +250,12 @@
   "scripts": {
     "check": "node --check extension.js && node --check src/core.js && node --check src/view.js",
     "test": "node --test ./test/**/*.test.js",
+    "test:host": "node ./test/run-host-tests.js",
+    "test:package-smoke": "node ./test/run-package-smoke.js",
     "package": "npx @vscode/vsce@3.8.0 package"
+  },
+  "devDependencies": {
+    "@vscode/test-electron": "^2.5.2",
+    "adm-zip": "^0.5.17"
   }
 }

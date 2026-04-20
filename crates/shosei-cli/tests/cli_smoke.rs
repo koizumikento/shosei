@@ -81,6 +81,50 @@ git:
     .unwrap();
 }
 
+#[cfg(unix)]
+fn write_print_validate_fixture(root: &Path) {
+    fs::create_dir_all(root.join("manuscript")).unwrap();
+    fs::write(root.join("manuscript/01.md"), "# Chapter 1\n").unwrap();
+    fs::write(
+        root.join("book.yml"),
+        r#"
+project:
+  type: business
+  vcs: git
+book:
+  title: "Sample"
+  authors:
+    - "Author"
+  profile: business
+  reading_direction: ltr
+layout:
+  binding: left
+manuscript:
+  chapters:
+    - manuscript/01.md
+outputs:
+  print:
+    enabled: true
+    target: print-jp-pdfx1a
+pdf:
+  engine: weasyprint
+  toc: true
+  page_number: true
+  running_header: auto
+print:
+  trim_size: bunko
+  bleed: 3mm
+  crop_marks: true
+  pdf_standard: pdfx1a
+validation:
+  strict: true
+git:
+  lfs: true
+"#,
+    )
+    .unwrap();
+}
+
 fn write_page_check_fixture(root: &Path) {
     fs::create_dir_all(root.join("manga/pages")).unwrap();
     fs::write(root.join("manga/pages/1.png"), tiny_png()).unwrap();
@@ -556,6 +600,48 @@ fn write_fake_pandoc(root: &Path) -> PathBuf {
     tools_dir
 }
 
+#[cfg(unix)]
+fn write_fake_qpdf(root: &Path) -> PathBuf {
+    use std::os::unix::fs::PermissionsExt;
+
+    let tools_dir = root.join("tools");
+    fs::create_dir_all(&tools_dir).unwrap();
+    let qpdf = tools_dir.join("qpdf");
+    fs::write(
+        &qpdf,
+        r#"#!/bin/sh
+echo "fake qpdf"
+exit 0
+"#,
+    )
+    .unwrap();
+    let mut permissions = fs::metadata(&qpdf).unwrap().permissions();
+    permissions.set_mode(0o755);
+    fs::set_permissions(&qpdf, permissions).unwrap();
+    tools_dir
+}
+
+#[cfg(unix)]
+fn write_fake_weasyprint(root: &Path) -> PathBuf {
+    use std::os::unix::fs::PermissionsExt;
+
+    let tools_dir = root.join("tools");
+    fs::create_dir_all(&tools_dir).unwrap();
+    let weasyprint = tools_dir.join("weasyprint");
+    fs::write(
+        &weasyprint,
+        r#"#!/bin/sh
+echo "fake weasyprint"
+exit 0
+"#,
+    )
+    .unwrap();
+    let mut permissions = fs::metadata(&weasyprint).unwrap().permissions();
+    permissions.set_mode(0o755);
+    fs::set_permissions(&weasyprint, permissions).unwrap();
+    tools_dir
+}
+
 fn prepend_path(path: &Path) -> std::ffi::OsString {
     let current = env::var_os("PATH").unwrap_or_default();
     let mut paths = vec![path.to_path_buf()];
@@ -605,6 +691,36 @@ fn validate_cli_can_emit_json_report() {
     assert!(parsed["manuscript_stats"]["total_characters"].is_number());
     assert!(parsed["issues"].is_array());
     assert!(parsed["checks"].is_array());
+}
+
+#[cfg(unix)]
+#[test]
+fn validate_cli_json_includes_print_validator_runs() {
+    let root = temp_dir("validate-print-json");
+    write_print_validate_fixture(&root);
+    let tools_dir = write_fake_pandoc(&root);
+    let _ = write_fake_qpdf(&root);
+    let _ = write_fake_weasyprint(&root);
+
+    let output = Command::new(env!("CARGO_BIN_EXE_shosei"))
+        .args(["validate", "--json", "--path", root.to_str().unwrap()])
+        .env("PATH", prepend_path(&tools_dir))
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let parsed: Value = serde_json::from_str(&stdout).unwrap();
+    assert_eq!(parsed["book_id"], "default");
+    assert!(parsed["validators"].is_array());
+    assert_eq!(parsed["validators"][0]["name"], "qpdf-check");
+    assert_eq!(parsed["validators"][0]["status"], "passed");
+    assert!(
+        parsed["validators"][0]["log_path"]
+            .as_str()
+            .unwrap()
+            .ends_with("default-qpdf-validate.log")
+    );
 }
 
 #[test]
@@ -856,6 +972,13 @@ fn doctor_json_cli_includes_detected_project_context() {
     assert_eq!(
         json["detected_project"]["focused_required_tools"][2],
         "chromium"
+    );
+    assert!(
+        json["detected_project"]["focused_optional_tools"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|tool| tool == "qpdf")
     );
 }
 
@@ -1464,6 +1587,14 @@ fn handoff_kindle_cli_packages_manifest_with_artifact_details() {
         manifest["selected_artifact_details"][0]["path"],
         "artifacts/default-kindle-comic.epub"
     );
+    assert_eq!(
+        manifest["selected_artifact_details"][0]["target_profile"],
+        "manga"
+    );
+    assert_eq!(
+        manifest["selected_artifact_details"][0]["artifact_metadata"]["kindle"]["fixed_layout"],
+        true
+    );
 }
 
 #[test]
@@ -1495,5 +1626,13 @@ fn handoff_print_cli_packages_manga_pdf() {
     assert_eq!(
         manifest["selected_artifact_details"][0]["primary_tool"],
         "shosei-image-pdf"
+    );
+    assert_eq!(
+        manifest["selected_artifact_details"][0]["target_profile"],
+        "manga"
+    );
+    assert_eq!(
+        manifest["selected_artifact_details"][0]["artifact_metadata"]["print"]["page_count"],
+        2
     );
 }

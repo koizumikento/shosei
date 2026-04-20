@@ -89,6 +89,10 @@ jobs:
         with:
           node-version: 22
 
+      - name: Install VS Code adapter dependencies
+        working-directory: editors/vscode
+        run: npm ci
+
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
@@ -98,10 +102,9 @@ jobs:
       - name: Run extension checks
         working-directory: editors/vscode
         run: |
-          node --check extension.js
-          node --check src/core.js
-          node --check src/view.js
-          node --test ./test/**/*.test.js
+          npm run check
+          npm test
+          xvfb-run -a npm run test:host
 
       - name: Run CLI checks
         run: |
@@ -201,9 +204,13 @@ jobs:
         with:
           node-version: 22
 
-      - name: Package VSIX
+      - name: Install VS Code adapter dependencies
         working-directory: editors/vscode
-        run: npm run package
+        run: npm ci
+
+      - name: Package VSIX and run package smoke
+        working-directory: editors/vscode
+        run: xvfb-run -a npm run test:package-smoke
 
       - name: Upload VSIX artifact
         uses: actions/upload-artifact@v7

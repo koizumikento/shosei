@@ -123,7 +123,8 @@ struct HandoffArtifactDetail {
     target: String,
     path: String,
     primary_tool: String,
-    metadata: Value,
+    target_profile: String,
+    artifact_metadata: Value,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -344,7 +345,8 @@ fn handoff_with_toolchain(
                 target: output.target.clone(),
                 path: relative_to(&package_dir, copied_path),
                 primary_tool: output.primary_tool.to_string(),
-                metadata: build_result
+                target_profile: resolved.effective.book.profile.clone(),
+                artifact_metadata: build_result
                     .artifact_metadata(output.channel, &output.target)
                     .cloned()
                     .unwrap_or(Value::Null),
@@ -1000,11 +1002,15 @@ editorial:
             "shosei-fxl-epub"
         );
         assert_eq!(
-            manifest["selected_artifact_details"][0]["metadata"]["kindle"]["fixed_layout"],
+            manifest["selected_artifact_details"][0]["target_profile"],
+            "manga"
+        );
+        assert_eq!(
+            manifest["selected_artifact_details"][0]["artifact_metadata"]["kindle"]["fixed_layout"],
             true
         );
         assert_eq!(
-            manifest["selected_artifact_details"][0]["metadata"]["manga"]["source_page_count"],
+            manifest["selected_artifact_details"][0]["artifact_metadata"]["manga"]["source_page_count"],
             1
         );
     }
@@ -1270,11 +1276,15 @@ printf 'fake output' > "$out"
             "artifacts/default-kindle-ja.epub"
         );
         assert_eq!(
-            manifest["selected_artifact_details"][0]["metadata"]["kindle"]["fixed_layout"],
+            manifest["selected_artifact_details"][0]["artifact_metadata"]["kindle"]["fixed_layout"],
             false
         );
         assert_eq!(
-            manifest["selected_artifact_details"][1]["metadata"]["print"]["pdf_engine"],
+            manifest["selected_artifact_details"][1]["target_profile"],
+            "business"
+        );
+        assert_eq!(
+            manifest["selected_artifact_details"][1]["artifact_metadata"]["print"]["pdf_engine"],
             "weasyprint"
         );
         assert_eq!(manifest["editorial_summary"]["claim_count"], 1);

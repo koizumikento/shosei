@@ -364,6 +364,7 @@ v0.1 の最小要件:
 - `weasyprint`
 - `chromium`
 - `epubcheck`
+- `qpdf`
 - Kindle Previewer
 - `git-lfs`
 
@@ -377,7 +378,7 @@ v0.1 の最小要件:
 
 - required tool と optional tool を分けて返せる
 - required tool は `git`, `pandoc`, `weasyprint`, `chromium` とする
-- optional tool は `typst`, `lualatex`, `epubcheck`, `git-lfs`, Kindle Previewer とする
+- optional tool は `typst`, `lualatex`, `epubcheck`, `qpdf`, `git-lfs`, Kindle Previewer とする
 - `typst`, `lualatex` は config 値では受け付けるが、v0.1 では default 経路より検証が薄い。doctor では optional tool として表示し、選択中 engine の場合だけ focused required tools に含める
 - PATH 解決結果、バージョン、導入ヒントを text 出力で返せる
 - editor integration 向けに machine-readable な `--json` 出力を返せる
@@ -1163,6 +1164,13 @@ v0.1 の既定:
 - page limit
 - font embed
 - PDF standard
+- 生成した PDF への `qpdf --check`
+
+追加ルール:
+
+- print 出力が有効な場合は、生成した PDF に対する `qpdf --check` を validator として実行してよい
+- `qpdf` が未導入の場合は `validators[]` に `missing-tool` を記録し、それだけでは validate を fail にしない
+- `qpdf` の検査失敗は validation error として返す
 - 画像解像度
 
 ### 15.5 漫画
@@ -1291,7 +1299,7 @@ report には `validators[]` も含める。
 - 設定済みなら cover asset のコピー
 - `dist/handoff/<book-id>-kindle/` に成果物コピーと `manifest.json`
 - `manifest.json` には `selected_artifact_details[{channel,target,path,primary_tool,target_profile,artifact_metadata}]` を含める
-- `artifact_metadata` には少なくとも `reading_direction`, `fixed_layout`, `cover_image` を入れられる
+- `artifact_metadata` には少なくとも `reading_direction`, `fixed_layout`, `cover_ebook_image` を入れられる
 
 ### 19.2 `handoff print`
 
@@ -1327,7 +1335,7 @@ report には `validators[]` も含める。
 - claim / figure / freshness の reviewer note 要約
 - v0.1 では `dist/handoff/<book-id>-proof/` に成果物コピー、`manifest.json`、`review-notes.md`、`reports/review-packet.json`、`editorial/` 配下の sidecar コピーを出す
 - `manifest.json` には `build_stages`, `build_inputs`, `selected_artifact_details`, `validation_report`, `git_dirty`, `dirty_worktree_warning` も含める
-- `selected_artifact_details[*].artifact_metadata` には、proof で同梱した artifact の target/profile 条件や、manga の場合は `page_count`, `spread_policy`, `page_dimensions` を含めてよい
+- `selected_artifact_details[*].artifact_metadata` には、proof で同梱した artifact の target/profile 条件や、manga の場合は `source_page_count`, `rendered_page_count`, `spread_policy_for_kindle`, `unique_page_dimensions` を含めてよい
 
 ## 20. MVP の範囲
 
