@@ -109,13 +109,13 @@ npm run package
 生成物:
 
 ```text
-editors/vscode/shosei-vscode-0.2.4.vsix
+editors/vscode/shosei-vscode-0.2.5.vsix
 ```
 
 インストール方法:
 
 - VS Code で `Extensions: Install from VSIX...` を実行して上の `.vsix` を選ぶ
-- `code` CLI が使える場合は `code --install-extension editors/vscode/shosei-vscode-0.2.4.vsix`
+- `code` CLI が使える場合は `code --install-extension editors/vscode/shosei-vscode-0.2.5.vsix`
 - Cursor では `Extensions: Install from VSIX...` を実行して同じ `.vsix` を選ぶ
 
 ローカル install 後も、実処理は `shosei` CLI に委譲する。source tree の CLI を使いたい場合は、下の `shosei.cli.command` / `shosei.cli.args` 設定を使う。
@@ -133,18 +133,18 @@ GitHub Release に VSIX を載せる workflow は `.github/workflows/release.yml
 例:
 
 ```bash
-git tag v0.2.4
-git push origin v0.2.4
+git tag v0.2.5
+git push origin v0.2.5
 ```
 
 release に載る asset:
 
 ```text
-shosei-vscode-0.2.4.vsix
-shosei-v0.2.4-x86_64-unknown-linux-gnu.tar.gz
-shosei-v0.2.4-x86_64-apple-darwin.tar.gz
-shosei-v0.2.4-aarch64-apple-darwin.tar.gz
-shosei-v0.2.4-x86_64-pc-windows-msvc.zip
+shosei-vscode-0.2.5.vsix
+shosei-v0.2.5-x86_64-unknown-linux-gnu.tar.gz
+shosei-v0.2.5-x86_64-apple-darwin.tar.gz
+shosei-v0.2.5-aarch64-apple-darwin.tar.gz
+shosei-v0.2.5-x86_64-pc-windows-msvc.zip
 ```
 
 Homebrew / Scoop 向け manifest の publish は release 後段の package repository push が通った場合だけ行う。CLI archive と VSIX 自体は GitHub Release asset として常に添付される。Cursor を含む VS Code 互換 editor の手動 update でも、この VSIX を使う。
