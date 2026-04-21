@@ -119,18 +119,29 @@ jobs:
         with:
           node-version: 22
 
-      - name: Syntax check extension entrypoints
+      - name: Install VS Code adapter dependencies
         working-directory: editors/vscode
-        run: |
-          node --check extension.js
-          node --check src/core.js
-          node --check src/view.js
+        run: npm ci
 
-      - name: Run VS Code adapter tests
+      - name: Run VS Code adapter syntax checks
         working-directory: editors/vscode
-        run: node --test ./test/**/*.test.js
+        run: npm run check
 
-      - name: Package VSIX
+      - name: Run VS Code adapter unit tests
+        working-directory: editors/vscode
+        run: npm test
+
+      - name: Run VS Code adapter host smoke (Linux)
         if: matrix.os == 'ubuntu-latest'
         working-directory: editors/vscode
-        run: npm run package
+        run: xvfb-run -a npm run test:host
+
+      - name: Run VS Code adapter host smoke (macOS/Windows)
+        if: matrix.os != 'ubuntu-latest'
+        working-directory: editors/vscode
+        run: npm run test:host
+
+      - name: Run packaged VSIX smoke
+        if: matrix.os == 'ubuntu-latest'
+        working-directory: editors/vscode
+        run: xvfb-run -a npm run test:package-smoke

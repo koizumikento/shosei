@@ -140,6 +140,13 @@ const TOOL_SPECS: &[ToolSpec] = &[
         install_hint: epubcheck_install_hint,
     },
     ToolSpec {
+        key: "qpdf",
+        display_name: "qpdf",
+        candidates: &["qpdf"],
+        version_args: &["--version"],
+        install_hint: qpdf_install_hint,
+    },
+    ToolSpec {
         key: "git",
         display_name: "git",
         candidates: &["git"],
@@ -380,6 +387,19 @@ pub fn run_epubcheck(executable: &Path, input_epub: &Path) -> std::io::Result<To
     })
 }
 
+pub fn run_qpdf_check(executable: &Path, input_pdf: &Path) -> std::io::Result<ToolRunOutput> {
+    let command_output = Command::new(executable)
+        .arg("--check")
+        .arg(input_pdf)
+        .output()?;
+
+    Ok(ToolRunOutput {
+        status: command_output.status,
+        stdout: String::from_utf8_lossy(&command_output.stdout).into_owned(),
+        stderr: String::from_utf8_lossy(&command_output.stderr).into_owned(),
+    })
+}
+
 #[cfg(test)]
 fn inspect_toolchain_with_env(
     path_var: Option<OsString>,
@@ -582,6 +602,23 @@ fn epubcheck_install_hint(host_os: HostOs) -> String {
         HostOs::Windows => "Install epubcheck from the official archive or a package manager and expose the launcher on PATH.".to_string(),
         HostOs::Linux => "Install epubcheck from the official archive or your package manager and expose the launcher on PATH.".to_string(),
         HostOs::Other => "Install epubcheck and ensure the launcher is available on PATH.".to_string(),
+    }
+}
+
+fn qpdf_install_hint(host_os: HostOs) -> String {
+    match host_os {
+        HostOs::Macos => {
+            "Install qpdf with Homebrew or the official packages and expose it on PATH.".to_string()
+        }
+        HostOs::Windows => {
+            "Install qpdf from the official packages or a package manager and expose it on PATH."
+                .to_string()
+        }
+        HostOs::Linux => {
+            "Install qpdf from your package manager or the official packages and expose it on PATH."
+                .to_string()
+        }
+        HostOs::Other => "Install qpdf and ensure it is available on PATH.".to_string(),
     }
 }
 

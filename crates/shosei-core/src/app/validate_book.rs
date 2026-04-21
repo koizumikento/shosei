@@ -375,6 +375,14 @@ fn run_external_validators(
         }
     }
 
+    if should_run_qpdf_validation(command, resolved) {
+        let (run, issue) = run_qpdf_validation(command, resolved, toolchain, plan);
+        result.runs.push(run);
+        if let Some(issue) = issue {
+            result.issues.push(issue);
+        }
+    }
+
     result
 }
 
@@ -382,6 +390,14 @@ fn should_run_epubcheck(command: &CommandContext, resolved: &config::ResolvedBoo
     (command.output_target.is_none() || command.output_target.as_deref() == Some("kindle"))
         && resolved.effective.outputs.kindle.is_some()
         && resolved.effective.validation.epubcheck
+}
+
+fn should_run_qpdf_validation(
+    command: &CommandContext,
+    resolved: &config::ResolvedBookConfig,
+) -> bool {
+    (command.output_target.is_none() || command.output_target.as_deref() == Some("print"))
+        && resolved.effective.outputs.print.is_some()
 }
 
 fn run_epubcheck_validation(
@@ -545,6 +561,177 @@ fn run_epubcheck_validation(
                 ValidatorRunReport {
                     status: "failed".to_string(),
                     summary: format!("failed to start epubcheck: {error}"),
+                    artifact: Some(relative_display(repo_root, artifact)),
+                    log_path: Some(relative_display(repo_root, &log_path)),
+                    ..initial
+                },
+                Some(issue),
+            )
+        }
+    }
+}
+
+fn run_qpdf_validation(
+    command: &CommandContext,
+    resolved: &config::ResolvedBookConfig,
+    toolchain: &toolchain::ToolchainReport,
+    plan: &pipeline::ValidatePlan,
+) -> (ValidatorRunReport, Option<ValidationIssue>) {
+    let book = resolved
+        .repo
+        .book
+        .as_ref()
+        .expect("book context must exist for validation");
+    let repo_root = &resolved.repo.repo_root;
+    let initial = ValidatorRunReport {
+        name: "qpdf-check".to_string(),
+        target: "print".to_string(),
+        tool: "qpdf".to_string(),
+        status: "skipped".to_string(),
+        summary: "qpdf check was not run".to_string(),
+        artifact: None,
+        log_path: None,
+    };
+
+    let Some(executable) = available_tool_path(toolchain, "qpdf") else {
+        return (
+            ValidatorRunReport {
+                status: "missing-tool".to_string(),
+                summary: "qpdf executable is unavailable".to_string(),
+                ..initial
+            },
+            None,
+        );
+    };
+
+    if plan
+        .checks
+        .iter()
+        .any(|check| check.target == "print" && check.tool_status == ToolStatus::Missing)
+    {
+        return (
+            ValidatorRunReport {
+                summary: "print validation prerequisites are missing".to_string(),
+                ..initial
+            },
+            None,
+        );
+    }
+
+    let build_command = CommandContext::new(
+        command.start_path.clone(),
+        command.book_id.clone(),
+        Some("print".to_string()),
+    );
+    let build_result = match build_book_with_toolchain(&build_command, toolchain) {
+        Ok(result) => result,
+        Err(BuildBookError::RequiredToolMissing { tool, .. }) => {
+            return (
+                ValidatorRunReport {
+                    summary: format!("skipped because required build tool `{tool}` is missing"),
+                    ..initial
+                },
+                None,
+            );
+        }
+        Err(BuildBookError::ExecutionFailed { log_path, .. }) => {
+            let issue = ValidationIssue::error(
+                "print",
+                "print validation prerequisite build failed".to_string(),
+                format!(
+                    "生成した PDF を検証できませんでした。build log を確認してください: {}",
+                    relative_display(repo_root, &log_path)
+                ),
+            );
+            return (
+                ValidatorRunReport {
+                    status: "failed".to_string(),
+                    summary: "print build failed before qpdf check".to_string(),
+                    log_path: Some(relative_display(repo_root, &log_path)),
+                    ..initial
+                },
+                Some(issue),
+            );
+        }
+        Err(error) => {
+            let issue = ValidationIssue::error(
+                "print",
+                format!("print validation prerequisite build failed: {error}"),
+                "print build を通してから validate を再実行してください。".to_string(),
+            );
+            return (
+                ValidatorRunReport {
+                    status: "failed".to_string(),
+                    summary: format!("print build failed before qpdf check: {error}"),
+                    ..initial
+                },
+                Some(issue),
+            );
+        }
+    };
+
+    let Some(artifact) = build_result.artifacts.first() else {
+        let issue = ValidationIssue::error(
+            "print",
+            "qpdf input artifact was not generated".to_string(),
+            "print build の成果物生成を確認してください。".to_string(),
+        );
+        return (
+            ValidatorRunReport {
+                status: "failed".to_string(),
+                summary: "print build did not produce a PDF artifact".to_string(),
+                ..initial
+            },
+            Some(issue),
+        );
+    };
+
+    let log_path = validator_log_path(repo_root, &book.id, "qpdf");
+    match toolchain::run_qpdf_check(executable, artifact) {
+        Ok(output) => {
+            let _ = write_validator_log(&log_path, "qpdf", artifact, &output);
+            if output.status.success() {
+                (
+                    ValidatorRunReport {
+                        status: "passed".to_string(),
+                        summary: "qpdf reported no structural PDF issues".to_string(),
+                        artifact: Some(relative_display(repo_root, artifact)),
+                        log_path: Some(relative_display(repo_root, &log_path)),
+                        ..initial
+                    },
+                    None,
+                )
+            } else {
+                let issue = ValidationIssue::error(
+                    "print",
+                    "qpdf reported validation errors for the generated PDF".to_string(),
+                    format!(
+                        "qpdf log を確認してください: {}",
+                        relative_display(repo_root, &log_path)
+                    ),
+                );
+                (
+                    ValidatorRunReport {
+                        status: "failed".to_string(),
+                        summary: "qpdf reported PDF validation errors".to_string(),
+                        artifact: Some(relative_display(repo_root, artifact)),
+                        log_path: Some(relative_display(repo_root, &log_path)),
+                        ..initial
+                    },
+                    Some(issue),
+                )
+            }
+        }
+        Err(error) => {
+            let issue = ValidationIssue::error(
+                "print",
+                format!("failed to start qpdf: {error}"),
+                "qpdf が起動できることを確認してください。".to_string(),
+            );
+            (
+                ValidatorRunReport {
+                    status: "failed".to_string(),
+                    summary: format!("failed to start qpdf: {error}"),
                     artifact: Some(relative_display(repo_root, artifact)),
                     log_path: Some(relative_display(repo_root, &log_path)),
                     ..initial
@@ -758,6 +945,173 @@ fn schema_warning_issues(resolved: &config::ResolvedBookConfig) -> Vec<Validatio
             )
             .at(config_path.clone()),
         );
+    }
+
+    match resolved.effective.book.profile.as_str() {
+        "paper" => {
+            if resolved.effective.outputs.print.as_deref() == Some("print-jp-pdfx1a") {
+                issues.push(
+                    ValidationIssue::warning(
+                        "print",
+                        "paper profile usually expects outputs.print.target = print-jp-pdfx4"
+                            .to_string(),
+                        "paper では outputs.print.target を print-jp-pdfx4 にしてください。"
+                            .to_string(),
+                    )
+                    .at(config_path.clone()),
+                );
+            }
+            if let Some(pdf) = resolved.effective.pdf.as_ref() {
+                if pdf.toc {
+                    issues.push(
+                        ValidationIssue::warning(
+                            "print",
+                            "paper profile usually expects pdf.toc = false".to_string(),
+                            "paper では pdf.toc を false にしてください。".to_string(),
+                        )
+                        .at(config_path.clone()),
+                    );
+                }
+                if pdf.running_header != config::PdfRunningHeader::None {
+                    issues.push(
+                        ValidationIssue::warning(
+                            "print",
+                            "paper profile usually expects pdf.running_header = none".to_string(),
+                            "paper では pdf.running_header を none にしてください。".to_string(),
+                        )
+                        .at(config_path.clone()),
+                    );
+                }
+            }
+            if let Some(print) = resolved.effective.print.as_ref() {
+                if print.trim_size != config::PrintTrimSize::A4 {
+                    issues.push(
+                        ValidationIssue::warning(
+                            "print",
+                            "paper profile usually expects print.trim_size = A4".to_string(),
+                            "paper では print.trim_size を A4 にしてください。".to_string(),
+                        )
+                        .at(config_path.clone()),
+                    );
+                }
+                if print.bleed != "0mm" {
+                    issues.push(
+                        ValidationIssue::warning(
+                            "print",
+                            "paper profile usually expects print.bleed = 0mm".to_string(),
+                            "paper では print.bleed を 0mm にしてください。".to_string(),
+                        )
+                        .at(config_path.clone()),
+                    );
+                }
+                if print.crop_marks {
+                    issues.push(
+                        ValidationIssue::warning(
+                            "print",
+                            "paper profile usually expects print.crop_marks = false".to_string(),
+                            "paper では print.crop_marks を false にしてください。".to_string(),
+                        )
+                        .at(config_path.clone()),
+                    );
+                }
+            }
+        }
+        "novel" | "light-novel" => {
+            let profile_name = resolved.effective.book.profile.as_str();
+            if resolved.effective.outputs.print.as_deref() == Some("print-jp-pdfx4") {
+                issues.push(
+                    ValidationIssue::warning(
+                        "print",
+                        format!(
+                            "{profile_name} profile usually expects outputs.print.target = print-jp-pdfx1a"
+                        ),
+                        format!(
+                            "{profile_name} では outputs.print.target を print-jp-pdfx1a にしてください。"
+                        ),
+                    )
+                    .at(config_path.clone()),
+                );
+            }
+            if let Some(pdf) = resolved.effective.pdf.as_ref() {
+                if !pdf.toc {
+                    issues.push(
+                        ValidationIssue::warning(
+                            "print",
+                            format!("{profile_name} profile usually expects pdf.toc = true"),
+                            format!("{profile_name} では pdf.toc を true にしてください。"),
+                        )
+                        .at(config_path.clone()),
+                    );
+                }
+                if !pdf.page_number {
+                    issues.push(
+                        ValidationIssue::warning(
+                            "print",
+                            format!(
+                                "{profile_name} profile usually expects pdf.page_number = true"
+                            ),
+                            format!("{profile_name} では pdf.page_number を true にしてください。"),
+                        )
+                        .at(config_path.clone()),
+                    );
+                }
+                if pdf.running_header != config::PdfRunningHeader::Auto {
+                    issues.push(
+                        ValidationIssue::warning(
+                            "print",
+                            format!(
+                                "{profile_name} profile usually expects pdf.running_header = auto"
+                            ),
+                            format!(
+                                "{profile_name} では pdf.running_header を auto にしてください。"
+                            ),
+                        )
+                        .at(config_path.clone()),
+                    );
+                }
+            }
+            if let Some(print) = resolved.effective.print.as_ref() {
+                if print.trim_size != config::PrintTrimSize::Bunko {
+                    issues.push(
+                        ValidationIssue::warning(
+                            "print",
+                            format!(
+                                "{profile_name} profile usually expects print.trim_size = bunko"
+                            ),
+                            format!(
+                                "{profile_name} では print.trim_size を bunko にしてください。"
+                            ),
+                        )
+                        .at(config_path.clone()),
+                    );
+                }
+                if print.bleed != "3mm" {
+                    issues.push(
+                        ValidationIssue::warning(
+                            "print",
+                            format!("{profile_name} profile usually expects print.bleed = 3mm"),
+                            format!("{profile_name} では print.bleed を 3mm にしてください。"),
+                        )
+                        .at(config_path.clone()),
+                    );
+                }
+                if !print.crop_marks {
+                    issues.push(
+                        ValidationIssue::warning(
+                            "print",
+                            format!(
+                                "{profile_name} profile usually expects print.crop_marks = true"
+                            ),
+                            format!(
+                                "{profile_name} では print.crop_marks を true にしてください。"
+                            ),
+                        )
+                        .at(config_path.clone()),
+                    );
+                }
+            }
+        }
+        _ => {}
     }
 
     if resolved.effective.book.profile == "conference-preprint" {
@@ -2062,8 +2416,12 @@ fn write_validator_log(
 
 fn relative_display(repo_root: &Path, path: &Path) -> String {
     path.strip_prefix(repo_root)
-        .map(|relative| relative.display().to_string())
-        .unwrap_or_else(|_| path.display().to_string())
+        .map(slash_separated_display)
+        .unwrap_or_else(|_| slash_separated_display(path))
+}
+
+fn slash_separated_display(path: &Path) -> String {
+    path.display().to_string().replace('\\', "/")
 }
 
 fn write_report(path: &std::path::Path, report: &ValidateReport) -> Result<(), ValidateBookError> {
@@ -2108,6 +2466,7 @@ mod tests {
     fn fake_toolchain(epubcheck: ToolStatus) -> ToolchainReport {
         fake_toolchain_with_engines(
             epubcheck,
+            ToolStatus::Missing,
             ToolStatus::Available,
             ToolStatus::Available,
             ToolStatus::Available,
@@ -2116,6 +2475,7 @@ mod tests {
 
     fn fake_toolchain_with_engines(
         epubcheck: ToolStatus,
+        qpdf: ToolStatus,
         weasyprint: ToolStatus,
         chromium: ToolStatus,
         typst: ToolStatus,
@@ -2140,6 +2500,15 @@ mod tests {
                     version: None,
                     install_hint: "Install epubcheck and ensure the launcher is available on PATH."
                         .to_string(),
+                },
+                ToolRecord {
+                    key: "qpdf",
+                    display_name: "qpdf",
+                    status: qpdf,
+                    detected_as: Some("qpdf".to_string()),
+                    resolved_path: None,
+                    version: None,
+                    install_hint: "Install qpdf and ensure it is available on PATH.".to_string(),
                 },
                 ToolRecord {
                     key: "weasyprint",
@@ -2191,6 +2560,8 @@ mod tests {
         pandoc: Option<PathBuf>,
         epubcheck: Option<PathBuf>,
         epubcheck_status: ToolStatus,
+        qpdf: Option<PathBuf>,
+        qpdf_status: ToolStatus,
     ) -> ToolchainReport {
         ToolchainReport {
             tools: vec![
@@ -2216,6 +2587,15 @@ mod tests {
                     version: None,
                     install_hint: "Install epubcheck and ensure the launcher is available on PATH."
                         .to_string(),
+                },
+                ToolRecord {
+                    key: "qpdf",
+                    display_name: "qpdf",
+                    status: qpdf_status,
+                    detected_as: Some("qpdf".to_string()),
+                    resolved_path: qpdf,
+                    version: None,
+                    install_hint: "Install qpdf and ensure it is available on PATH.".to_string(),
                 },
                 ToolRecord {
                     key: "weasyprint",
@@ -2317,6 +2697,34 @@ exit {}
         epubcheck
     }
 
+    #[cfg(unix)]
+    fn write_fake_qpdf(
+        root: &std::path::Path,
+        exit_code: i32,
+        args_path: &std::path::Path,
+    ) -> PathBuf {
+        use std::os::unix::fs::PermissionsExt;
+
+        let qpdf = root.join("qpdf");
+        fs::write(
+            &qpdf,
+            format!(
+                r#"#!/bin/sh
+printf '%s\n' "$@" > "{}"
+echo "fake qpdf"
+exit {}
+"#,
+                args_path.display(),
+                exit_code
+            ),
+        )
+        .unwrap();
+        let mut permissions = fs::metadata(&qpdf).unwrap().permissions();
+        permissions.set_mode(0o755);
+        fs::set_permissions(&qpdf, permissions).unwrap();
+        qpdf
+    }
+
     fn write_book(root: &std::path::Path) {
         fs::create_dir_all(root.join("manuscript")).unwrap();
         fs::write(root.join("manuscript/01.md"), "# Chapter 1\n").unwrap();
@@ -2346,6 +2754,51 @@ validation:
 git:
   lfs: true
 "#,
+        )
+        .unwrap();
+    }
+
+    fn write_print_book_with_profile(
+        root: &std::path::Path,
+        project_type: &str,
+        profile: &str,
+        reading_direction: &str,
+        outputs_block: &str,
+        pdf_block: &str,
+        print_block: &str,
+    ) {
+        fs::create_dir_all(root.join("manuscript")).unwrap();
+        fs::write(root.join("manuscript/01.md"), "# Chapter 1\n").unwrap();
+        fs::write(
+            root.join("book.yml"),
+            format!(
+                r#"
+project:
+  type: {project_type}
+  vcs: git
+book:
+  title: "Sample"
+  authors:
+    - "Author"
+  profile: {profile}
+  reading_direction: {reading_direction}
+layout:
+  binding: right
+manuscript:
+  chapters:
+    - manuscript/01.md
+outputs:
+{outputs_block}
+pdf:
+{pdf_block}
+print:
+{print_block}
+validation:
+  strict: true
+git:
+  lfs: true
+"#
+            ),
         )
         .unwrap();
     }
@@ -2675,7 +3128,13 @@ manga:
 
         let result = validate_book_with_toolchain(
             &CommandContext::new(&root, None, None),
-            &fake_toolchain_with_paths(Some(pandoc), Some(epubcheck), ToolStatus::Available),
+            &fake_toolchain_with_paths(
+                Some(pandoc),
+                Some(epubcheck),
+                ToolStatus::Available,
+                None,
+                ToolStatus::Missing,
+            ),
         )
         .unwrap();
 
@@ -2700,7 +3159,13 @@ manga:
 
         let result = validate_book_with_toolchain(
             &CommandContext::new(&root, None, None),
-            &fake_toolchain_with_paths(Some(pandoc), Some(epubcheck), ToolStatus::Available),
+            &fake_toolchain_with_paths(
+                Some(pandoc),
+                Some(epubcheck),
+                ToolStatus::Available,
+                None,
+                ToolStatus::Missing,
+            ),
         )
         .unwrap();
 
@@ -2714,6 +3179,121 @@ manga:
         );
         let args = fs::read_to_string(args_path).unwrap();
         assert!(args.contains(".epub"));
+    }
+
+    #[test]
+    fn validate_records_missing_qpdf_for_print_output() {
+        let root = temp_dir("missing-qpdf");
+        write_print_book_with_profile(
+            &root,
+            "business",
+            "business",
+            "ltr",
+            "  print:\n    enabled: true\n    target: print-jp-pdfx1a\n",
+            "  engine: weasyprint\n  toc: true\n  page_number: true\n  running_header: auto\n",
+            "  trim_size: bunko\n  bleed: 3mm\n  crop_marks: true\n  pdf_standard: pdfx1a\n",
+        );
+
+        let result = validate_book_with_toolchain(
+            &CommandContext::new(&root, None, None),
+            &fake_toolchain(ToolStatus::Missing),
+        )
+        .unwrap();
+
+        assert!(!result.has_errors);
+        let report = fs::read_to_string(result.report_path).unwrap();
+        assert!(report.contains("\"name\": \"qpdf-check\""));
+        assert!(report.contains("\"status\": \"missing-tool\""));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn validate_runs_qpdf_against_generated_print_artifact() {
+        let root = temp_dir("qpdf-success");
+        write_print_book_with_profile(
+            &root,
+            "business",
+            "business",
+            "ltr",
+            "  print:\n    enabled: true\n    target: print-jp-pdfx1a\n",
+            "  engine: weasyprint\n  toc: true\n  page_number: true\n  running_header: auto\n",
+            "  trim_size: bunko\n  bleed: 3mm\n  crop_marks: true\n  pdf_standard: pdfx1a\n",
+        );
+        let pandoc = write_fake_pandoc(&root);
+        let args_path = root.join("qpdf-args.txt");
+        let qpdf = write_fake_qpdf(&root, 0, &args_path);
+
+        let result = validate_book_with_toolchain(
+            &CommandContext::new(&root, None, None),
+            &fake_toolchain_with_paths(
+                Some(pandoc),
+                None,
+                ToolStatus::Missing,
+                Some(qpdf),
+                ToolStatus::Available,
+            ),
+        )
+        .unwrap();
+
+        assert!(!result.has_errors);
+        let report = fs::read_to_string(&result.report_path).unwrap();
+        assert!(report.contains("\"name\": \"qpdf-check\""));
+        assert!(report.contains("\"status\": \"passed\""));
+        assert!(report.contains("\"artifact\":"));
+        assert!(report.contains(".pdf"));
+        assert!(report.contains("qpdf"));
+        let args = fs::read_to_string(args_path).unwrap();
+        assert!(args.contains("--check"));
+        assert!(args.contains(".pdf"));
+    }
+
+    #[test]
+    fn relative_display_uses_slashes_for_serialized_report_paths() {
+        let repo_root = std::path::Path::new("C:/repo");
+        let report_path = std::path::Path::new("C:/repo/dist\\logs\\default-qpdf-validate.log");
+
+        assert_eq!(
+            relative_display(repo_root, report_path),
+            "dist/logs/default-qpdf-validate.log"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn validate_reports_qpdf_failures() {
+        let root = temp_dir("qpdf-failure");
+        write_print_book_with_profile(
+            &root,
+            "business",
+            "business",
+            "ltr",
+            "  print:\n    enabled: true\n    target: print-jp-pdfx1a\n",
+            "  engine: weasyprint\n  toc: true\n  page_number: true\n  running_header: auto\n",
+            "  trim_size: bunko\n  bleed: 3mm\n  crop_marks: true\n  pdf_standard: pdfx1a\n",
+        );
+        let pandoc = write_fake_pandoc(&root);
+        let args_path = root.join("qpdf-args.txt");
+        let qpdf = write_fake_qpdf(&root, 2, &args_path);
+
+        let result = validate_book_with_toolchain(
+            &CommandContext::new(&root, None, None),
+            &fake_toolchain_with_paths(
+                Some(pandoc),
+                None,
+                ToolStatus::Missing,
+                Some(qpdf),
+                ToolStatus::Available,
+            ),
+        )
+        .unwrap();
+
+        assert!(result.has_errors);
+        let report = fs::read_to_string(&result.report_path).unwrap();
+        assert!(report.contains("qpdf reported validation errors for the generated PDF"));
+        assert!(report.contains("\"status\": \"failed\""));
+        assert!(root.join("dist/logs/default-qpdf-validate.log").is_file());
+        let args = fs::read_to_string(args_path).unwrap();
+        assert!(args.contains("--check"));
     }
 
     #[test]
@@ -3042,6 +3622,69 @@ git:
     }
 
     #[test]
+    fn validate_warns_when_paper_profile_deviates_from_print_defaults() {
+        let root = temp_dir("paper-profile-warnings");
+        write_print_book_with_profile(
+            &root,
+            "paper",
+            "paper",
+            "ltr",
+            "  print:\n    enabled: true\n    target: print-jp-pdfx1a\n",
+            "  engine: weasyprint\n  toc: true\n  page_number: true\n  running_header: auto\n",
+            "  trim_size: bunko\n  bleed: 3mm\n  crop_marks: true\n  pdf_standard: pdfx1a\n",
+        );
+
+        let result = validate_book_with_toolchain(
+            &CommandContext::new(&root, None, None),
+            &fake_toolchain(ToolStatus::Available),
+        )
+        .unwrap();
+
+        assert!(!result.has_errors);
+        let report = fs::read_to_string(result.report_path).unwrap();
+        assert!(
+            report.contains("paper profile usually expects outputs.print.target = print-jp-pdfx4")
+        );
+        assert!(report.contains("paper profile usually expects pdf.toc = false"));
+        assert!(report.contains("paper profile usually expects pdf.running_header = none"));
+        assert!(report.contains("paper profile usually expects print.trim_size = A4"));
+        assert!(report.contains("paper profile usually expects print.bleed = 0mm"));
+        assert!(report.contains("paper profile usually expects print.crop_marks = false"));
+    }
+
+    #[test]
+    fn validate_warns_when_novel_profile_deviates_from_print_defaults() {
+        let root = temp_dir("novel-profile-warnings");
+        write_print_book_with_profile(
+            &root,
+            "novel",
+            "novel",
+            "rtl",
+            "  print:\n    enabled: true\n    target: print-jp-pdfx4\n",
+            "  engine: chromium\n  toc: false\n  page_number: false\n  running_header: none\n",
+            "  trim_size: A5\n  bleed: 0mm\n  crop_marks: false\n  pdf_standard: pdfx4\n",
+        );
+
+        let result = validate_book_with_toolchain(
+            &CommandContext::new(&root, None, None),
+            &fake_toolchain(ToolStatus::Available),
+        )
+        .unwrap();
+
+        assert!(!result.has_errors);
+        let report = fs::read_to_string(result.report_path).unwrap();
+        assert!(
+            report.contains("novel profile usually expects outputs.print.target = print-jp-pdfx1a")
+        );
+        assert!(report.contains("novel profile usually expects pdf.toc = true"));
+        assert!(report.contains("novel profile usually expects pdf.page_number = true"));
+        assert!(report.contains("novel profile usually expects pdf.running_header = auto"));
+        assert!(report.contains("novel profile usually expects print.trim_size = bunko"));
+        assert!(report.contains("novel profile usually expects print.bleed = 3mm"));
+        assert!(report.contains("novel profile usually expects print.crop_marks = true"));
+    }
+
+    #[test]
     fn validate_warns_when_conference_preprint_uses_non_pdfx4_target() {
         let root = temp_dir("conference-preprint-target-warning");
         fs::create_dir_all(root.join("manuscript")).unwrap();
@@ -3199,6 +3842,7 @@ git:
         let result = validate_book_with_toolchain(
             &CommandContext::new(&root, None, None),
             &fake_toolchain_with_engines(
+                ToolStatus::Missing,
                 ToolStatus::Missing,
                 ToolStatus::Available,
                 ToolStatus::Available,

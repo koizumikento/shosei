@@ -34,7 +34,7 @@ impl BuildBookResult {
             let detail_channel = object.get("channel")?.as_str()?;
             let detail_target = object.get("target")?.as_str()?;
             (detail_channel == channel && detail_target == target)
-                .then(|| object.get("metadata"))
+                .then(|| object.get("artifact_metadata"))
                 .flatten()
         })
     }
@@ -121,11 +121,11 @@ pub(crate) fn build_book_with_toolchain(
             .map(|output| format!("{} via {}", output.target, output.primary_tool))
             .collect::<Vec<_>>();
         let source_count = plan.manuscript_files.len();
-        let artifact_details = build_artifact_details(&resolved, &plan)?;
         let artifacts = match project_type {
             ProjectType::Manga => execute_manga_build_outputs(&resolved, &plan)?,
             _ => execute_build_outputs(&resolved, &plan, toolchain)?,
         };
+        let artifact_details = build_artifact_details(&resolved, &plan, &artifacts)?;
         return Ok(BuildBookResult {
             summary: format!(
                 "build completed for {} with {} input file(s), outputs: {}, tools: {}, stages: {}, artifacts: {}",
@@ -160,13 +160,17 @@ pub(crate) fn build_book_with_toolchain(
 fn build_artifact_details(
     resolved: &config::ResolvedBookConfig,
     plan: &pipeline::BuildPlan,
+    artifacts: &[PathBuf],
 ) -> Result<Vec<Value>, BuildBookError> {
     let source_file_count = plan.manuscript_files.len();
     match resolved.effective.project.project_type {
-        ProjectType::Manga => build_manga_artifact_details(resolved, plan, source_file_count),
+        ProjectType::Manga => {
+            build_manga_artifact_details(resolved, plan, artifacts, source_file_count)
+        }
         _ => Ok(build_prose_artifact_details(
             resolved,
             plan,
+            artifacts,
             source_file_count,
         )),
     }
@@ -175,14 +179,16 @@ fn build_artifact_details(
 fn build_prose_artifact_details(
     resolved: &config::ResolvedBookConfig,
     plan: &pipeline::BuildPlan,
+    artifacts: &[PathBuf],
     source_file_count: usize,
 ) -> Vec<Value> {
     plan.outputs
         .iter()
-        .map(|output| {
+        .zip(artifacts.iter())
+        .map(|(output, artifact_path)| {
             let metadata = match output.channel {
                 "kindle" => prose_kindle_metadata(resolved, source_file_count),
-                "print" => prose_print_metadata(resolved, source_file_count),
+                "print" => prose_print_metadata(resolved, source_file_count, artifact_path),
                 _ => json!({}),
             };
             json!({
@@ -190,7 +196,8 @@ fn build_prose_artifact_details(
                 "target": output.target,
                 "path": relative_display(&resolved.repo.repo_root, &output.artifact_path),
                 "primary_tool": output.primary_tool,
-                "metadata": metadata,
+                "target_profile": resolved.effective.book.profile,
+                "artifact_metadata": metadata,
             })
         })
         .collect()
@@ -199,6 +206,7 @@ fn build_prose_artifact_details(
 fn build_manga_artifact_details(
     resolved: &config::ResolvedBookConfig,
     plan: &pipeline::BuildPlan,
+    artifacts: &[PathBuf],
     source_file_count: usize,
 ) -> Result<Vec<Value>, BuildBookError> {
     let manga_settings = resolved
@@ -209,7 +217,8 @@ fn build_manga_artifact_details(
 
     plan.outputs
         .iter()
-        .map(|output| {
+        .zip(artifacts.iter())
+        .map(|(output, artifact_path)| {
             let render_summary = match output.channel {
                 "kindle" => manga::summarize_fixed_layout_render(
                     &plan.manuscript_files,
@@ -256,6 +265,7 @@ fn build_manga_artifact_details(
                     source_file_count,
                     manga_settings,
                     &render_summary,
+                    artifact_path,
                 ),
                 _ => json!({}),
             };
@@ -265,7 +275,8 @@ fn build_manga_artifact_details(
                 "target": output.target,
                 "path": relative_display(&resolved.repo.repo_root, &output.artifact_path),
                 "primary_tool": output.primary_tool,
-                "metadata": metadata,
+                "target_profile": resolved.effective.book.profile,
+                "artifact_metadata": metadata,
             }))
         })
         .collect()
@@ -284,17 +295,21 @@ fn prose_kindle_metadata(resolved: &config::ResolvedBookConfig, source_file_coun
     })
 }
 
-fn prose_print_metadata(resolved: &config::ResolvedBookConfig, source_file_count: usize) -> Value {
+fn prose_print_metadata(
+    resolved: &config::ResolvedBookConfig,
+    source_file_count: usize,
+    artifact_path: &Path,
+) -> Value {
     let pdf = resolved
         .effective
         .pdf
         .as_ref()
         .expect("pdf settings must exist for prose print build");
     let print = resolved.effective.print.as_ref();
+    let pdf_inspection = inspect_pdf_artifact(artifact_path);
 
     json!({
         "format": "pdf",
-        "book_profile": resolved.effective.book.profile,
         "source_file_count": source_file_count,
         "print": {
             "pdf_engine": pdf.engine.as_str(),
@@ -320,6 +335,8 @@ fn prose_print_metadata(resolved: &config::ResolvedBookConfig, source_file_count
             "cover_pdf": print.map(|settings| settings.cover_pdf),
             "pdf_standard": print.map(|settings| settings.pdf_standard.as_str()),
             "body_mode": print.map(|settings| settings.body_mode.as_str()),
+            "page_count": pdf_inspection.as_ref().map(|inspection| inspection.page_count),
+            "fonts_embedded": pdf_inspection.as_ref().map(|inspection| inspection.fonts_embedded),
         }
     })
 }
@@ -348,11 +365,12 @@ fn manga_print_metadata(
     source_file_count: usize,
     manga_settings: &config::MangaSettings,
     render_summary: &manga::MangaRenderSummary,
+    artifact_path: &Path,
 ) -> Value {
     let print = resolved.effective.print.as_ref();
+    let pdf_inspection = inspect_pdf_artifact(artifact_path);
     json!({
         "format": "pdf",
-        "book_profile": resolved.effective.book.profile,
         "source_file_count": source_file_count,
         "print": {
             "trim_size": print.map(|settings| settings.trim_size.as_str()),
@@ -364,9 +382,79 @@ fn manga_print_metadata(
             "cover_pdf": print.map(|settings| settings.cover_pdf),
             "pdf_standard": print.map(|settings| settings.pdf_standard.as_str()),
             "body_mode": print.map(|settings| settings.body_mode.as_str()),
+            "page_count": pdf_inspection
+                .as_ref()
+                .map(|inspection| inspection.page_count)
+                .or(Some(render_summary.rendered_page_count)),
+            "fonts_embedded": pdf_inspection.as_ref().map(|inspection| inspection.fonts_embedded),
         },
         "manga": manga_delivery_metadata(manga_settings, render_summary),
     })
+}
+
+struct PdfArtifactInspection {
+    page_count: usize,
+    fonts_embedded: bool,
+}
+
+fn inspect_pdf_artifact(path: &Path) -> Option<PdfArtifactInspection> {
+    let bytes = fs::read(path).ok()?;
+    let page_count = pdf_page_object_count(&bytes);
+    let fonts_embedded = bytes
+        .windows(b"/FontFile".len())
+        .any(|window| window == b"/FontFile")
+        || bytes
+            .windows(b"/FontFile2".len())
+            .any(|window| window == b"/FontFile2")
+        || bytes
+            .windows(b"/FontFile3".len())
+            .any(|window| window == b"/FontFile3");
+
+    if page_count == 0 && !fonts_embedded {
+        return None;
+    }
+
+    Some(PdfArtifactInspection {
+        page_count,
+        fonts_embedded,
+    })
+}
+
+fn pdf_page_object_count(bytes: &[u8]) -> usize {
+    const PAGE_TYPE: &[u8] = b"/Type /Page";
+
+    bytes
+        .windows(PAGE_TYPE.len())
+        .enumerate()
+        .filter(|(index, window)| {
+            *window == PAGE_TYPE
+                && bytes
+                    .get(index + PAGE_TYPE.len())
+                    .is_none_or(|byte| pdf_name_delimiter(*byte))
+        })
+        .count()
+}
+
+fn pdf_name_delimiter(byte: u8) -> bool {
+    matches!(
+        byte,
+        b'\0'
+            | b'\t'
+            | b'\n'
+            | b'\x0c'
+            | b'\r'
+            | b' '
+            | b'('
+            | b')'
+            | b'<'
+            | b'>'
+            | b'['
+            | b']'
+            | b'{'
+            | b'}'
+            | b'/'
+            | b'%'
+    )
 }
 
 fn manga_delivery_metadata(
@@ -1241,6 +1329,24 @@ mod tests {
         dir
     }
 
+    #[test]
+    fn pdf_page_object_count_does_not_count_page_tree_nodes() {
+        let pdf = br#"
+1 0 obj
+<< /Type /Pages /Count 2 /Kids [2 0 R 3 0 R] >>
+endobj
+2 0 obj
+<< /Type /Page /Parent 1 0 R >>
+endobj
+3 0 obj
+<< /Type /Page
+   /Parent 1 0 R >>
+endobj
+"#;
+
+        assert_eq!(pdf_page_object_count(pdf), 2);
+    }
+
     fn fake_toolchain(pandoc_path: Option<PathBuf>) -> ToolchainReport {
         fake_toolchain_with_chromium(pandoc_path, None)
     }
@@ -1926,13 +2032,17 @@ printf 'fake pdf' > "$out"
             result.artifacts[0].extension().and_then(|ext| ext.to_str()),
             Some("pdf")
         );
-        assert_eq!(result.artifact_details()[0]["metadata"]["format"], "pdf");
+        assert_eq!(result.artifact_details()[0]["target_profile"], "business");
         assert_eq!(
-            result.artifact_details()[0]["metadata"]["print"]["pdf_engine"],
+            result.artifact_details()[0]["artifact_metadata"]["format"],
+            "pdf"
+        );
+        assert_eq!(
+            result.artifact_details()[0]["artifact_metadata"]["print"]["pdf_engine"],
             "weasyprint"
         );
         assert_eq!(
-            result.artifact_details()[0]["metadata"]["print"]["page_numbering"],
+            result.artifact_details()[0]["artifact_metadata"]["print"]["page_numbering"],
             true
         );
     }
@@ -2586,27 +2696,29 @@ printf 'fake pdf' > "$out"
         assert!(first_page.contains("001-right.png"));
         assert!(second_page.contains("001-left.png"));
         assert_eq!(
-            result.artifact_details()[0]["metadata"]["kindle"]["fixed_layout"],
+            result.artifact_details()[0]["artifact_metadata"]["kindle"]["fixed_layout"],
             true
         );
         assert_eq!(
-            result.artifact_details()[0]["metadata"]["manga"]["source_page_count"],
+            result.artifact_details()[0]["artifact_metadata"]["manga"]["source_page_count"],
             1
         );
         assert_eq!(
-            result.artifact_details()[0]["metadata"]["manga"]["rendered_page_count"],
+            result.artifact_details()[0]["artifact_metadata"]["manga"]["rendered_page_count"],
             2
         );
         assert_eq!(
-            result.artifact_details()[0]["metadata"]["manga"]["split_source_page_count"],
+            result.artifact_details()[0]["artifact_metadata"]["manga"]["split_source_page_count"],
             1
         );
         assert_eq!(
-            result.artifact_details()[0]["metadata"]["manga"]["unique_page_dimensions"][0]["width_px"],
+            result.artifact_details()[0]["artifact_metadata"]["manga"]["unique_page_dimensions"][0]
+                ["width_px"],
             1
         );
         assert_eq!(
-            result.artifact_details()[0]["metadata"]["manga"]["unique_page_dimensions"][0]["height_px"],
+            result.artifact_details()[0]["artifact_metadata"]["manga"]["unique_page_dimensions"][0]
+                ["height_px"],
             1
         );
     }
