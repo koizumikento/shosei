@@ -1135,6 +1135,10 @@ v0.1 の既定:
   - YAML frontmatter は除外する
   - Markdown 記法は除いた plain text を数える
   - total / frontmatter / chapters / backmatter と file ごとの内訳を report に含める
+- target/profile validation summary
+  - Kindle / print の channel, target, book profile を report に含める
+  - target / PDF standard / profile default の判定を `ok` または `warning` として report に含める
+  - warning の詳細は従来通り `issues[]` にも含める
 
 ### 15.2 EPUB
 
