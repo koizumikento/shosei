@@ -60,6 +60,9 @@
                 <li>`book.yml` / `series.yml` を前提にしたリポジトリ探索</li>
                 <li>`shosei explain` による解決済み設定と値の由来の表示</li>
                 <li>prose / manga project に対する build / validate / handoff の基本導線</li>
+                <li>print validate での `qpdf` による PDF 構造チェック記録</li>
+                <li>validate report の `target_profile_validations` による target/profile 判定 summary</li>
+                <li>handoff manifest の `selected_artifact_details[*].target_profile` / `artifact_metadata`</li>
                 <li>`shosei preview` の one-shot / `--watch` 生成導線と change summary</li>
                 <li>`shosei chapter add|move|remove|renumber` による prose の章順管理</li>
                 <li>`shosei reference <subcommand>` と `shosei story <subcommand>` の workspace 導線</li>
@@ -73,9 +76,7 @@
             <div class="panel">
               <h3>まだ未実装のもの</h3>
               <ul>
-                <li>handoff manifest の target/profile 別 metadata 拡張</li>
-                <li>target/profile ごとの検証強化の残り</li>
-                <li>target/profile ごとの command-level smoke 拡張の残り</li>
+                <li>Kindle Previewer など、より深い外部 validator 連携</li>
               </ul>
             </div>
           </div>

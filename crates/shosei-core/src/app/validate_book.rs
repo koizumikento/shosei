@@ -159,6 +159,10 @@ pub(crate) fn validate_book_with_toolchain(
         let report = ValidateReport {
             book_id: book.id.clone(),
             outputs: outputs.clone(),
+            target_profile_validations: target_profile_validations(
+                &resolved,
+                command.output_target.as_deref(),
+            ),
             checks: plan
                 .as_ref()
                 .map(|plan| {
@@ -211,6 +215,7 @@ pub(crate) fn validate_book_with_toolchain(
 struct ValidateReport {
     book_id: String,
     outputs: Vec<String>,
+    target_profile_validations: Vec<TargetProfileValidationReport>,
     checks: Vec<ValidationCheckReport>,
     #[serde(rename = "validators")]
     validator_runs: Vec<ValidatorRunReport>,
@@ -225,6 +230,23 @@ struct ValidationCheckReport {
     target: String,
     tool: Option<String>,
     status: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+struct TargetProfileValidationReport {
+    channel: String,
+    target: String,
+    profile: String,
+    checks: Vec<TargetProfileCheckReport>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+struct TargetProfileCheckReport {
+    name: String,
+    status: String,
+    expected: Option<String>,
+    actual: Option<String>,
+    summary: String,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -2384,6 +2406,297 @@ fn selected_outputs(
     outputs
 }
 
+fn target_profile_validations(
+    resolved: &config::ResolvedBookConfig,
+    selected_channel: Option<&str>,
+) -> Vec<TargetProfileValidationReport> {
+    let mut validations = Vec::new();
+    let profile = resolved.effective.book.profile.clone();
+
+    if (selected_channel.is_none() || selected_channel == Some("kindle"))
+        && let Some(target) = resolved.effective.outputs.kindle.as_ref()
+    {
+        let expected = expected_kindle_target(resolved);
+        validations.push(TargetProfileValidationReport {
+            channel: "kindle".to_string(),
+            target: target.clone(),
+            profile: profile.clone(),
+            checks: vec![target_profile_check(
+                "kindle-target",
+                Some(expected),
+                Some(target.clone()),
+                "kindle target matches the project type",
+                "kindle target differs from the project type recommendation",
+            )],
+        });
+    }
+
+    if (selected_channel.is_none() || selected_channel == Some("print"))
+        && let Some(target) = resolved.effective.outputs.print.as_ref()
+    {
+        let mut checks = Vec::new();
+        checks.push(match expected_print_target(resolved) {
+            Some(expected) => target_profile_check(
+                "print-target",
+                Some(expected),
+                Some(target.clone()),
+                "print target matches the project type/profile",
+                "print target differs from the project type/profile recommendation",
+            ),
+            None => TargetProfileCheckReport {
+                name: "print-target".to_string(),
+                status: "ok".to_string(),
+                expected: None,
+                actual: Some(target.clone()),
+                summary: "no stricter print target recommendation for this profile".to_string(),
+            },
+        });
+
+        if let Some(expected) = expected_pdf_standard_for_target(target)
+            && let Some(print) = resolved.effective.print.as_ref()
+        {
+            checks.push(target_profile_check(
+                "print-pdf-standard",
+                Some(expected.as_str().to_string()),
+                Some(print.pdf_standard.as_str().to_string()),
+                "print PDF standard matches the selected print target",
+                "print PDF standard differs from the selected print target recommendation",
+            ));
+        }
+
+        let profile_mismatch_count = profile_default_mismatch_count(resolved);
+        checks.push(TargetProfileCheckReport {
+            name: "profile-defaults".to_string(),
+            status: if profile_mismatch_count == 0 {
+                "ok".to_string()
+            } else {
+                "warning".to_string()
+            },
+            expected: None,
+            actual: None,
+            summary: if profile_mismatch_count == 0 {
+                "configured print/PDF defaults match the profile recommendations".to_string()
+            } else {
+                format!(
+                    "{profile_mismatch_count} print/PDF setting(s) differ from the profile recommendations"
+                )
+            },
+        });
+
+        validations.push(TargetProfileValidationReport {
+            channel: "print".to_string(),
+            target: target.clone(),
+            profile,
+            checks,
+        });
+    }
+
+    validations
+}
+
+fn target_profile_check(
+    name: &str,
+    expected: Option<String>,
+    actual: Option<String>,
+    ok_summary: &str,
+    warning_summary: &str,
+) -> TargetProfileCheckReport {
+    let status = if expected == actual { "ok" } else { "warning" };
+    TargetProfileCheckReport {
+        name: name.to_string(),
+        status: status.to_string(),
+        expected,
+        actual,
+        summary: if status == "ok" {
+            ok_summary.to_string()
+        } else {
+            warning_summary.to_string()
+        },
+    }
+}
+
+fn expected_kindle_target(resolved: &config::ResolvedBookConfig) -> String {
+    match resolved.effective.project.project_type {
+        ProjectType::Manga => "kindle-comic",
+        _ => "kindle-ja",
+    }
+    .to_string()
+}
+
+fn expected_print_target(resolved: &config::ResolvedBookConfig) -> Option<String> {
+    match (
+        resolved.effective.project.project_type,
+        resolved.effective.book.profile.as_str(),
+    ) {
+        (ProjectType::Manga, _) => Some("print-manga".to_string()),
+        (_, "paper" | "conference-preprint") => Some("print-jp-pdfx4".to_string()),
+        (_, "novel" | "light-novel") => Some("print-jp-pdfx1a".to_string()),
+        _ => None,
+    }
+}
+
+fn expected_pdf_standard_for_target(target: &str) -> Option<config::PrintPdfStandard> {
+    match target {
+        "print-jp-pdfx1a" => Some(config::PrintPdfStandard::Pdfx1a),
+        "print-jp-pdfx4" => Some(config::PrintPdfStandard::Pdfx4),
+        _ => None,
+    }
+}
+
+fn profile_default_mismatch_count(resolved: &config::ResolvedBookConfig) -> usize {
+    let mut count = 0;
+    let pdf = resolved.effective.pdf.as_ref();
+    let print = resolved.effective.print.as_ref();
+
+    match resolved.effective.book.profile.as_str() {
+        "paper" => {
+            if pdf.map(|settings| settings.toc).unwrap_or(true) {
+                count += 1;
+            }
+            if pdf
+                .map(|settings| settings.running_header != config::PdfRunningHeader::None)
+                .unwrap_or(true)
+            {
+                count += 1;
+            }
+            if print
+                .map(|settings| settings.trim_size != config::PrintTrimSize::A4)
+                .unwrap_or(true)
+            {
+                count += 1;
+            }
+            if print
+                .map(|settings| settings.bleed.as_str() != "0mm")
+                .unwrap_or(true)
+            {
+                count += 1;
+            }
+            if print.map(|settings| settings.crop_marks).unwrap_or(true) {
+                count += 1;
+            }
+        }
+        "novel" | "light-novel" => {
+            if pdf.map(|settings| !settings.toc).unwrap_or(true) {
+                count += 1;
+            }
+            if pdf.map(|settings| !settings.page_number).unwrap_or(true) {
+                count += 1;
+            }
+            if pdf
+                .map(|settings| settings.running_header != config::PdfRunningHeader::Auto)
+                .unwrap_or(true)
+            {
+                count += 1;
+            }
+            if print
+                .map(|settings| settings.trim_size != config::PrintTrimSize::Bunko)
+                .unwrap_or(true)
+            {
+                count += 1;
+            }
+            if print
+                .map(|settings| settings.bleed.as_str() != "3mm")
+                .unwrap_or(true)
+            {
+                count += 1;
+            }
+            if print.map(|settings| !settings.crop_marks).unwrap_or(true) {
+                count += 1;
+            }
+        }
+        "conference-preprint" => {
+            if resolved.effective.outputs.print.is_none() {
+                count += 1;
+            }
+            if pdf
+                .map(|settings| settings.engine != config::PdfEngine::Weasyprint)
+                .unwrap_or(true)
+            {
+                count += 1;
+            }
+            if pdf.map(|settings| settings.toc).unwrap_or(true) {
+                count += 1;
+            }
+            if pdf.map(|settings| settings.page_number).unwrap_or(true) {
+                count += 1;
+            }
+            if pdf
+                .map(|settings| settings.running_header != config::PdfRunningHeader::None)
+                .unwrap_or(true)
+            {
+                count += 1;
+            }
+            if pdf
+                .map(|settings| settings.column_count != 2)
+                .unwrap_or(true)
+            {
+                count += 1;
+            }
+            if pdf
+                .map(|settings| settings.column_gap.as_str() != "10mm")
+                .unwrap_or(true)
+            {
+                count += 1;
+            }
+            if pdf
+                .map(|settings| settings.base_font_size.as_str() != "9pt")
+                .unwrap_or(true)
+            {
+                count += 1;
+            }
+            if pdf
+                .map(|settings| settings.line_height.as_str() != "14pt")
+                .unwrap_or(true)
+            {
+                count += 1;
+            }
+            if print
+                .map(|settings| settings.trim_size != config::PrintTrimSize::A4)
+                .unwrap_or(true)
+            {
+                count += 1;
+            }
+            if print
+                .map(|settings| settings.bleed.as_str() != "0mm")
+                .unwrap_or(true)
+            {
+                count += 1;
+            }
+            if print.map(|settings| settings.crop_marks).unwrap_or(true) {
+                count += 1;
+            }
+            if print
+                .and_then(|settings| settings.page_margin.as_ref())
+                .map(|margin| {
+                    margin.top.as_str() != "20mm"
+                        || margin.bottom.as_str() != "20mm"
+                        || margin.left.as_str() != "15mm"
+                        || margin.right.as_str() != "15mm"
+                })
+                .unwrap_or(true)
+            {
+                count += 1;
+            }
+            if print
+                .map(|settings| settings.sides != config::PrintSides::Duplex)
+                .unwrap_or(true)
+            {
+                count += 1;
+            }
+            if print
+                .and_then(|settings| settings.max_pages)
+                .map(|value| value != 2)
+                .unwrap_or(true)
+            {
+                count += 1;
+            }
+        }
+        _ => {}
+    }
+
+    count
+}
+
 fn validator_log_path(repo_root: &Path, book_id: &str, validator: &str) -> PathBuf {
     repo_root
         .join("dist")
@@ -3802,6 +4115,17 @@ git:
                 "print target print-jp-pdfx1a usually expects print.pdf_standard = pdfx1a"
             )
         );
+        let report: serde_json::Value = serde_json::from_str(&report).unwrap();
+        let checks = report["target_profile_validations"][0]["checks"]
+            .as_array()
+            .unwrap();
+        let pdf_standard_check = checks
+            .iter()
+            .find(|check| check["name"] == "print-pdf-standard")
+            .unwrap();
+        assert_eq!(pdf_standard_check["status"], "warning");
+        assert_eq!(pdf_standard_check["expected"], "pdfx1a");
+        assert_eq!(pdf_standard_check["actual"], "pdfx4");
     }
 
     #[test]

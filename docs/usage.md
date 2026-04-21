@@ -376,7 +376,7 @@ severity は `validation.accessibility`, `validation.missing_image`, `validation
 issue の `location` は、特定できる場合は file path に加えて line 番号も持つ。
 CLI では summary の後に、先頭最大 5 件の issue を `原因 / 発生箇所 / 修正例` の形で続けて表示する。
 
-`validate --json` は同じ report schema を stdout に出す。file へ書き出す report には `checks`, `validators`, `issues` を含み、prose では `manuscript_stats` も含む。external validator を実行した場合は `artifact`, `log_path`, `summary` も取れる。
+`validate --json` は同じ report schema を stdout に出す。file へ書き出す report には `checks`, `target_profile_validations`, `validators`, `issues` を含み、prose では `manuscript_stats` も含む。`target_profile_validations` には Kindle / print の target、book profile、target / PDF standard / profile default の判定 summary が入る。external validator を実行した場合は `artifact`, `log_path`, `summary` も取れる。
 
 現在の `validate` は local lint と tool availability check に加えて、Kindle 出力が有効で `validation.epubcheck: true` のときは生成した EPUB に対して `epubcheck` を走らせる。print 出力が有効なときは生成した PDF に対して `qpdf --check` も試みる。`qpdf` が未導入でも `validators[]` に `missing-tool` として記録し、validation 自体はそれだけでは fail にしない。`qpdf` の検査失敗は validation error として返す。validator の詳細ログは `dist/logs/` に保存し、report から参照できる。
 
@@ -574,12 +574,15 @@ GitHub Actions の CI は `ubuntu-latest`, `macos-latest`, `windows-latest` の 
 
 - `shosei init`
 - `shosei validate --json`
+- `shosei validate --json` の print validator run
 - `shosei validate`
 - `shosei build`
 - `shosei preview`
 - `shosei chapter add`
 - `shosei reference scaffold`
 - `shosei reference check`
+- `shosei reference drift`
+- `shosei reference sync`
 - `shosei story seed`
 - `shosei page check`
 - `shosei series sync`
@@ -589,6 +592,6 @@ GitHub Actions の CI は `ubuntu-latest`, `macos-latest`, `windows-latest` の 
 - `shosei doctor`
 - `shosei --help`
 
-合わせて `cargo test --workspace` と `cargo test -p shosei-core --test repo_discovery` も走る。VS Code adapter については `npm ci` の後に `npm run check`, `npm test`, `npm run test:host` を別 job で継続確認し、Ubuntu では `npm run test:package-smoke` で package 済み VSIX の smoke も回す。
+合わせて `cargo test --workspace` と `cargo test -p shosei-core --test repo_discovery` も走る。print validator run の smoke は Unix shell fixture を使うため Ubuntu / macOS で回す。VS Code adapter については `npm ci` の後に `npm run check`, `npm test`, `npm run test:host` を別 job で継続確認し、Ubuntu では `npm run test:package-smoke` で package 済み VSIX の smoke も回す。
 
 CI 表示だけで「どの OS でどの smoke が通ったか」を読める状態を維持し、README と `site/usage.html` でも同じ保証内容を案内する。

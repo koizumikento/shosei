@@ -622,6 +622,27 @@ exit 0
 }
 
 #[cfg(unix)]
+fn write_fake_failing_qpdf(root: &Path) -> PathBuf {
+    use std::os::unix::fs::PermissionsExt;
+
+    let tools_dir = root.join("tools");
+    fs::create_dir_all(&tools_dir).unwrap();
+    let qpdf = tools_dir.join("qpdf");
+    fs::write(
+        &qpdf,
+        r#"#!/bin/sh
+echo "fake qpdf failure" >&2
+exit 2
+"#,
+    )
+    .unwrap();
+    let mut permissions = fs::metadata(&qpdf).unwrap().permissions();
+    permissions.set_mode(0o755);
+    fs::set_permissions(&qpdf, permissions).unwrap();
+    tools_dir
+}
+
+#[cfg(unix)]
 fn write_fake_weasyprint(root: &Path) -> PathBuf {
     use std::os::unix::fs::PermissionsExt;
 
@@ -720,6 +741,73 @@ fn validate_cli_json_includes_print_validator_runs() {
             .as_str()
             .unwrap()
             .ends_with("default-qpdf-validate.log")
+    );
+    assert_eq!(parsed["target_profile_validations"][0]["channel"], "print");
+    assert_eq!(
+        parsed["target_profile_validations"][0]["checks"][0]["name"],
+        "print-target"
+    );
+    assert_eq!(
+        parsed["target_profile_validations"][0]["checks"][1]["name"],
+        "print-pdf-standard"
+    );
+    assert_eq!(
+        parsed["target_profile_validations"][0]["checks"][1]["status"],
+        "ok"
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn validate_cli_json_records_missing_print_validator_without_failing() {
+    let root = temp_dir("validate-print-missing-qpdf-json");
+    write_print_validate_fixture(&root);
+    let tools_dir = write_fake_pandoc(&root);
+    let _ = write_fake_weasyprint(&root);
+
+    let output = Command::new(env!("CARGO_BIN_EXE_shosei"))
+        .args(["validate", "--json", "--path", root.to_str().unwrap()])
+        .env("PATH", prepend_path(&tools_dir))
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let parsed: Value = serde_json::from_str(&stdout).unwrap();
+    assert_eq!(parsed["validators"][0]["name"], "qpdf-check");
+    assert_eq!(parsed["validators"][0]["status"], "missing-tool");
+    assert_eq!(
+        parsed["validators"][0]["summary"],
+        "qpdf executable is unavailable"
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn validate_cli_json_fails_when_print_validator_reports_errors() {
+    let root = temp_dir("validate-print-failing-qpdf-json");
+    write_print_validate_fixture(&root);
+    let tools_dir = write_fake_pandoc(&root);
+    let _ = write_fake_failing_qpdf(&root);
+    let _ = write_fake_weasyprint(&root);
+
+    let output = Command::new(env!("CARGO_BIN_EXE_shosei"))
+        .args(["validate", "--json", "--path", root.to_str().unwrap()])
+        .env("PATH", prepend_path(&tools_dir))
+        .output()
+        .unwrap();
+
+    assert!(!output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let parsed: Value = serde_json::from_str(&stdout).unwrap();
+    assert_eq!(parsed["validators"][0]["name"], "qpdf-check");
+    assert_eq!(parsed["validators"][0]["status"], "failed");
+    assert!(
+        parsed["issues"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|issue| issue["cause"] == "qpdf reported validation errors for the generated PDF")
     );
 }
 
