@@ -40,10 +40,15 @@ Rules in this file apply to `editors/vscode/`.
 
 When changing the extension, use these checks as appropriate:
 
+- `npm ci`
 - `npm run check`
 - `npm test`
+- `npm run test:host`
+- `npm run test:package-smoke`
 - `npm run package`
 - `node --check extension.js`
 - `node --check src/core.js`
 - `node --check src/view.js`
 - `node --test ./test/**/*.test.js`
+
+CI runs `npm run test:host` on Ubuntu, macOS, and Windows. Ubuntu CI wraps host/package smoke with `xvfb-run -a`; use the same wrapper locally on headless Linux.
