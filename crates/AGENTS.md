@@ -79,6 +79,8 @@ Use these exact commands when validating Rust changes:
   - `cargo test -p shosei-cli --test cli_smoke chapter_add_cli_updates_config_and_creates_stub_file -- --exact`
   - `cargo test -p shosei-cli --test cli_smoke reference_scaffold_cli_creates_workspace -- --exact`
   - `cargo test -p shosei-cli --test cli_smoke reference_check_cli_prints_issue_preview_and_fails_on_errors -- --exact`
+  - `cargo test -p shosei-cli --test cli_smoke reference_drift_cli_writes_report_and_fails_on_drift -- --exact`
+  - `cargo test -p shosei-cli --test cli_smoke reference_sync_cli_copies_shared_entry_into_book_scope -- --exact`
   - `cargo test -p shosei-cli --test cli_smoke story_seed_cli_creates_scenes_and_notes_from_template -- --exact`
   - `cargo test -p shosei-cli --test cli_smoke series_sync_cli_generates_catalog_and_updates_books -- --exact`
   - `cargo test -p shosei-cli --test cli_smoke handoff_proof_cli_packages_review_packet -- --exact`

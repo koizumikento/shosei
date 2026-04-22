@@ -36,6 +36,7 @@ Rules in this file apply to `docs/` and documentation changes that update the pu
 - Keep `validate --json` and `handoff <kindle|print|proof>` descriptions aligned across `specs/functional-spec.md`, `usage.md`, `../site/usage.html`, and `../README.md`.
 - Keep install and release guidance aligned across `../README.md`, `../site/install.html`, and `../editors/vscode/README.md` when GitHub Release assets, Homebrew / Scoop distribution, or VSIX packaging/update flow changes.
 - Keep prose `validate --json` docs aligned on the `manuscript_stats` payload across `specs/functional-spec.md`, `usage.md`, `../site/usage.html`, and `../editors/vscode/README.md`.
+- Keep `validate --json` docs aligned on the `target_profile_validations` payload across `specs/functional-spec.md`, `usage.md`, and `../site/usage.html`.
 - Keep `specs/vscode-extension.md` and `../editors/vscode/README.md` aligned when the extension flow, scope, or ownership changes.
 - Keep recurring concept-fulfillment reviews aligned with `concept-fulfillment-rubric.md`, including weights, rounding, and comparison rules.
 
