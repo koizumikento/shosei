@@ -318,7 +318,8 @@ fn apply_resolved_book_context(
             .focused_optional_tools
             .push("epubcheck".to_string());
     }
-    if resolved.effective.outputs.kindle.is_some() {
+    if resolved.effective.outputs.kindle.is_some() && resolved.effective.validation.kindle_previewer
+    {
         detected
             .focused_optional_tools
             .push("kindle-previewer".to_string());
@@ -623,7 +624,7 @@ git:
         );
         assert_eq!(
             project.focused_optional_tools,
-            vec!["epubcheck", "git-lfs", "kindle-previewer", "qpdf"]
+            vec!["epubcheck", "git-lfs", "qpdf"]
         );
     }
 

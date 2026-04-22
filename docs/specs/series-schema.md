@@ -104,6 +104,7 @@ defaults:
 validation:
   strict: true
   epubcheck: true
+  kindle_previewer: false
   accessibility: warn
 ```
 
@@ -111,6 +112,7 @@ validation:
 |---|---|---|---|
 | `strict` | boolean | no | `true` |
 | `epubcheck` | boolean | no | `true` |
+| `kindle_previewer` | boolean | no | `false` |
 | `accessibility` | string | no | `warn` |
 
 ## 8. `git`

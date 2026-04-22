@@ -64,6 +64,10 @@ jobs:
         if: matrix.os != 'windows-latest'
         run: cargo test -p shosei-cli --test cli_smoke validate_cli_json_includes_print_validator_runs -- --exact
 
+      - name: Smoke CLI validate (Kindle Previewer validator run)
+        if: matrix.os != 'windows-latest'
+        run: cargo test -p shosei-cli --test cli_smoke validate_cli_json_includes_kindle_previewer_runs -- --exact
+
       - name: Smoke CLI build (artifact output)
         run: cargo test -p shosei-cli --test cli_smoke build_cli_prints_tools_and_writes_artifact -- --exact
 

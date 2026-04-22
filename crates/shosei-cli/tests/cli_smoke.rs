@@ -643,6 +643,27 @@ exit 2
 }
 
 #[cfg(unix)]
+fn write_fake_kindle_previewer(root: &Path) -> PathBuf {
+    use std::os::unix::fs::PermissionsExt;
+
+    let tools_dir = root.join("tools");
+    fs::create_dir_all(&tools_dir).unwrap();
+    let previewer = tools_dir.join("kindlepreviewer");
+    fs::write(
+        &previewer,
+        r#"#!/bin/sh
+echo "fake Kindle Previewer"
+exit 0
+"#,
+    )
+    .unwrap();
+    let mut permissions = fs::metadata(&previewer).unwrap().permissions();
+    permissions.set_mode(0o755);
+    fs::set_permissions(&previewer, permissions).unwrap();
+    tools_dir
+}
+
+#[cfg(unix)]
 fn write_fake_weasyprint(root: &Path) -> PathBuf {
     use std::os::unix::fs::PermissionsExt;
 
@@ -808,6 +829,45 @@ fn validate_cli_json_fails_when_print_validator_reports_errors() {
             .unwrap()
             .iter()
             .any(|issue| issue["cause"] == "qpdf reported validation errors for the generated PDF")
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn validate_cli_json_includes_kindle_previewer_runs() {
+    let root = temp_dir("validate-kindle-previewer-json");
+    write_validate_fixture(&root);
+    let book_path = root.join("book.yml");
+    let mut book = fs::read_to_string(&book_path).unwrap();
+    book = book.replace(
+        "  epubcheck: false\n",
+        "  epubcheck: false\n  kindle_previewer: true\n",
+    );
+    fs::write(&book_path, book).unwrap();
+    let tools_dir = write_fake_pandoc(&root);
+    let _ = write_fake_kindle_previewer(&root);
+
+    let output = Command::new(env!("CARGO_BIN_EXE_shosei"))
+        .args(["validate", "--json", "--path", root.to_str().unwrap()])
+        .env("PATH", prepend_path(&tools_dir))
+        .output()
+        .unwrap();
+
+    assert!(!output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let parsed: Value = serde_json::from_str(&stdout).unwrap();
+    let previewer = parsed["validators"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|validator| validator["name"] == "kindle-previewer")
+        .unwrap();
+    assert_eq!(previewer["status"], "passed");
+    assert!(
+        previewer["log_path"]
+            .as_str()
+            .unwrap()
+            .ends_with("default-kindle-previewer-validate.log")
     );
 }
 
