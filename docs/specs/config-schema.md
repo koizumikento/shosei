@@ -367,6 +367,7 @@ images:
 validation:
   strict: true
   epubcheck: true
+  kindle_previewer: false
   accessibility: warn
   missing_image: error
   missing_alt: error
@@ -377,6 +378,7 @@ validation:
 |---|---|---|---|---|
 | `strict` | boolean | no | `true` | `true`, `false` |
 | `epubcheck` | boolean | no | `true` | `true`, `false` |
+| `kindle_previewer` | boolean | no | `false` | `true`, `false` |
 | `accessibility` | string | no | `warn` | `off`, `warn`, `error` |
 | `missing_image` | string | no | `error` | `warn`, `error` |
 | `missing_alt` | string | no | `error` | `warn`, `error` |

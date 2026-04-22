@@ -450,6 +450,7 @@ pub struct ManuscriptSettings {
 pub struct ValidationSettings {
     pub strict: bool,
     pub epubcheck: bool,
+    pub kindle_previewer: bool,
     pub accessibility: ValidationLevel,
     pub missing_image: ValidationSeverity,
     pub missing_alt: ValidationSeverity,
@@ -964,6 +965,11 @@ pub fn explain_book_config(context: &RepoContext) -> Result<ExplainedConfig, Con
             origin(&["validation", "epubcheck"]),
         ),
         explained(
+            "validation.kindle_previewer",
+            resolved.effective.validation.kindle_previewer.to_string(),
+            origin(&["validation", "kindle_previewer"]),
+        ),
+        explained(
             "validation.accessibility",
             resolved.effective.validation.accessibility.as_str(),
             origin(&["validation", "accessibility"]),
@@ -1191,6 +1197,12 @@ fn parse_effective_book_config(
             strict: optional_bool_at(raw, &["validation", "strict"], config_path)?.unwrap_or(true),
             epubcheck: optional_bool_at(raw, &["validation", "epubcheck"], config_path)?
                 .unwrap_or(true),
+            kindle_previewer: optional_bool_at(
+                raw,
+                &["validation", "kindle_previewer"],
+                config_path,
+            )?
+            .unwrap_or(false),
             accessibility: parse_validation_level(
                 raw,
                 config_path,
@@ -2330,6 +2342,7 @@ defaults:
       target: print-jp-pdfx1a
 validation:
   strict: true
+  kindle_previewer: true
 shared:
   assets:
     - shared/assets
@@ -2352,6 +2365,8 @@ book:
 outputs:
   print:
     enabled: false
+validation:
+  epubcheck: false
 manuscript:
   chapters:
     - books/vol-01/manuscript/01.md
@@ -2366,6 +2381,8 @@ manuscript:
         assert_eq!(resolved.outputs(), vec!["kindle-ja"]);
         assert_eq!(resolved.shared.assets[0].as_str(), "shared/assets");
         assert!(resolved.effective.validation.strict);
+        assert!(!resolved.effective.validation.epubcheck);
+        assert!(resolved.effective.validation.kindle_previewer);
     }
 
     #[test]

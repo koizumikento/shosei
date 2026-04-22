@@ -397,6 +397,14 @@ fn run_external_validators(
         }
     }
 
+    if should_run_kindle_previewer_validation(command, resolved) {
+        let (run, issue) = run_kindle_previewer_validation(command, resolved, toolchain, plan);
+        result.runs.push(run);
+        if let Some(issue) = issue {
+            result.issues.push(issue);
+        }
+    }
+
     if should_run_qpdf_validation(command, resolved) {
         let (run, issue) = run_qpdf_validation(command, resolved, toolchain, plan);
         result.runs.push(run);
@@ -412,6 +420,15 @@ fn should_run_epubcheck(command: &CommandContext, resolved: &config::ResolvedBoo
     (command.output_target.is_none() || command.output_target.as_deref() == Some("kindle"))
         && resolved.effective.outputs.kindle.is_some()
         && resolved.effective.validation.epubcheck
+}
+
+fn should_run_kindle_previewer_validation(
+    command: &CommandContext,
+    resolved: &config::ResolvedBookConfig,
+) -> bool {
+    (command.output_target.is_none() || command.output_target.as_deref() == Some("kindle"))
+        && resolved.effective.outputs.kindle.is_some()
+        && resolved.effective.validation.kindle_previewer
 }
 
 fn should_run_qpdf_validation(
@@ -583,6 +600,182 @@ fn run_epubcheck_validation(
                 ValidatorRunReport {
                     status: "failed".to_string(),
                     summary: format!("failed to start epubcheck: {error}"),
+                    artifact: Some(relative_display(repo_root, artifact)),
+                    log_path: Some(relative_display(repo_root, &log_path)),
+                    ..initial
+                },
+                Some(issue),
+            )
+        }
+    }
+}
+
+fn run_kindle_previewer_validation(
+    command: &CommandContext,
+    resolved: &config::ResolvedBookConfig,
+    toolchain: &toolchain::ToolchainReport,
+    plan: &pipeline::ValidatePlan,
+) -> (ValidatorRunReport, Option<ValidationIssue>) {
+    let book = resolved
+        .repo
+        .book
+        .as_ref()
+        .expect("book context must exist for validation");
+    let repo_root = &resolved.repo.repo_root;
+    let initial = ValidatorRunReport {
+        name: "kindle-previewer".to_string(),
+        target: "kindle".to_string(),
+        tool: "kindle-previewer".to_string(),
+        status: "skipped".to_string(),
+        summary: "Kindle Previewer was not run".to_string(),
+        artifact: None,
+        log_path: None,
+    };
+
+    let Some(executable) = available_tool_path(toolchain, "kindle-previewer") else {
+        return (
+            ValidatorRunReport {
+                status: "missing-tool".to_string(),
+                summary: "Kindle Previewer executable is unavailable".to_string(),
+                ..initial
+            },
+            None,
+        );
+    };
+
+    if plan
+        .checks
+        .iter()
+        .any(|check| check.target == "kindle" && check.tool_status == ToolStatus::Missing)
+    {
+        return (
+            ValidatorRunReport {
+                summary: "kindle validation prerequisites are missing".to_string(),
+                ..initial
+            },
+            None,
+        );
+    }
+
+    let build_command = CommandContext::new(
+        command.start_path.clone(),
+        command.book_id.clone(),
+        Some("kindle".to_string()),
+    );
+    let build_result = match build_book_with_toolchain(&build_command, toolchain) {
+        Ok(result) => result,
+        Err(BuildBookError::RequiredToolMissing { tool, .. }) => {
+            return (
+                ValidatorRunReport {
+                    summary: format!("skipped because required build tool `{tool}` is missing"),
+                    ..initial
+                },
+                None,
+            );
+        }
+        Err(BuildBookError::ExecutionFailed { log_path, .. }) => {
+            let issue = ValidationIssue::error(
+                "kindle",
+                "kindle validation prerequisite build failed".to_string(),
+                format!(
+                    "生成した EPUB を検証できませんでした。build log を確認してください: {}",
+                    relative_display(repo_root, &log_path)
+                ),
+            );
+            return (
+                ValidatorRunReport {
+                    status: "failed".to_string(),
+                    summary: "kindle build failed before Kindle Previewer".to_string(),
+                    log_path: Some(relative_display(repo_root, &log_path)),
+                    ..initial
+                },
+                Some(issue),
+            );
+        }
+        Err(error) => {
+            let issue = ValidationIssue::error(
+                "kindle",
+                format!("kindle validation prerequisite build failed: {error}"),
+                "kindle build を通してから validate を再実行してください。".to_string(),
+            );
+            return (
+                ValidatorRunReport {
+                    status: "failed".to_string(),
+                    summary: format!("kindle build failed before Kindle Previewer: {error}"),
+                    ..initial
+                },
+                Some(issue),
+            );
+        }
+    };
+
+    let Some(artifact) = build_result.artifacts.first() else {
+        let issue = ValidationIssue::error(
+            "kindle",
+            "Kindle Previewer input artifact was not generated".to_string(),
+            "kindle build の成果物生成を確認してください。".to_string(),
+        );
+        return (
+            ValidatorRunReport {
+                status: "failed".to_string(),
+                summary: "kindle build did not produce an EPUB artifact".to_string(),
+                ..initial
+            },
+            Some(issue),
+        );
+    };
+
+    let output_dir = repo_root
+        .join("dist")
+        .join("validator-artifacts")
+        .join(format!("{}-kindle-previewer", book.id));
+    let log_path = validator_log_path(repo_root, &book.id, "kindle-previewer");
+    match toolchain::run_kindle_previewer_check(executable, artifact, &output_dir) {
+        Ok(output) => {
+            let _ = write_validator_log(&log_path, "kindle-previewer", artifact, &output);
+            if output.status.success() {
+                (
+                    ValidatorRunReport {
+                        status: "passed".to_string(),
+                        summary: "Kindle Previewer completed device-oriented conversion check"
+                            .to_string(),
+                        artifact: Some(relative_display(repo_root, artifact)),
+                        log_path: Some(relative_display(repo_root, &log_path)),
+                        ..initial
+                    },
+                    None,
+                )
+            } else {
+                let issue = ValidationIssue::error(
+                    "kindle",
+                    "Kindle Previewer failed for the generated EPUB".to_string(),
+                    format!(
+                        "Kindle Previewer log を確認してください: {}",
+                        relative_display(repo_root, &log_path)
+                    ),
+                );
+                (
+                    ValidatorRunReport {
+                        status: "failed".to_string(),
+                        summary: "Kindle Previewer reported conversion errors".to_string(),
+                        artifact: Some(relative_display(repo_root, artifact)),
+                        log_path: Some(relative_display(repo_root, &log_path)),
+                        ..initial
+                    },
+                    Some(issue),
+                )
+            }
+        }
+        Err(error) => {
+            let issue = ValidationIssue::error(
+                "kindle",
+                format!("failed to start Kindle Previewer: {error}"),
+                "Kindle Previewer が起動できることを確認してください。".to_string(),
+            );
+            (
+                ValidatorRunReport {
+                    status: "failed".to_string(),
+                    summary: format!("failed to start Kindle Previewer: {error}"),
                     artifact: Some(relative_display(repo_root, artifact)),
                     log_path: Some(relative_display(repo_root, &log_path)),
                     ..initial
@@ -2956,6 +3149,30 @@ mod tests {
     }
 
     #[cfg(unix)]
+    fn fake_toolchain_with_kindle_previewer(
+        pandoc: PathBuf,
+        kindle_previewer: PathBuf,
+    ) -> ToolchainReport {
+        let mut report = fake_toolchain_with_paths(
+            Some(pandoc),
+            None,
+            ToolStatus::Missing,
+            None,
+            ToolStatus::Missing,
+        );
+        report.tools.push(ToolRecord {
+            key: "kindle-previewer",
+            display_name: "Kindle Previewer",
+            status: ToolStatus::Available,
+            detected_as: Some("kindlepreviewer".to_string()),
+            resolved_path: Some(kindle_previewer),
+            version: None,
+            install_hint: "Install Kindle Previewer.".to_string(),
+        });
+        report
+    }
+
+    #[cfg(unix)]
     fn write_fake_pandoc(root: &std::path::Path) -> PathBuf {
         use std::os::unix::fs::PermissionsExt;
 
@@ -3008,6 +3225,34 @@ exit {}
         permissions.set_mode(0o755);
         fs::set_permissions(&epubcheck, permissions).unwrap();
         epubcheck
+    }
+
+    #[cfg(unix)]
+    fn write_fake_kindle_previewer(
+        root: &std::path::Path,
+        exit_code: i32,
+        args_path: &std::path::Path,
+    ) -> PathBuf {
+        use std::os::unix::fs::PermissionsExt;
+
+        let previewer = root.join("kindlepreviewer");
+        fs::write(
+            &previewer,
+            format!(
+                r#"#!/bin/sh
+printf '%s\n' "$@" > "{}"
+echo "fake Kindle Previewer"
+exit {}
+"#,
+                args_path.display(),
+                exit_code
+            ),
+        )
+        .unwrap();
+        let mut permissions = fs::metadata(&previewer).unwrap().permissions();
+        permissions.set_mode(0o755);
+        fs::set_permissions(&previewer, permissions).unwrap();
+        previewer
     }
 
     #[cfg(unix)]
@@ -3492,6 +3737,78 @@ manga:
         );
         let args = fs::read_to_string(args_path).unwrap();
         assert!(args.contains(".epub"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn validate_runs_kindle_previewer_against_generated_epub() {
+        let root = temp_dir("kindle-previewer-success");
+        write_book_with_cover(&root, "error", true);
+        let book_path = root.join("book.yml");
+        let mut book = fs::read_to_string(&book_path).unwrap();
+        book = book.replace(
+            "  epubcheck: true\n",
+            "  epubcheck: false\n  kindle_previewer: true\n",
+        );
+        fs::write(&book_path, book).unwrap();
+        let pandoc = write_fake_pandoc(&root);
+        let args_path = root.join("kindle-previewer-args.txt");
+        let previewer = write_fake_kindle_previewer(&root, 0, &args_path);
+
+        let result = validate_book_with_toolchain(
+            &CommandContext::new(&root, None, None),
+            &fake_toolchain_with_kindle_previewer(pandoc, previewer),
+        )
+        .unwrap();
+
+        assert!(!result.has_errors);
+        let report = fs::read_to_string(&result.report_path).unwrap();
+        assert!(report.contains("\"name\": \"kindle-previewer\""));
+        assert!(report.contains("\"status\": \"passed\""));
+        assert!(report.contains("Kindle Previewer completed device-oriented conversion check"));
+        assert!(
+            root.join("dist/logs/default-kindle-previewer-validate.log")
+                .is_file()
+        );
+        let args = fs::read_to_string(args_path).unwrap();
+        let args = args.lines().collect::<Vec<_>>();
+        assert_eq!(args.len(), 4);
+        assert!(args[0].ends_with(".epub"));
+        assert_eq!(args[1], "-convert");
+        assert_eq!(args[2], "-output");
+        assert!(args[3].ends_with("default-kindle-previewer"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn validate_records_missing_kindle_previewer_without_failing() {
+        let root = temp_dir("missing-kindle-previewer");
+        write_book_with_cover(&root, "error", true);
+        let book_path = root.join("book.yml");
+        let mut book = fs::read_to_string(&book_path).unwrap();
+        book = book.replace(
+            "  epubcheck: true\n",
+            "  epubcheck: false\n  kindle_previewer: true\n",
+        );
+        fs::write(&book_path, book).unwrap();
+
+        let result = validate_book_with_toolchain(
+            &CommandContext::new(&root, None, None),
+            &fake_toolchain_with_paths(
+                Some(write_fake_pandoc(&root)),
+                None,
+                ToolStatus::Missing,
+                None,
+                ToolStatus::Missing,
+            ),
+        )
+        .unwrap();
+
+        assert!(!result.has_errors);
+        let report = fs::read_to_string(result.report_path).unwrap();
+        assert!(report.contains("\"name\": \"kindle-previewer\""));
+        assert!(report.contains("\"status\": \"missing-tool\""));
+        assert!(report.contains("Kindle Previewer executable is unavailable"));
     }
 
     #[test]

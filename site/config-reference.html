@@ -67,6 +67,7 @@ outputs:
 validation:
   strict: true
   epubcheck: true
+  kindle_previewer: false
   accessibility: warn
 git:
   lfs: true
@@ -159,6 +160,8 @@ editorial:
               <tr><td><code>print.trim_size</code></td><td>print 時</td><td>仕上がりサイズ</td></tr>
               <tr><td><code>editorial.*</code></td><td>prose の <code>book.yml</code></td><td>editorial sidecar file への参照</td></tr>
               <tr><td><code>validation.strict</code></td><td><code>book.yml</code> または <code>series.yml</code></td><td>厳しめの検証を有効にするか</td></tr>
+              <tr><td><code>validation.epubcheck</code></td><td><code>book.yml</code> または <code>series.yml</code></td><td>Kindle/EPUB 出力で <code>epubcheck</code> を使うか</td></tr>
+              <tr><td><code>validation.kindle_previewer</code></td><td><code>book.yml</code> または <code>series.yml</code></td><td>Kindle Previewer の conversion check を opt-in するか</td></tr>
               <tr><td><code>git.lfs</code></td><td><code>book.yml</code> または <code>series.yml</code></td><td>Git LFS 前提か</td></tr>
             </tbody>
           </table>

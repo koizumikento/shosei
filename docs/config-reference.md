@@ -53,6 +53,7 @@ outputs:
 validation:
   strict: true
   epubcheck: true
+  kindle_previewer: false
   accessibility: warn
 git:
   lfs: true
@@ -150,6 +151,8 @@ editorial:
 | `editorial.figures` | prose の `book.yml` | 図版台帳 |
 | `editorial.freshness` | prose の `book.yml` | 更新期限を持つ facts の台帳 |
 | `validation.strict` | `book.yml` または `series.yml` | 厳しめの検証を有効にするか |
+| `validation.epubcheck` | `book.yml` または `series.yml` | Kindle/EPUB 出力で `epubcheck` を使うか |
+| `validation.kindle_previewer` | `book.yml` または `series.yml` | Kindle Previewer の device-oriented conversion check を opt-in するか |
 | `git.lfs` | `book.yml` または `series.yml` | Git LFS を前提にするか |
 
 ## 5. `series.yml` でよく触る項目

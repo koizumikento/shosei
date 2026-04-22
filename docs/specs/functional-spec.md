@@ -305,6 +305,7 @@ v0.1 の最小要件:
 - target ごとの外部 validator は、対応 artifact と tool が揃う場合は実行する
 - 外部 validator を実行できない場合も、missing tool / skipped validator を report に残す
 - 外部 validator の詳細ログは `dist/logs/` に保存し、report から参照できる
+- Kindle Previewer は proprietary / OS-dependent な tool なので、`validation.kindle_previewer: true` のときだけ optional device-oriented validator として実行する
 
 - 共通 lint
 - prose editorial lint
@@ -1154,8 +1155,11 @@ v0.1 の既定:
 - reading direction
 - `cover.ebook_image` と出力 metadata の整合
 - reflow を壊す要素の警告
-- 必要に応じて Kindle Previewer 連携
-- device preview 由来の警告取り込み
+- `validation.kindle_previewer: true` のときは、生成した Kindle artifact に対して Kindle Previewer の conversion check を試みる
+- Kindle Previewer が未導入の場合は `validators[]` に `missing-tool` を記録し、それだけでは validate を fail にしない
+- Kindle Previewer の conversion check 失敗は validation error として返す
+- Kindle Previewer の詳細ログは `dist/logs/<book-id>-kindle-previewer-validate.log` に保存し、report から参照する
+- CI では proprietary binary を要求せず、fake executable による report contract の smoke を行う
 
 ### 15.4 印刷
 

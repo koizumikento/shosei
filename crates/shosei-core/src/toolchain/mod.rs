@@ -387,6 +387,26 @@ pub fn run_epubcheck(executable: &Path, input_epub: &Path) -> std::io::Result<To
     })
 }
 
+pub fn run_kindle_previewer_check(
+    executable: &Path,
+    input_epub: &Path,
+    output_dir: &Path,
+) -> std::io::Result<ToolRunOutput> {
+    fs::create_dir_all(output_dir)?;
+    let command_output = Command::new(executable)
+        .arg(input_epub)
+        .arg("-convert")
+        .arg("-output")
+        .arg(output_dir)
+        .output()?;
+
+    Ok(ToolRunOutput {
+        status: command_output.status,
+        stdout: String::from_utf8_lossy(&command_output.stdout).into_owned(),
+        stderr: String::from_utf8_lossy(&command_output.stderr).into_owned(),
+    })
+}
+
 pub fn run_qpdf_check(executable: &Path, input_pdf: &Path) -> std::io::Result<ToolRunOutput> {
     let command_output = Command::new(executable)
         .arg("--check")
@@ -470,6 +490,7 @@ fn inspect_tool(
 fn tool_candidates(spec: &ToolSpec, host_os: HostOs) -> Vec<String> {
     match spec.key {
         "chromium" => chromium_candidates(host_os),
+        "kindle-previewer" => kindle_previewer_candidates(host_os),
         _ => spec
             .candidates
             .iter()
@@ -505,6 +526,45 @@ fn chromium_candidates_with_home(host_os: HostOs, home_dir: Option<&Path>) -> Ve
         .into_iter()
         .map(str::to_string),
     );
+    candidates
+}
+
+fn kindle_previewer_candidates(host_os: HostOs) -> Vec<String> {
+    kindle_previewer_candidates_with_home(host_os, tool_home_dir(host_os).as_deref())
+}
+
+fn kindle_previewer_candidates_with_home(host_os: HostOs, home_dir: Option<&Path>) -> Vec<String> {
+    let mut candidates = vec![
+        "Kindle Previewer 3".to_string(),
+        "Kindle Previewer".to_string(),
+        "KindlePreviewer".to_string(),
+        "kindlepreviewer".to_string(),
+    ];
+
+    match host_os {
+        HostOs::Macos => candidates.extend(
+            [
+                "/Applications/Kindle Previewer 3.app/Contents/MacOS/Kindle Previewer 3",
+                "/Applications/Kindle Previewer.app/Contents/MacOS/Kindle Previewer",
+            ]
+            .into_iter()
+            .map(str::to_string),
+        ),
+        HostOs::Windows => {
+            if let Some(home_dir) = home_dir {
+                candidates.extend(
+                    [
+                        "AppData/Local/Amazon/Kindle Previewer 3/Kindle Previewer 3.exe",
+                        "AppData/Local/Amazon/Kindle Previewer 3/KindlePreviewer.exe",
+                    ]
+                    .into_iter()
+                    .map(|suffix| home_dir.join(suffix).to_string_lossy().into_owned()),
+                );
+            }
+        }
+        HostOs::Linux | HostOs::Other => {}
+    }
+
     candidates
 }
 
@@ -997,6 +1057,26 @@ mod tests {
             .unwrap();
 
         assert!(shell_index < chrome_app_index);
+    }
+
+    #[test]
+    fn kindle_previewer_candidates_include_standard_app_locations() {
+        let home_dir = temp_dir("kindle-previewer-home");
+        let mac_candidates = kindle_previewer_candidates_with_home(HostOs::Macos, Some(&home_dir));
+        assert!(mac_candidates.iter().any(|candidate| {
+            candidate == "/Applications/Kindle Previewer 3.app/Contents/MacOS/Kindle Previewer 3"
+        }));
+
+        let windows_candidates =
+            kindle_previewer_candidates_with_home(HostOs::Windows, Some(&home_dir));
+        assert!(windows_candidates.iter().any(|candidate| {
+            Path::new(candidate)
+                .ends_with("AppData/Local/Amazon/Kindle Previewer 3/Kindle Previewer 3.exe")
+        }));
+        assert!(windows_candidates.iter().any(|candidate| {
+            Path::new(candidate)
+                .ends_with("AppData/Local/Amazon/Kindle Previewer 3/KindlePreviewer.exe")
+        }));
     }
 
     #[test]
