@@ -42,6 +42,7 @@ Keep examples and command handling aligned with the actually implemented surface
 
 - For current user flows, prefer examples in the order `init` -> `explain` -> `build` / `validate`.
 - Keep `init` guidance aligned across interactive and `--non-interactive --config-template ...` flows, including `paper` `--config-profile`, prose `--include-introduction` / `--include-afterword`, and `series` `--initial-book-id`.
+- Keep `init` follow-up guidance aligned with the implemented post-scaffold flow: interactive init can optionally run `shosei doctor`, and otherwise prints the `toolchain hint: run shosei doctor` reminder.
 - `explain` is the supported way to inspect resolved config and origin data before running output commands.
 - Kindle-capable `init` scaffolds are expected to wire `cover.ebook_image` and placeholder cover assets so a fresh scaffold does not start with a missing-cover warning.
 - `preview` supports both one-shot output checks and a longer-running `--watch` loop. Describe `--watch` only for iterative local preview workflows.
