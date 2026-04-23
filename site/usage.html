@@ -56,7 +56,33 @@ shosei build --target print</code></pre>
 
         <section>
           <h2>Commands</h2>
-          <p>この表の <code>利用可能</code> は、CLI surface が実装済みで、CLI smoke または workspace test で継続確認している意味です。target/profile ごとの外部 validator の深さにはまだ差があります。</p>
+          <p>この表の <code>利用可能</code> は、CLI surface が実装済みで、CLI smoke または workspace test で継続確認している意味です。外部 validator は次のように扱います。</p>
+          <table>
+            <thead>
+              <tr>
+                <th>Validator depth</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>local lint / target-profile checks</td>
+                <td>標準で利用可能</td>
+              </tr>
+              <tr>
+                <td><code>epubcheck</code> / <code>qpdf</code></td>
+                <td>tool があれば実行し、なければ <code>missing-tool</code> として report に記録</td>
+              </tr>
+              <tr>
+                <td>Kindle Previewer</td>
+                <td><code>validation.kindle_previewer: true</code> の opt-in。CI は fake executable で report contract を確認し、実物確認は maintainers の local hook で行う</td>
+              </tr>
+              <tr>
+                <td>Kindle Previewer 以外の store / device 固有 validator</td>
+                <td>future work</td>
+              </tr>
+            </tbody>
+          </table>
           <table>
             <thead>
               <tr>
@@ -390,6 +416,43 @@ status: unread</code></pre>
           <p>CLI では summary の後に、先頭最大 5 件の issue を <code>原因 / 発生箇所 / 修正例</code> の形で続けて表示します。</p>
           <p><code>validate --json</code> は同じ report schema を stdout に出します。file へ書き出す report には <code>checks</code>, <code>target_profile_validations</code>, <code>validators</code>, <code>issues</code> を含み、prose では <code>manuscript_stats</code> も含みます。<code>target_profile_validations</code> には Kindle / print の target、book profile、target / PDF standard / profile default の判定 summary が入ります。external validator を実行した場合は <code>artifact</code>, <code>log_path</code>, <code>summary</code> も取れます。</p>
           <p>現在の <code>validate</code> は local lint と tool availability check に加えて、Kindle 出力が有効で <code>validation.epubcheck: true</code> のときは生成した EPUB に対して <code>epubcheck</code> を走らせます。Kindle 出力が有効で <code>validation.kindle_previewer: true</code> のときは、生成した Kindle artifact に対して Kindle Previewer の conversion check も試みます。print 出力が有効なときは生成した PDF に対して <code>qpdf --check</code> も試みます。<code>qpdf</code> や Kindle Previewer が未導入でも <code>validators[]</code> に <code>missing-tool</code> として記録し、validation 自体はそれだけでは fail にしません。<code>qpdf</code> や Kindle Previewer の検査失敗は validation error として返します。validator の詳細ログは <code>dist/logs/</code> に保存し、report から参照できます。</p>
+          <p>validator confidence は次の層で読みます。</p>
+          <table>
+            <thead>
+              <tr>
+                <th>Layer</th>
+                <th>What is proven</th>
+                <th>How to use it</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Local structural checks</td>
+                <td>config / preflight / manuscript / target-profile checks</td>
+                <td><code>shosei validate</code> の標準結果として読む</td>
+              </tr>
+              <tr>
+                <td>Portable external validators</td>
+                <td><code>epubcheck</code> / <code>qpdf</code> の <code>passed</code> / <code>failed</code> / <code>missing-tool</code> / <code>skipped</code></td>
+                <td>tool がある release host では実行し、ない host では <code>missing-tool</code> を明示的に扱う</td>
+              </tr>
+              <tr>
+                <td>Kindle Previewer report contract</td>
+                <td>fake executable による <code>validators[]</code>, <code>log_path</code>, failure semantics</td>
+                <td>required CI の保証として読む</td>
+              </tr>
+              <tr>
+                <td>Real Kindle Previewer conversion</td>
+                <td>実物 Kindle Previewer が生成 artifact を変換できること</td>
+                <td>Kindle handoff 前に <code>scripts/validate-real-kindle-previewer.sh</code> で opt-in 確認する</td>
+              </tr>
+              <tr>
+                <td>Additional store/device validators</td>
+                <td>未実装</td>
+                <td>future work として扱う</td>
+              </tr>
+            </tbody>
+          </table>
         </section>
 
         <section>
@@ -558,6 +621,9 @@ shosei handoff proof</code></pre>
             <li><code>shosei --help</code></li>
           </ul>
           <p>合わせて <code>cargo test --workspace</code> と <code>cargo test -p shosei-core --test repo_discovery</code> も走ります。print validator run と Kindle Previewer validator run の smoke は Unix shell fixture を使うため Ubuntu / macOS で回します。VS Code adapter については <code>npm ci</code> の後に <code>npm run check</code>, <code>npm test</code>, <code>npm run test:host</code> を別 job で継続確認し、Ubuntu では <code>npm run test:package-smoke</code> で package 済み VSIX の smoke も回します。</p>
+          <p>実物 Kindle Previewer は proprietary / OS-dependent なので required CI には含めません。release operator や maintainer が実物 tool の conversion evidence を残したい場合は、対応 host 上で次を実行します。</p>
+          <pre><code>scripts/validate-real-kindle-previewer.sh</code></pre>
+          <p>この hook は一時 workspace に最小構成の Kindle project を作り、<code>validation.kindle_previewer: true</code> で <code>shosei validate --json</code> を実行します。成功時は <code>dist/reports/default-validate.json</code> と <code>dist/logs/default-kindle-previewer-validate.log</code> を evidence として確認できます。</p>
           <p>CI 表示だけで「どの OS でどの smoke が通ったか」を読める状態を維持し、README とこのページでも同じ保証内容を案内します。</p>
         </section>
       </article>

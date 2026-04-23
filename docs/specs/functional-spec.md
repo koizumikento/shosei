@@ -307,6 +307,16 @@ v0.1 の最小要件:
 - 外部 validator の詳細ログは `dist/logs/` に保存し、report から参照できる
 - Kindle Previewer は proprietary / OS-dependent な tool なので、`validation.kindle_previewer: true` のときだけ optional device-oriented validator として実行する
 
+validator confidence は次の層で扱う。
+
+| Layer | Validator evidence | CI expectation | User / maintainer expectation |
+|---|---|---|---|
+| Local structural checks | config / preflight / manuscript / target-profile checks | workspace tests と CLI smoke で継続確認する | 標準 validate として常に読む |
+| Portable external validators | `epubcheck` / `qpdf` の `passed` / `failed` / `missing-tool` / `skipped` report | fake または install 済み tool fixture で report contract を確認する | tool があれば delivery 前に実行し、なければ `missing-tool` を確認する |
+| Kindle device-oriented contract | fake Kindle Previewer executable による `validators[]` schema、log path、failure semantics | real proprietary binary は要求せず、fake executable smoke で継続確認する | `validation.kindle_previewer: true` を明示したときだけ有効にする |
+| Real Kindle Previewer execution | 実物 Kindle Previewer による conversion check と `dist/logs/<book-id>-kindle-previewer-validate.log` | required CI にはしない | maintainer / release operator が local hook で必要時に確認する |
+| Store/device-specific validators beyond Kindle Previewer | 未定義 | CI 対象外 | future work として扱う |
+
 - 共通 lint
 - prose editorial lint
 - build に必要なツールの事前確認
