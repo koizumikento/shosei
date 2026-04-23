@@ -1,7 +1,7 @@
-# 物語補助仕様 v0.1
+# 物語補助仕様 v0.2
 
 作成日: 2026-04-13  
-状態: Draft
+状態: Current
 
 ## 1. 目的
 
@@ -157,7 +157,7 @@ book scope のみ:
 - entity directory の `_template.md` は scaffold に含まれる予約 file とし、`story check` / `story drift` / `story sync` の scan 対象から除外する
 - scaffold される template/README は日本語中心で説明してよい
 - parser が意味を持って読む key は canonical な英語 key に固定する
-- `structures/` は book-scoped な構成メモ置き場とし、v0.1 の CLI は本文全体は解釈しないが `story seed` 用に `scene_seeds` frontmatter は読む
+- `structures/` は book-scoped な構成メモ置き場とし、v0.2 の CLI は本文全体は解釈しないが `story seed` 用に `scene_seeds` frontmatter は読む
 
 ## 6. `shosei story seed`
 
@@ -233,7 +233,7 @@ shosei story map
 shosei story map --book vol-01
 ```
 
-v0.1 の最小要件:
+v0.2 の最小要件:
 
 - 対象は book-scoped story workspace のみ
 - `single-book` では `story/scenes.yml` を読む
@@ -250,7 +250,7 @@ shosei story check
 shosei story check --book vol-01
 ```
 
-v0.1 の最小要件:
+v0.2 の最小要件:
 
 - 対象は book-scoped story workspace のみ
 - report は `single-book` では `dist/reports/default-story-check.json`、`series` では `dist/reports/<book-id>-story-check.json` に出力する
@@ -275,7 +275,7 @@ v0.1 の最小要件:
 shosei story drift --book vol-01
 ```
 
-v0.1 の最小要件:
+v0.2 の最小要件:
 
 - 対象は `series` の book-scoped story workspace のみ
 - `shared/metadata/story/` と `books/<book-id>/story/` の両方を読む
@@ -300,7 +300,7 @@ shosei story sync --book vol-01 --from shared --report dist/reports/vol-01-story
 shosei story sync --book vol-01 --to shared --report dist/reports/vol-01-story-drift.json --force
 ```
 
-v0.1 の最小要件:
+v0.2 の最小要件:
 
 - 対象は `series` のみ
 - `--from shared` か `--to shared` のどちらか一方だけを受け付ける

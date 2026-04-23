@@ -1,7 +1,7 @@
-# Rust 実装アーキテクチャ v0.1
+# Rust 実装アーキテクチャ v0.2
 
 作成日: 2026-04-12  
-状態: Draft
+状態: Current
 
 ## 1. 目的
 
@@ -18,7 +18,7 @@
 
 ## 2. 方針
 
-- v0.1 は過剰な micro-crate 化を避ける
+- v0.2 は過剰な micro-crate 化を避ける
 - ただし CLI と core は分離する
 - ドメインロジックはライブラリ側に寄せる
 - 外部プロセス実行は 1 箇所に集約する
@@ -182,7 +182,7 @@ repo root 探索と context 判定。
 - `git-lfs`
 - Kindle Previewer
 
-v0.1 の prose print backend は writing mode ごとの正式 support matrix を持つ。
+v0.2 の prose print backend は writing mode ごとの正式 support matrix を持つ。
 
 - `horizontal-ltr` prose と `conference-preprint`: `weasyprint`
 - `vertical-rl` prose: `chromium`
@@ -345,7 +345,7 @@ trait ToolAdapter {
 - path utility
 - temp file utility
 
-v0.1 の判断:
+v0.2 の判断:
 
 - まずは安定した定番 crate を選ぶ
 - 実装初期から async 化しない
@@ -370,7 +370,7 @@ v0.1 の判断:
 - macOS
 - Windows
 - Linux
-- v0.1 の CI gate は 3 OS matrix で次を実行する
+- v0.2 の CI gate は 3 OS matrix で次を実行する
   - `cargo fmt --check`
   - `cargo clippy --workspace --all-targets -- -D warnings`
   - `cargo test --workspace`

@@ -1,7 +1,7 @@
-# 参考資料ワークスペース仕様 v0.1
+# 参考資料ワークスペース仕様 v0.2
 
 作成日: 2026-04-14  
-状態: Draft
+状態: Current
 
 ## 1. 目的
 
@@ -114,7 +114,7 @@ shosei reference scaffold --force
 
 ## 6. 最小データ形
 
-v0.1 では、参考資料 1 件を Markdown 1 file で表す。
+v0.2 では、参考資料 1 件を Markdown 1 file で表す。
 
 例:
 
@@ -219,7 +219,7 @@ shosei reference check --shared
   - `series --book <book-id>`: `dist/reports/<book-id>-reference-check.json`
   - `series --shared`: `dist/reports/shared-reference-check.json`
 
-### 8.3 v0.1 の検査対象
+### 8.3 v0.2 の検査対象
 
 - invalid frontmatter
   - frontmatter が閉じていない
@@ -272,7 +272,7 @@ shosei reference drift --book vol-01
 - report は `dist/reports/<book-id>-reference-drift.json` に出力する
 - `entries/` directory が存在しない scope は empty として扱う
 
-### 9.3 v0.1 の比較ルール
+### 9.3 v0.2 の比較ルール
 
 - `id` は frontmatter 優先、未指定時は filename stem を使う
 - invalid frontmatter や non-empty でない `id` は error issue として report する
@@ -327,7 +327,7 @@ shosei reference sync --book vol-01 --to shared --report dist/reports/vol-01-ref
 - `reference drift` を飛ばした自動推測同期
 - `links` や `related_sections` の再検証
 
-## 11. v0.1 の最小責務
+## 11. v0.2 の最小責務
 
 この段階では、まず次だけを対象にする。
 

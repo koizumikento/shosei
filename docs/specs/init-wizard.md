@@ -1,7 +1,7 @@
-# `shosei init` ウィザード仕様 v0.1
+# `shosei init` ウィザード仕様 v0.2
 
 作成日: 2026-04-12  
-状態: Draft
+状態: Current
 
 ## 1. 目的
 
@@ -38,7 +38,7 @@
 10. 確認後にファイル生成
 11. 必要なら `doctor` 案内
 
-v0.1 の現行実装は、このフローを次の範囲で満たす。
+v0.2 の現行実装は、このフローを次の範囲で満たす。
 
 - 作品カテゴリ
 - paper profile
@@ -88,7 +88,7 @@ shosei init path/to/project
 shosei init ./my-book --non-interactive --config-template novel --title "My Book" --author "Ken" --language ja --output-preset both
 ```
 
-v0.1 で残す引数:
+v0.2 で残す引数:
 
 - `--non-interactive`
 - `--force`
@@ -537,7 +537,7 @@ Project summary
 
 ## 17. 非対話モード
 
-v0.1 では CI や editor integration からの scaffold 生成にも使う。
+v0.2 では CI や editor integration からの scaffold 生成にも使う。
 
 非対話モードでは template ごとの既定値を使って scaffold を生成し、次の値だけを explicit に override できる。
 

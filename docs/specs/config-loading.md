@@ -1,7 +1,7 @@
-# 設定探索と継承ルール v0.1
+# 設定探索と継承ルール v0.2
 
 作成日: 2026-04-12  
-状態: Draft
+状態: Current
 
 ## 1. 目的
 
@@ -57,7 +57,7 @@
 3. `books/<book-id>/book.yml` があり、その上位に `series.yml` がある場合:
    - `series` と判定し、その `book.yml` を対象 book とみなす
 4. 同一ディレクトリに `book.yml` と `series.yml` が両方ある場合:
-   - v0.1 では error
+   - v0.2 では error
 5. 上方探索でどちらも見つからない場合:
    - `not initialized` として error
 
@@ -92,7 +92,7 @@
 
 補足:
 
-- v0.1 では CLI override は限定的に扱う
+- v0.2 では CLI override は限定的に扱う
 - `series.yml` は `defaults` 以下を通して巻へ既定値を供給する
 
 ## 7. merge ルール
@@ -119,7 +119,7 @@
 
 ### 7.3 array
 
-v0.1 では基本的に **置換** とする。
+v0.2 では基本的に **置換** とする。
 
 例:
 
@@ -236,7 +236,7 @@ repo/
 - config path が repo 外を指す
 - merge 後に required field が欠落
 
-## 12. v0.1 の決定
+## 12. v0.2 の決定
 
 - repo root は上方探索で見つける
 - `series` では `--book` またはカレントパスから対象巻を決める
@@ -256,7 +256,7 @@ repo/
 補足:
 
 - `shared.assets`, `shared.styles`, `shared.fonts`, `shared.metadata` は merge 値ではなく、`series.yml` の探索パスとして別表示する
-- v0.1 の `explain` は text 出力を基本とし、すべての schema 項目を網羅しなくてもよい
+- v0.2 の `explain` は text 出力を基本とし、すべての schema 項目を網羅しなくてもよい
 - editor integration では `shosei explain --json` を使って同じ resolved config を機械可読で取得してよい
 - 初期化済みの `reference/` と `story/` workspace があれば、`explain` の text summary と `--json` snapshot に current scope / shared scope の file 概要を含めてよい
 - book-scoped な `story/scene-notes/` と `story/structures/` があれば、`explain` はその file 概要も story workspace の一部として含めてよい

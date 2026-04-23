@@ -1,7 +1,7 @@
-# `series.yml` schema v0.1
+# `series.yml` schema v0.2
 
 作成日: 2026-04-12  
-状態: Draft
+状態: Current
 
 ## 1. 目的
 
@@ -197,7 +197,7 @@ books:
     title: "第1巻"
 ```
 
-## 11. v0.1 の制約
+## 11. v0.2 の制約
 
 - `series.yml` は 1 repo に 1 つだけ
 - `multi-series` は対象外

@@ -1,7 +1,7 @@
-# リポジトリ管理モデル v0.1
+# リポジトリ管理モデル v0.2
 
 作成日: 2026-04-12  
-状態: Draft
+状態: Current
 
 ## 1. 目的
 
@@ -250,7 +250,7 @@ shosei series sync
 
 - `series.yml` を正として巻一覧、巻番号、既刊案内を同期する
 - 手書き原稿本文を直接 rewrite するのではなく、派生 metadata や backmatter 生成を優先する
-- v0.1 では `shared/metadata/series-catalog.yml` と `shared/metadata/series-catalog.md` を生成し、prose book では `manuscript.backmatter` に generated catalog を同期する
+- v0.2 では `shared/metadata/series-catalog.yml` と `shared/metadata/series-catalog.md` を生成し、prose book では `manuscript.backmatter` に generated catalog を同期する
 - 巻固有 `book.yml` の明示 override は保持する
 
 ## 10. `init` の扱い
@@ -283,7 +283,7 @@ shosei series sync
 - シリーズなのに巻ごとに別 repo にして共通資産をコピーする
 - `shared/` に巻固有データを入れる
 
-## 13. v0.1 の決定
+## 13. v0.2 の決定
 
 - 正式サポートは `single-book` と `series`
 - `multi-series` は未対応
