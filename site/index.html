@@ -50,37 +50,49 @@
         <section>
           <h2>Current state</h2>
           <p>
-            現在の v0.2 は完成版の制作ツールではなく、CLI surface とコア設計の立ち上げ段階です。
+            現在の v0.2 は、主要 CLI workflow を継続検証しながら使える段階です。外部 validator は tool の入手性に応じて段階的に扱い、portable な CI smoke と opt-in の実環境検査を分けています。
           </p>
-          <div class="split">
-            <div class="panel">
-              <h3>今あるもの</h3>
-              <ul>
-                <li>`shosei init` による layout / print / Git / sample 分岐つき scaffold 生成</li>
-                <li>`book.yml` / `series.yml` を前提にしたリポジトリ探索</li>
-                <li>`shosei explain` による解決済み設定と値の由来の表示</li>
-                <li>prose / manga project に対する build / validate / handoff の基本導線</li>
-                <li>print validate での `qpdf` による PDF 構造チェック記録</li>
-                <li>opt-in Kindle validate での Kindle Previewer conversion check 記録</li>
-                <li>validate report の `target_profile_validations` による target/profile 判定 summary</li>
-                <li>handoff manifest の `selected_artifact_details[*].target_profile` / `artifact_metadata`</li>
-                <li>`shosei preview` の one-shot / `--watch` 生成導線と change summary</li>
-                <li>`shosei chapter add|move|remove|renumber` による prose の章順管理</li>
-                <li>`shosei reference <subcommand>` と `shosei story <subcommand>` の workspace 導線</li>
-                <li>`shosei series sync` による series metadata と prose backmatter の同期</li>
-                <li>`shosei page check` による manga ページ順・見開き候補・カラーポリシー確認</li>
-                <li>`shosei doctor` による依存解決結果と導入ヒント、repo 内実行時の project-aware summary</li>
-                <li>CLI 実処理委譲型の VS Code adapter</li>
-                <li>config error / preflight error を潰さず返すテスト</li>
-              </ul>
-            </div>
-            <div class="panel">
-              <h3>まだ未実装のもの</h3>
-              <ul>
-                <li>Kindle Previewer 以外の、より深い device / store-specific validator 連携</li>
-              </ul>
-            </div>
-          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>Area</th>
+                <th>Status</th>
+                <th>Evidence</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>CLI workflow</td>
+                <td>supported</td>
+                <td><code>init</code>, <code>explain</code>, <code>build</code>, <code>validate</code>, <code>preview</code>, <code>doctor</code>, <code>handoff</code>, <code>series sync</code>, <code>page check</code>, <code>reference</code>, <code>story</code> を実装し、CLI smoke で継続確認</td>
+              </tr>
+              <tr>
+                <td>Repository model</td>
+                <td>supported</td>
+                <td><code>single-book</code> と <code>series</code>、<code>book.yml</code> / <code>series.yml</code> の探索と解決を実装</td>
+              </tr>
+              <tr>
+                <td>Delivery validation</td>
+                <td>supported with opt-in depth</td>
+                <td>local lint、<code>epubcheck</code>、<code>qpdf</code>、opt-in Kindle Previewer conversion check を <code>validators[]</code> に記録</td>
+              </tr>
+              <tr>
+                <td>Handoff package</td>
+                <td>supported</td>
+                <td>artifact、<code>reports/validate.json</code>、<code>manifest.json</code>、proof review packet、editorial sidecar を package 化</td>
+              </tr>
+              <tr>
+                <td>VS Code adapter</td>
+                <td>supported thin adapter</td>
+                <td>CLI に実処理を委譲し、adapter check / unit / host smoke / packaged VSIX smoke を CI で継続確認</td>
+              </tr>
+              <tr>
+                <td>Store/device-specific validation beyond Kindle Previewer</td>
+                <td>future work</td>
+                <td>Kindle Previewer 以外の深い device / store-specific validator は未実装</td>
+              </tr>
+            </tbody>
+          </table>
         </section>
 
         <section>

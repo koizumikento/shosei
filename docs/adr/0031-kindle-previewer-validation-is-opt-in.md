@@ -29,8 +29,19 @@ Logs are written to `dist/logs/<book-id>-kindle-previewer-validate.log` and refe
 
 CI should not require the real Kindle Previewer binary. It should prove the report contract with a fake executable smoke test.
 
+Maintainers who have the real Kindle Previewer installed may run a local evidence hook before release or Kindle handoff. That hook is intentionally outside required CI and exists to prove real proprietary-tool execution without weakening cross-platform CI portability.
+
+Validator confidence is split as follows:
+
+| Layer | Proof |
+|---|---|
+| Report contract | Required CI uses a fake executable to prove `validators[]`, `log_path`, and pass/fail semantics |
+| Real conversion | Optional local hook uses the real Kindle Previewer binary when available |
+| Beyond Kindle Previewer | Additional store/device validators remain future work until a spec and ADR define them |
+
 ## Consequences
 
 - Kindle-oriented validation becomes stronger without making the default workflow depend on proprietary tooling.
 - Users who need delivery confidence before Kindle handoff can opt in explicitly per book or series defaults.
 - Docs must distinguish `epubcheck` from Kindle Previewer: `epubcheck` remains the default EPUB validator, while Kindle Previewer is an optional device-oriented conversion check.
+- Release guidance may point to an optional local evidence hook, but required CI must stay portable.
