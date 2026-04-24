@@ -43,6 +43,7 @@ Keep examples and command handling aligned with the actually implemented surface
 - For current user flows, prefer examples in the order `init` -> `explain` -> `build` / `validate`.
 - Keep `init` guidance aligned across interactive and `--non-interactive --config-template ...` flows, including `paper` `--config-profile`, prose `--include-introduction` / `--include-afterword`, and `series` `--initial-book-id`.
 - Keep `init` follow-up guidance aligned with the implemented post-scaffold flow: interactive init can optionally run `shosei doctor`, and otherwise prints the `toolchain hint: run shosei doctor` reminder.
+- Keep `init` scaffold guidance aligned with the implemented repo-scoped agent skill templates under `.agents/skills/shosei-project/` and `.agents/skills/shosei-content-review/`.
 - `explain` is the supported way to inspect resolved config and origin data before running output commands.
 - Kindle-capable `init` scaffolds are expected to wire `cover.ebook_image` and placeholder cover assets so a fresh scaffold does not start with a missing-cover warning.
 - `preview` supports both one-shot output checks and a longer-running `--watch` loop. Describe `--watch` only for iterative local preview workflows.
@@ -97,7 +98,9 @@ Use these exact commands when validating Rust changes:
   - `cargo test -p shosei-core --test reference_commands`
   - `cargo test -p shosei-core --test story_commands`
 - smoke checks: `cargo run -p shosei-cli --bin shosei -- --help`
+- opt-in real Kindle Previewer evidence hook: `scripts/validate-real-kindle-previewer.sh`
 - CI runs the formatting gate, linting, workspace tests, repo discovery, and the listed Rust smoke checks on `ubuntu-latest`, `macos-latest`, and `windows-latest`.
+- Real Kindle Previewer execution stays outside required CI; use `scripts/validate-real-kindle-previewer.sh` only on hosts that actually have the proprietary tool installed.
 
 ## Safety Checks
 
