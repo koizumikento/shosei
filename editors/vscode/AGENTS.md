@@ -22,11 +22,13 @@ Rules in this file apply to `editors/vscode/`.
 - Use CLI-generated report paths from `validate` and `page check` to populate Problems.
 - Keep `Shosei: Init` prompt collection aligned with the implemented `shosei init <path> --non-interactive ...` flags and defaults, including `paper` profile and `series` initial book id handling.
 - Keep `Shosei: Init` aligned with the current post-scaffold choice to run `shosei doctor` immediately after scaffold generation.
+- Keep `Shosei: Preview (Watch)` aligned with the implemented `shosei preview --watch` flow; do not document it as a separate rendering path.
 - Keep `shosei.cli.command` / `shosei.cli.args` guidance aligned with the configured runner flow and the repo-local `cargo run --manifest-path <repo>/crates/shosei-cli/Cargo.toml --bin shosei --` fallback.
 - Keep prose `validate` handling aligned with the current `manuscript_stats` report payload and only show the character summary when the CLI returned it.
 - For `series` repos, keep `Shosei: Select Book` and `shosei.series.defaultBookId` aligned with CLI `--book` requirements when the active file is outside `books/<book-id>/`.
 - Keep `Shosei: Story Seed` aligned with the implemented `shosei story seed --template <template> [--force]` flow, including template selection from the current book-scoped `story/structures/` workspace.
 - Keep `Shosei: Reveal Scene In Index` aligned with the current scene note context action that opens the corresponding `scenes.yml` entry.
+- Keep `Shosei: Refresh View` as a view-only reload of CLI-backed repo context; it should refresh `explain --json` / `doctor --json`-driven state instead of introducing adapter-owned cache invalidation rules.
 - Keep the Extension Development Host fallback aligned with the current repo-local CLI invocation: `cargo run --manifest-path <repo>/crates/shosei-cli/Cargo.toml --bin shosei --`.
 - Keep command mapping aligned with the implemented CLI surface and current specs.
 
