@@ -1159,6 +1159,11 @@ v0.2 の既定:
 - language
 - heading hierarchy
 - accessibility metadata
+- Kindle 出力が有効で `validation.epubcheck: true` のときは、生成した EPUB に対して `epubcheck` を validator として実行する
+- `epubcheck` が未導入の場合は `validators[]` に `missing-tool` を記録し、それだけでは validate を fail にしない
+- `epubcheck` の検査失敗は validation error として返す
+- `epubcheck` の詳細ログは `dist/logs/<book-id>-epubcheck-validate.log` に保存し、report から参照する
+- CI では real host install を要求せず、fake executable による report contract の smoke を行う
 
 ### 15.3 Kindle
 
@@ -1235,13 +1240,13 @@ report には `validators[]` も含める。
 - target
 - status
   - `passed`
-  - `warned`
   - `failed`
   - `missing-tool`
   - `skipped`
 - artifact path
 - log path
 - summary
+- `failed` は validator 自体の失敗だけでなく、validator 前提の build 実行失敗を含んでよい。その場合は `summary` と `log_path` で区別できること
 
 ## 16. Git / バージョン管理
 

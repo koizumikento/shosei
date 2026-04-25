@@ -73,7 +73,12 @@ Use these exact commands when validating Rust changes:
   - `cargo test -p shosei-cli --test cli_smoke init_cli_interactive_shows_summary_and_writes_after_confirmation -- --exact`
   - `cargo test -p shosei-cli --test cli_smoke validate_cli_prints_issue_preview -- --exact`
   - `cargo test -p shosei-cli --test cli_smoke validate_cli_can_emit_json_report -- --exact`
+  - `cargo test -p shosei-cli --test cli_smoke validate_cli_json_includes_epubcheck_runs -- --exact`
+  - `cargo test -p shosei-cli --test cli_smoke validate_cli_json_records_missing_epubcheck_without_failing -- --exact`
+  - `cargo test -p shosei-cli --test cli_smoke validate_cli_json_fails_when_epubcheck_reports_errors -- --exact`
   - `cargo test -p shosei-cli --test cli_smoke validate_cli_json_includes_print_validator_runs -- --exact`
+  - `cargo test -p shosei-cli --test cli_smoke validate_cli_json_records_missing_print_validator_without_failing -- --exact`
+  - `cargo test -p shosei-cli --test cli_smoke validate_cli_json_fails_when_print_validator_reports_errors -- --exact`
   - `cargo test -p shosei-cli --test cli_smoke validate_cli_json_includes_kindle_previewer_runs -- --exact`
   - `cargo test -p shosei-cli --test cli_smoke build_cli_prints_tools_and_writes_artifact -- --exact`
   - `cargo test -p shosei-cli --test cli_smoke preview_cli_prints_summary_and_writes_artifact -- --exact`

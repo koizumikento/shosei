@@ -81,6 +81,46 @@ git:
     .unwrap();
 }
 
+fn write_clean_kindle_validate_fixture(root: &Path, enable_epubcheck: bool) {
+    fs::create_dir_all(root.join("manuscript")).unwrap();
+    fs::create_dir_all(root.join("assets/cover")).unwrap();
+    fs::write(root.join("manuscript/01.md"), "# Chapter 1\n").unwrap();
+    fs::write(root.join("assets/cover/front.png"), tiny_png()).unwrap();
+    let epubcheck = if enable_epubcheck { "true" } else { "false" };
+    fs::write(
+        root.join("book.yml"),
+        format!(
+            r#"
+project:
+  type: novel
+  vcs: git
+book:
+  title: "Sample"
+  authors:
+    - "Author"
+  reading_direction: rtl
+layout:
+  binding: right
+cover:
+  ebook_image: assets/cover/front.png
+manuscript:
+  chapters:
+    - manuscript/01.md
+outputs:
+  kindle:
+    enabled: true
+    target: kindle-ja
+validation:
+  strict: true
+  epubcheck: {epubcheck}
+git:
+  lfs: true
+"#
+        ),
+    )
+    .unwrap();
+}
+
 #[cfg(unix)]
 fn write_print_validate_fixture(root: &Path) {
     fs::create_dir_all(root.join("manuscript")).unwrap();
@@ -601,6 +641,48 @@ fn write_fake_pandoc(root: &Path) -> PathBuf {
 }
 
 #[cfg(unix)]
+fn write_fake_epubcheck(root: &Path) -> PathBuf {
+    use std::os::unix::fs::PermissionsExt;
+
+    let tools_dir = root.join("tools");
+    fs::create_dir_all(&tools_dir).unwrap();
+    let epubcheck = tools_dir.join("epubcheck");
+    fs::write(
+        &epubcheck,
+        r#"#!/bin/sh
+echo "fake epubcheck"
+exit 0
+"#,
+    )
+    .unwrap();
+    let mut permissions = fs::metadata(&epubcheck).unwrap().permissions();
+    permissions.set_mode(0o755);
+    fs::set_permissions(&epubcheck, permissions).unwrap();
+    tools_dir
+}
+
+#[cfg(unix)]
+fn write_fake_failing_epubcheck(root: &Path) -> PathBuf {
+    use std::os::unix::fs::PermissionsExt;
+
+    let tools_dir = root.join("tools");
+    fs::create_dir_all(&tools_dir).unwrap();
+    let epubcheck = tools_dir.join("epubcheck");
+    fs::write(
+        &epubcheck,
+        r#"#!/bin/sh
+echo "fake epubcheck failure" >&2
+exit 2
+"#,
+    )
+    .unwrap();
+    let mut permissions = fs::metadata(&epubcheck).unwrap().permissions();
+    permissions.set_mode(0o755);
+    fs::set_permissions(&epubcheck, permissions).unwrap();
+    tools_dir
+}
+
+#[cfg(unix)]
 fn write_fake_qpdf(root: &Path) -> PathBuf {
     use std::os::unix::fs::PermissionsExt;
 
@@ -691,6 +773,16 @@ fn prepend_path(path: &Path) -> std::ffi::OsString {
     env::join_paths(paths).unwrap()
 }
 
+#[cfg(unix)]
+fn fixture_path(path: &Path) -> std::ffi::OsString {
+    env::join_paths([
+        path.to_path_buf(),
+        PathBuf::from("/usr/bin"),
+        PathBuf::from("/bin"),
+    ])
+    .unwrap()
+}
+
 #[test]
 fn validate_cli_prints_issue_preview() {
     let root = temp_dir("validate-preview");
@@ -737,6 +829,101 @@ fn validate_cli_can_emit_json_report() {
 
 #[cfg(unix)]
 #[test]
+fn validate_cli_json_includes_epubcheck_runs() {
+    let root = temp_dir("validate-kindle-epubcheck-json");
+    write_clean_kindle_validate_fixture(&root, true);
+    let tools_dir = write_fake_pandoc(&root);
+    let _ = write_fake_epubcheck(&root);
+
+    let output = Command::new(env!("CARGO_BIN_EXE_shosei"))
+        .args(["validate", "--json", "--path", root.to_str().unwrap()])
+        .env("PATH", fixture_path(&tools_dir))
+        .output()
+        .unwrap();
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        output.status.success(),
+        "stdout: {stdout}\nstderr: {stderr}"
+    );
+    let parsed: Value = serde_json::from_str(&stdout).unwrap();
+    let epubcheck = parsed["validators"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|validator| validator["name"] == "epubcheck")
+        .unwrap();
+    assert_eq!(epubcheck["status"], "passed");
+    assert!(
+        epubcheck["log_path"]
+            .as_str()
+            .unwrap()
+            .ends_with("default-epubcheck-validate.log")
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn validate_cli_json_records_missing_epubcheck_without_failing() {
+    let root = temp_dir("validate-kindle-missing-epubcheck-json");
+    write_clean_kindle_validate_fixture(&root, true);
+    let tools_dir = write_fake_pandoc(&root);
+
+    let output = Command::new(env!("CARGO_BIN_EXE_shosei"))
+        .args(["validate", "--json", "--path", root.to_str().unwrap()])
+        .env("PATH", fixture_path(&tools_dir))
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let parsed: Value = serde_json::from_str(&stdout).unwrap();
+    let epubcheck = parsed["validators"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|validator| validator["name"] == "epubcheck")
+        .unwrap();
+    assert_eq!(epubcheck["status"], "missing-tool");
+    assert_eq!(epubcheck["summary"], "epubcheck executable is unavailable");
+}
+
+#[cfg(unix)]
+#[test]
+fn validate_cli_json_fails_when_epubcheck_reports_errors() {
+    let root = temp_dir("validate-kindle-failing-epubcheck-json");
+    write_clean_kindle_validate_fixture(&root, true);
+    let tools_dir = write_fake_pandoc(&root);
+    let _ = write_fake_failing_epubcheck(&root);
+
+    let output = Command::new(env!("CARGO_BIN_EXE_shosei"))
+        .args(["validate", "--json", "--path", root.to_str().unwrap()])
+        .env("PATH", fixture_path(&tools_dir))
+        .output()
+        .unwrap();
+
+    assert!(!output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let parsed: Value = serde_json::from_str(&stdout).unwrap();
+    let epubcheck = parsed["validators"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|validator| validator["name"] == "epubcheck")
+        .unwrap();
+    assert_eq!(epubcheck["status"], "failed");
+    assert!(
+        parsed["issues"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|issue| issue["cause"] == "epubcheck failed for the generated EPUB")
+    );
+}
+
+#[cfg(unix)]
+#[test]
 fn validate_cli_json_includes_print_validator_runs() {
     let root = temp_dir("validate-print-json");
     write_print_validate_fixture(&root);
@@ -746,7 +933,7 @@ fn validate_cli_json_includes_print_validator_runs() {
 
     let output = Command::new(env!("CARGO_BIN_EXE_shosei"))
         .args(["validate", "--json", "--path", root.to_str().unwrap()])
-        .env("PATH", prepend_path(&tools_dir))
+        .env("PATH", fixture_path(&tools_dir))
         .output()
         .unwrap();
 
@@ -788,7 +975,7 @@ fn validate_cli_json_records_missing_print_validator_without_failing() {
 
     let output = Command::new(env!("CARGO_BIN_EXE_shosei"))
         .args(["validate", "--json", "--path", root.to_str().unwrap()])
-        .env("PATH", prepend_path(&tools_dir))
+        .env("PATH", fixture_path(&tools_dir))
         .output()
         .unwrap();
 
@@ -814,7 +1001,7 @@ fn validate_cli_json_fails_when_print_validator_reports_errors() {
 
     let output = Command::new(env!("CARGO_BIN_EXE_shosei"))
         .args(["validate", "--json", "--path", root.to_str().unwrap()])
-        .env("PATH", prepend_path(&tools_dir))
+        .env("PATH", fixture_path(&tools_dir))
         .output()
         .unwrap();
 
