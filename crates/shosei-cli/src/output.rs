@@ -1,9 +1,12 @@
+use std::io::{self, Write};
+
 use shosei_core::diagnostics::{Severity, ValidationIssue};
 
 const ISSUE_PREVIEW_LIMIT: usize = 5;
 
 pub fn print_line(message: &str) {
     println!("{message}");
+    let _ = io::stdout().flush();
 }
 
 pub fn format_issue_preview(issues: &[ValidationIssue]) -> Option<String> {

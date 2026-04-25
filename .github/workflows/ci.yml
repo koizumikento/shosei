@@ -54,6 +54,9 @@ jobs:
       - name: Smoke CLI init (interactive scaffold)
         run: cargo test -p shosei-cli --test cli_smoke init_cli_interactive_shows_summary_and_writes_after_confirmation -- --exact
 
+      - name: Smoke CLI explain (resolved config)
+        run: cargo test -p shosei-cli --test cli_smoke explain_cli_prints_resolved_values_and_workspace_summary -- --exact
+
       - name: Smoke CLI validate (issue preview)
         run: cargo test -p shosei-cli --test cli_smoke validate_cli_prints_issue_preview -- --exact
 
@@ -94,14 +97,29 @@ jobs:
       - name: Smoke CLI preview (artifact output)
         run: cargo test -p shosei-cli --test cli_smoke preview_cli_prints_summary_and_writes_artifact -- --exact
 
+      - name: Smoke CLI preview (watch loop)
+        run: cargo test -p shosei-cli --test cli_smoke preview_watch_cli_prints_initial_summary_and_watch_roots -- --exact
+
       - name: Smoke CLI page check (report output)
         run: cargo test -p shosei-cli --test cli_smoke page_check_cli_prints_summary_and_issue_preview -- --exact
 
       - name: Smoke CLI chapter add (config update)
         run: cargo test -p shosei-cli --test cli_smoke chapter_add_cli_updates_config_and_creates_stub_file -- --exact
 
+      - name: Smoke CLI chapter move (config update)
+        run: cargo test -p shosei-cli --test cli_smoke chapter_move_cli_reorders_chapters -- --exact
+
+      - name: Smoke CLI chapter remove (config update)
+        run: cargo test -p shosei-cli --test cli_smoke chapter_remove_cli_updates_config_and_keeps_file_by_default -- --exact
+
+      - name: Smoke CLI chapter renumber (config rewrite)
+        run: cargo test -p shosei-cli --test cli_smoke chapter_renumber_cli_rewrites_prefixes_and_updates_config -- --exact
+
       - name: Smoke CLI reference scaffold (workspace init)
         run: cargo test -p shosei-cli --test cli_smoke reference_scaffold_cli_creates_workspace -- --exact
+
+      - name: Smoke CLI reference map (report output)
+        run: cargo test -p shosei-cli --test cli_smoke reference_map_cli_prints_summary_and_writes_report -- --exact
 
       - name: Smoke CLI reference check (issue preview)
         run: cargo test -p shosei-cli --test cli_smoke reference_check_cli_prints_issue_preview_and_fails_on_errors -- --exact
@@ -112,8 +130,23 @@ jobs:
       - name: Smoke CLI reference sync (scope copy)
         run: cargo test -p shosei-cli --test cli_smoke reference_sync_cli_copies_shared_entry_into_book_scope -- --exact
 
+      - name: Smoke CLI story scaffold (workspace init)
+        run: cargo test -p shosei-cli --test cli_smoke story_scaffold_cli_creates_workspace -- --exact
+
       - name: Smoke CLI story seed (scene scaffolding)
         run: cargo test -p shosei-cli --test cli_smoke story_seed_cli_creates_scenes_and_notes_from_template -- --exact
+
+      - name: Smoke CLI story map (report output)
+        run: cargo test -p shosei-cli --test cli_smoke story_map_cli_prints_summary_and_writes_report -- --exact
+
+      - name: Smoke CLI story check (report output)
+        run: cargo test -p shosei-cli --test cli_smoke story_check_cli_writes_report_and_fails_on_errors -- --exact
+
+      - name: Smoke CLI story drift (report output)
+        run: cargo test -p shosei-cli --test cli_smoke story_drift_cli_writes_report_and_fails_on_drift -- --exact
+
+      - name: Smoke CLI story sync (scope copy)
+        run: cargo test -p shosei-cli --test cli_smoke story_sync_cli_copies_shared_entity_into_book_scope -- --exact
 
       - name: Smoke CLI series sync (catalog output)
         run: cargo test -p shosei-cli --test cli_smoke series_sync_cli_generates_catalog_and_updates_books -- --exact

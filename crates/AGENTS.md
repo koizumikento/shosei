@@ -71,6 +71,7 @@ Use these exact commands when validating Rust changes:
 - tests: `cargo test --workspace`
 - CLI smoke tests:
   - `cargo test -p shosei-cli --test cli_smoke init_cli_interactive_shows_summary_and_writes_after_confirmation -- --exact`
+  - `cargo test -p shosei-cli --test cli_smoke explain_cli_prints_resolved_values_and_workspace_summary -- --exact`
   - `cargo test -p shosei-cli --test cli_smoke validate_cli_prints_issue_preview -- --exact`
   - `cargo test -p shosei-cli --test cli_smoke validate_cli_can_emit_json_report -- --exact`
   - `cargo test -p shosei-cli --test cli_smoke validate_cli_json_includes_epubcheck_runs -- --exact`
@@ -82,13 +83,23 @@ Use these exact commands when validating Rust changes:
   - `cargo test -p shosei-cli --test cli_smoke validate_cli_json_includes_kindle_previewer_runs -- --exact`
   - `cargo test -p shosei-cli --test cli_smoke build_cli_prints_tools_and_writes_artifact -- --exact`
   - `cargo test -p shosei-cli --test cli_smoke preview_cli_prints_summary_and_writes_artifact -- --exact`
+  - `cargo test -p shosei-cli --test cli_smoke preview_watch_cli_prints_initial_summary_and_watch_roots -- --exact`
   - `cargo test -p shosei-cli --test cli_smoke page_check_cli_prints_summary_and_issue_preview -- --exact`
   - `cargo test -p shosei-cli --test cli_smoke chapter_add_cli_updates_config_and_creates_stub_file -- --exact`
+  - `cargo test -p shosei-cli --test cli_smoke chapter_move_cli_reorders_chapters -- --exact`
+  - `cargo test -p shosei-cli --test cli_smoke chapter_remove_cli_updates_config_and_keeps_file_by_default -- --exact`
+  - `cargo test -p shosei-cli --test cli_smoke chapter_renumber_cli_rewrites_prefixes_and_updates_config -- --exact`
   - `cargo test -p shosei-cli --test cli_smoke reference_scaffold_cli_creates_workspace -- --exact`
+  - `cargo test -p shosei-cli --test cli_smoke reference_map_cli_prints_summary_and_writes_report -- --exact`
   - `cargo test -p shosei-cli --test cli_smoke reference_check_cli_prints_issue_preview_and_fails_on_errors -- --exact`
   - `cargo test -p shosei-cli --test cli_smoke reference_drift_cli_writes_report_and_fails_on_drift -- --exact`
   - `cargo test -p shosei-cli --test cli_smoke reference_sync_cli_copies_shared_entry_into_book_scope -- --exact`
+  - `cargo test -p shosei-cli --test cli_smoke story_scaffold_cli_creates_workspace -- --exact`
   - `cargo test -p shosei-cli --test cli_smoke story_seed_cli_creates_scenes_and_notes_from_template -- --exact`
+  - `cargo test -p shosei-cli --test cli_smoke story_map_cli_prints_summary_and_writes_report -- --exact`
+  - `cargo test -p shosei-cli --test cli_smoke story_check_cli_writes_report_and_fails_on_errors -- --exact`
+  - `cargo test -p shosei-cli --test cli_smoke story_drift_cli_writes_report_and_fails_on_drift -- --exact`
+  - `cargo test -p shosei-cli --test cli_smoke story_sync_cli_copies_shared_entity_into_book_scope -- --exact`
   - `cargo test -p shosei-cli --test cli_smoke series_sync_cli_generates_catalog_and_updates_books -- --exact`
   - `cargo test -p shosei-cli --test cli_smoke handoff_proof_cli_packages_review_packet -- --exact`
   - `cargo test -p shosei-cli --test cli_smoke handoff_kindle_cli_packages_manifest_with_artifact_details -- --exact`

@@ -3,7 +3,8 @@ use std::{
     io::Write,
     path::{Path, PathBuf},
     process::{Command, Stdio},
-    time::{SystemTime, UNIX_EPOCH},
+    thread,
+    time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
 use serde_json::Value;
@@ -327,6 +328,14 @@ outputs:
     .unwrap();
 }
 
+fn write_story_file(root: &Path, relative: &str, contents: &str) {
+    let path = root.join(relative);
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).unwrap();
+    }
+    fs::write(path, contents).unwrap();
+}
+
 fn write_doctor_fixture(root: &Path) {
     fs::create_dir_all(root.join("manuscript")).unwrap();
     fs::write(root.join("manuscript/01.md"), "# Chapter 1\n").unwrap();
@@ -486,6 +495,37 @@ manuscript:
         )
         .unwrap();
     }
+}
+
+fn write_series_story_fixture(root: &Path) {
+    fs::create_dir_all(root.join("books/vol-01")).unwrap();
+    fs::write(
+        root.join("series.yml"),
+        r#"
+series:
+  id: sample
+  title: Sample Series
+  type: novel
+books:
+  - id: vol-01
+    path: books/vol-01
+"#,
+    )
+    .unwrap();
+    fs::write(
+        root.join("books/vol-01/book.yml"),
+        r#"
+project:
+  type: novel
+book:
+  title: "Vol 1"
+  authors:
+    - "Author"
+manuscript:
+  chapters: []
+"#,
+    )
+    .unwrap();
 }
 
 fn write_reference_entry(root: &Path, relative: &str, contents: &str) {
@@ -1318,6 +1358,84 @@ fn doctor_json_cli_includes_detected_project_context() {
 }
 
 #[test]
+fn explain_cli_prints_resolved_values_and_workspace_summary() {
+    let root = temp_dir("explain-cli");
+    fs::create_dir_all(root.join("manuscript")).unwrap();
+    fs::write(root.join("manuscript/01.md"), "# Chapter 1\n").unwrap();
+    fs::write(
+        root.join("book.yml"),
+        r#"
+project:
+  type: novel
+book:
+  title: "Sample"
+  authors:
+    - "Author"
+  reading_direction: rtl
+cover:
+  ebook_image: assets/cover/front.jpg
+manuscript:
+  chapters:
+    - manuscript/01.md
+outputs:
+  kindle:
+    enabled: true
+    target: kindle-ja
+"#,
+    )
+    .unwrap();
+
+    let reference_scaffold = Command::new(env!("CARGO_BIN_EXE_shosei"))
+        .args(["reference", "scaffold", "--path", root.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(reference_scaffold.status.success());
+
+    let story_scaffold = Command::new(env!("CARGO_BIN_EXE_shosei"))
+        .args(["story", "scaffold", "--path", root.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(story_scaffold.status.success());
+
+    write_reference_entry(
+        &root,
+        "references/entries/market.md",
+        r#"---
+title: Market
+---
+
+notes
+"#,
+    );
+    write_story_file(
+        &root,
+        "story/characters/hero.md",
+        r#"---
+id: hero
+---
+
+Lead
+"#,
+    );
+    fs::create_dir_all(root.join("story/scene-notes")).unwrap();
+    fs::write(root.join("story/scene-notes/01-opening.md"), "# Opening\n").unwrap();
+
+    let output = Command::new(env!("CARGO_BIN_EXE_shosei"))
+        .args(["explain", "--path", root.to_str().unwrap()])
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("explain for default"));
+    assert!(stdout.contains("effective outputs: kindle-ja"));
+    assert!(stdout.contains("resolved values:"));
+    assert!(stdout.contains("book.title = Sample [book.yml]"));
+    assert!(stdout.contains("reference summary:"));
+    assert!(stdout.contains("story summary:"));
+}
+
+#[test]
 fn chapter_add_cli_updates_config_and_creates_stub_file() {
     let root = temp_dir("chapter-add");
     write_chapter_fixture(&root);
@@ -1350,6 +1468,91 @@ fn chapter_add_cli_updates_config_and_creates_stub_file() {
 }
 
 #[test]
+fn chapter_move_cli_reorders_chapters() {
+    let root = temp_dir("chapter-move");
+    write_chapter_fixture(&root);
+
+    let output = Command::new(env!("CARGO_BIN_EXE_shosei"))
+        .args([
+            "chapter",
+            "move",
+            "manuscript/02.md",
+            "--before",
+            "manuscript/01.md",
+            "--path",
+            root.to_str().unwrap(),
+        ])
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("chapter move: default updated"));
+    assert!(stdout.contains("moved manuscript/02.md to position 1"));
+    let book = fs::read_to_string(root.join("book.yml")).unwrap();
+    let second_index = book.find("- manuscript/02.md").unwrap();
+    let first_index = book.find("- manuscript/01.md").unwrap();
+    assert!(second_index < first_index);
+}
+
+#[test]
+fn chapter_remove_cli_updates_config_and_keeps_file_by_default() {
+    let root = temp_dir("chapter-remove");
+    write_chapter_fixture(&root);
+
+    let output = Command::new(env!("CARGO_BIN_EXE_shosei"))
+        .args([
+            "chapter",
+            "remove",
+            "manuscript/02.md",
+            "--path",
+            root.to_str().unwrap(),
+        ])
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("chapter remove: default updated"));
+    assert!(stdout.contains("- removed manuscript/02.md"));
+    assert!(stdout.contains("- file kept "));
+    assert!(root.join("manuscript/02.md").is_file());
+    let book = fs::read_to_string(root.join("book.yml")).unwrap();
+    assert!(!book.contains("- manuscript/02.md"));
+}
+
+#[test]
+fn chapter_renumber_cli_rewrites_prefixes_and_updates_config() {
+    let root = temp_dir("chapter-renumber");
+    write_chapter_fixture(&root);
+
+    let output = Command::new(env!("CARGO_BIN_EXE_shosei"))
+        .args([
+            "chapter",
+            "renumber",
+            "--width",
+            "3",
+            "--path",
+            root.to_str().unwrap(),
+        ])
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("chapter renumber: default updated"));
+    assert!(stdout.contains("renamed manuscript/01.md -> manuscript/001.md"));
+    assert!(stdout.contains("renamed manuscript/02.md -> manuscript/002.md"));
+    assert!(root.join("manuscript/001.md").is_file());
+    assert!(root.join("manuscript/002.md").is_file());
+    assert!(!root.join("manuscript/01.md").exists());
+    assert!(!root.join("manuscript/02.md").exists());
+    let book = fs::read_to_string(root.join("book.yml")).unwrap();
+    assert!(book.contains("- manuscript/001.md"));
+    assert!(book.contains("- manuscript/002.md"));
+}
+
+#[test]
 fn reference_scaffold_cli_creates_workspace() {
     let root = temp_dir("reference-scaffold");
     write_reference_fixture(&root);
@@ -1364,6 +1567,24 @@ fn reference_scaffold_cli_creates_workspace() {
     assert!(stdout.contains("reference scaffold: initialized single-book reference workspace"));
     assert!(root.join("references/README.md").is_file());
     assert!(root.join("references/entries/README.md").is_file());
+}
+
+#[test]
+fn story_scaffold_cli_creates_workspace() {
+    let root = temp_dir("story-scaffold");
+    write_story_fixture(&root);
+
+    let output = Command::new(env!("CARGO_BIN_EXE_shosei"))
+        .args(["story", "scaffold", "--path", root.to_str().unwrap()])
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("story scaffold: initialized single-book story workspace"));
+    assert!(root.join("story/README.md").is_file());
+    assert!(root.join("story/scenes.yml").is_file());
+    assert!(root.join("story/structures/kishotenketsu.md").is_file());
 }
 
 #[test]
@@ -1432,6 +1653,39 @@ status: summarized
         root.join("dist/reports/default-reference-map.json")
             .is_file()
     );
+}
+
+#[test]
+fn story_map_cli_prints_summary_and_writes_report() {
+    let root = temp_dir("story-map");
+    write_story_fixture(&root);
+
+    let scaffold = Command::new(env!("CARGO_BIN_EXE_shosei"))
+        .args(["story", "scaffold", "--path", root.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(scaffold.status.success());
+    write_story_file(&root, "manuscript/01.md", "# Opening\n");
+    fs::write(
+        root.join("story/scenes.yml"),
+        r#"
+scenes:
+  - file: manuscript/01.md
+    title: Opening
+"#,
+    )
+    .unwrap();
+
+    let output = Command::new(env!("CARGO_BIN_EXE_shosei"))
+        .args(["story", "map", "--path", root.to_str().unwrap()])
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("story map: 1 scene(s)"));
+    assert!(stdout.contains("manuscript/01.md - Opening"));
+    assert!(root.join("dist/reports/default-story-map.json").is_file());
 }
 
 #[test]
@@ -1793,6 +2047,44 @@ fn preview_cli_prints_summary_and_writes_artifact() {
 
 #[cfg(any(unix, windows))]
 #[test]
+fn preview_watch_cli_prints_initial_summary_and_watch_roots() {
+    let root = temp_dir("preview-watch-cli");
+    write_preview_fixture(&root);
+    let tools_dir = write_fake_pandoc(&root);
+
+    let mut child = Command::new(env!("CARGO_BIN_EXE_shosei"))
+        .args([
+            "preview",
+            "--watch",
+            "--path",
+            root.to_str().unwrap(),
+            "--target",
+            "kindle",
+        ])
+        .env("PATH", prepend_path(&tools_dir))
+        .stdout(Stdio::piped())
+        .spawn()
+        .unwrap();
+
+    let artifact = root.join("dist/default-kindle-ja.epub");
+    for _ in 0..50 {
+        if artifact.is_file() {
+            break;
+        }
+        thread::sleep(Duration::from_millis(100));
+    }
+    thread::sleep(Duration::from_millis(200));
+    let _ = child.kill();
+    let output = child.wait_with_output().unwrap();
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(artifact.is_file());
+    assert!(stdout.contains("preview ready for default using target kindle-ja"));
+    assert!(stdout.contains("watching preview for default under"));
+}
+
+#[cfg(any(unix, windows))]
+#[test]
 fn build_cli_prints_tools_and_writes_artifact() {
     let root = temp_dir("build-cli");
     write_preview_fixture(&root);
@@ -1836,6 +2128,162 @@ fn series_sync_cli_generates_catalog_and_updates_books() {
     assert!(root.join("dist/reports/series-sync.json").is_file());
     let book_contents = fs::read_to_string(root.join("books/vol-01/book.yml")).unwrap();
     assert!(book_contents.contains("shared/metadata/series-catalog.md"));
+}
+
+#[test]
+fn story_check_cli_writes_report_and_fails_on_errors() {
+    let root = temp_dir("story-check-cli");
+    write_story_fixture(&root);
+
+    let scaffold = Command::new(env!("CARGO_BIN_EXE_shosei"))
+        .args(["story", "scaffold", "--path", root.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(scaffold.status.success());
+    fs::write(
+        root.join("story/scenes.yml"),
+        r#"
+scenes:
+  - file: ../outside.md
+"#,
+    )
+    .unwrap();
+
+    let output = Command::new(env!("CARGO_BIN_EXE_shosei"))
+        .args(["story", "check", "--path", root.to_str().unwrap()])
+        .output()
+        .unwrap();
+
+    assert!(!output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("story check completed for default"));
+    assert!(root.join("dist/reports/default-story-check.json").is_file());
+    let report = fs::read_to_string(root.join("dist/reports/default-story-check.json")).unwrap();
+    assert!(report.contains("invalid scene file"));
+}
+
+#[test]
+fn story_drift_cli_writes_report_and_fails_on_drift() {
+    let root = temp_dir("story-drift-cli");
+    write_series_story_fixture(&root);
+
+    let book_scaffold = Command::new(env!("CARGO_BIN_EXE_shosei"))
+        .args([
+            "story",
+            "scaffold",
+            "--book",
+            "vol-01",
+            "--path",
+            root.to_str().unwrap(),
+        ])
+        .output()
+        .unwrap();
+    assert!(book_scaffold.status.success());
+
+    let shared_scaffold = Command::new(env!("CARGO_BIN_EXE_shosei"))
+        .args([
+            "story",
+            "scaffold",
+            "--shared",
+            "--path",
+            root.to_str().unwrap(),
+        ])
+        .output()
+        .unwrap();
+    assert!(shared_scaffold.status.success());
+
+    write_story_file(
+        &root,
+        "shared/metadata/story/characters/hero.md",
+        "---\nid: lead\n---\n# Hero\n",
+    );
+    write_story_file(
+        &root,
+        "books/vol-01/story/characters/rival.md",
+        "---\nid: lead\n---\n# Rival\n",
+    );
+
+    let output = Command::new(env!("CARGO_BIN_EXE_shosei"))
+        .args([
+            "story",
+            "drift",
+            "--book",
+            "vol-01",
+            "--path",
+            root.to_str().unwrap(),
+        ])
+        .output()
+        .unwrap();
+
+    assert!(!output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("story drift completed for vol-01"));
+    assert!(root.join("dist/reports/vol-01-story-drift.json").is_file());
+    let report = fs::read_to_string(root.join("dist/reports/vol-01-story-drift.json")).unwrap();
+    assert!(report.contains("shared canon drift for character `lead`"));
+}
+
+#[test]
+fn story_sync_cli_copies_shared_entity_into_book_scope() {
+    let root = temp_dir("story-sync-cli");
+    write_series_story_fixture(&root);
+
+    let book_scaffold = Command::new(env!("CARGO_BIN_EXE_shosei"))
+        .args([
+            "story",
+            "scaffold",
+            "--book",
+            "vol-01",
+            "--path",
+            root.to_str().unwrap(),
+        ])
+        .output()
+        .unwrap();
+    assert!(book_scaffold.status.success());
+
+    let shared_scaffold = Command::new(env!("CARGO_BIN_EXE_shosei"))
+        .args([
+            "story",
+            "scaffold",
+            "--shared",
+            "--path",
+            root.to_str().unwrap(),
+        ])
+        .output()
+        .unwrap();
+    assert!(shared_scaffold.status.success());
+
+    write_story_file(
+        &root,
+        "shared/metadata/story/characters/hero.md",
+        "---\nid: lead\n---\n# Hero\n",
+    );
+
+    let output = Command::new(env!("CARGO_BIN_EXE_shosei"))
+        .args([
+            "story",
+            "sync",
+            "--book",
+            "vol-01",
+            "--from",
+            "shared",
+            "--kind",
+            "character",
+            "--id",
+            "lead",
+            "--path",
+            root.to_str().unwrap(),
+        ])
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("story sync: copied shared canon character `lead`"));
+    assert_eq!(
+        fs::read_to_string(root.join("books/vol-01/story/characters/hero.md")).unwrap(),
+        "---\nid: lead\n---\n# Hero\n"
+    );
 }
 
 #[cfg(any(unix, windows))]

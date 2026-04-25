@@ -590,18 +590,29 @@ GitHub Actions の CI は `ubuntu-latest`, `macos-latest`, `windows-latest` の 
 現在の command-level smoke は次を step 名つきで実行している。
 
 - `shosei init`
+- `shosei explain`
 - `shosei validate --json`
 - `shosei validate --json` の print validator run
 - `shosei validate --json` の Kindle Previewer validator run
 - `shosei validate`
 - `shosei build`
 - `shosei preview`
+- `shosei preview --watch`
 - `shosei chapter add`
+- `shosei chapter move`
+- `shosei chapter remove`
+- `shosei chapter renumber`
 - `shosei reference scaffold`
+- `shosei reference map`
 - `shosei reference check`
 - `shosei reference drift`
 - `shosei reference sync`
+- `shosei story scaffold`
 - `shosei story seed`
+- `shosei story map`
+- `shosei story check`
+- `shosei story drift`
+- `shosei story sync`
 - `shosei page check`
 - `shosei series sync`
 - `shosei handoff proof`
