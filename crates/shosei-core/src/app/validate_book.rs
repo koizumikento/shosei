@@ -416,6 +416,12 @@ fn run_external_validators(
     result
 }
 
+fn target_has_missing_required_check(plan: &pipeline::ValidatePlan, target: &str) -> bool {
+    plan.checks
+        .iter()
+        .any(|check| check.target == target && check.tool_status == ToolStatus::Missing)
+}
+
 fn should_run_epubcheck(command: &CommandContext, resolved: &config::ResolvedBookConfig) -> bool {
     (command.output_target.is_none() || command.output_target.as_deref() == Some("kindle"))
         && resolved.effective.outputs.kindle.is_some()
@@ -465,6 +471,7 @@ fn run_epubcheck_validation(
     let Some(executable) = available_tool_path(toolchain, "epubcheck") else {
         return (
             ValidatorRunReport {
+                status: "missing-tool".to_string(),
                 summary: "epubcheck executable is unavailable".to_string(),
                 ..initial
             },
@@ -472,13 +479,10 @@ fn run_epubcheck_validation(
         );
     };
 
-    if plan
-        .checks
-        .iter()
-        .any(|check| check.target == "kindle" && check.tool_status == ToolStatus::Missing)
-    {
+    if target_has_missing_required_check(plan, "kindle") {
         return (
             ValidatorRunReport {
+                status: "skipped".to_string(),
                 summary: "kindle validation prerequisites are missing".to_string(),
                 ..initial
             },
@@ -496,6 +500,7 @@ fn run_epubcheck_validation(
         Err(BuildBookError::RequiredToolMissing { tool, .. }) => {
             return (
                 ValidatorRunReport {
+                    status: "skipped".to_string(),
                     summary: format!("skipped because required build tool `{tool}` is missing"),
                     ..initial
                 },
@@ -643,13 +648,10 @@ fn run_kindle_previewer_validation(
         );
     };
 
-    if plan
-        .checks
-        .iter()
-        .any(|check| check.target == "kindle" && check.tool_status == ToolStatus::Missing)
-    {
+    if target_has_missing_required_check(plan, "kindle") {
         return (
             ValidatorRunReport {
+                status: "skipped".to_string(),
                 summary: "kindle validation prerequisites are missing".to_string(),
                 ..initial
             },
@@ -667,6 +669,7 @@ fn run_kindle_previewer_validation(
         Err(BuildBookError::RequiredToolMissing { tool, .. }) => {
             return (
                 ValidatorRunReport {
+                    status: "skipped".to_string(),
                     summary: format!("skipped because required build tool `{tool}` is missing"),
                     ..initial
                 },
@@ -819,13 +822,10 @@ fn run_qpdf_validation(
         );
     };
 
-    if plan
-        .checks
-        .iter()
-        .any(|check| check.target == "print" && check.tool_status == ToolStatus::Missing)
-    {
+    if target_has_missing_required_check(plan, "print") {
         return (
             ValidatorRunReport {
+                status: "skipped".to_string(),
                 summary: "print validation prerequisites are missing".to_string(),
                 ..initial
             },
@@ -843,6 +843,7 @@ fn run_qpdf_validation(
         Err(BuildBookError::RequiredToolMissing { tool, .. }) => {
             return (
                 ValidatorRunReport {
+                    status: "skipped".to_string(),
                     summary: format!("skipped because required build tool `{tool}` is missing"),
                     ..initial
                 },
@@ -3283,39 +3284,6 @@ exit {}
         qpdf
     }
 
-    fn write_book(root: &std::path::Path) {
-        fs::create_dir_all(root.join("manuscript")).unwrap();
-        fs::write(root.join("manuscript/01.md"), "# Chapter 1\n").unwrap();
-        fs::write(
-            root.join("book.yml"),
-            r#"
-project:
-  type: novel
-  vcs: git
-book:
-  title: "Sample"
-  authors:
-    - "Author"
-  reading_direction: rtl
-layout:
-  binding: right
-manuscript:
-  chapters:
-    - manuscript/01.md
-outputs:
-  kindle:
-    enabled: true
-    target: kindle-ja
-validation:
-  strict: true
-  epubcheck: true
-git:
-  lfs: true
-"#,
-        )
-        .unwrap();
-    }
-
     fn write_print_book_with_profile(
         root: &std::path::Path,
         project_type: &str,
@@ -3657,22 +3625,31 @@ manga:
         bytes
     }
 
+    #[cfg(unix)]
     #[test]
-    fn validate_writes_report_when_epubcheck_is_missing() {
+    fn validate_records_missing_epubcheck_without_failing() {
         let root = temp_dir("missing-epubcheck");
-        write_book(&root);
+        write_book_with_cover(&root, "error", true);
+        let pandoc = write_fake_pandoc(&root);
 
         let result = validate_book_with_toolchain(
             &CommandContext::new(&root, None, None),
-            &fake_toolchain(ToolStatus::Missing),
+            &fake_toolchain_with_paths(
+                Some(pandoc),
+                None,
+                ToolStatus::Missing,
+                None,
+                ToolStatus::Missing,
+            ),
         )
         .unwrap();
 
-        assert!(result.has_errors);
+        assert!(!result.has_errors);
         assert!(result.report_path.is_file());
         let report = fs::read_to_string(result.report_path).unwrap();
-        assert!(report.contains("required validation tool is missing"));
-        assert!(report.contains("\"severity\": \"error\""));
+        assert!(report.contains("\"name\": \"epubcheck\""));
+        assert!(report.contains("\"status\": \"missing-tool\""));
+        assert!(report.contains("epubcheck executable is unavailable"));
     }
 
     #[cfg(unix)]

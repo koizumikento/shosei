@@ -160,17 +160,6 @@ pub fn prose_validate_plan_with_toolchain(
             tool: None,
             tool_status: ToolStatus::Planned,
         });
-        if resolved.effective.validation.epubcheck {
-            checks.push(ValidationCheck {
-                name: "epubcheck",
-                target: "kindle",
-                tool: Some("epubcheck"),
-                tool_status: toolchain
-                    .tool("epubcheck")
-                    .map(|tool| tool.status)
-                    .unwrap_or(ToolStatus::Missing),
-            });
-        }
         checks.push(ValidationCheck {
             name: "kindle-metadata",
             target: "kindle",
@@ -542,7 +531,7 @@ git:
                 .iter()
                 .any(|check| check.name == "pandoc-build-tool" && check.target == "kindle")
         );
-        assert!(plan.checks.iter().any(|check| check.name == "epubcheck"));
+        assert!(!plan.checks.iter().any(|check| check.name == "epubcheck"));
         assert!(
             plan.checks
                 .iter()
