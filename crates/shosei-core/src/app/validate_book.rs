@@ -27,6 +27,7 @@ pub struct ValidateBookResult {
     pub summary: String,
     pub plan: Option<pipeline::ValidatePlan>,
     pub report_path: PathBuf,
+    pub delivery_evidence: DeliveryEvidenceReport,
     pub manuscript_stats: Option<ManuscriptStats>,
     pub issues: Vec<ValidationIssue>,
     pub issue_count: usize,
@@ -151,33 +152,43 @@ pub(crate) fn validate_book_with_toolchain(
             if project_type.is_prose() {
                 manuscript_stats = Some(compute_manuscript_stats(&resolved, plan));
             }
+        }
+        issues.extend(cover_validation_issues(&resolved));
+        let local_structural_has_errors =
+            issues.iter().any(|issue| issue.severity == Severity::Error);
+        if let Some(plan) = &plan {
             let external_validation = run_external_validators(command, &resolved, toolchain, plan);
             issues.extend(external_validation.issues);
             validator_runs = external_validation.runs;
         }
-        issues.extend(cover_validation_issues(&resolved));
+        let target_profile_validations =
+            target_profile_validations(&resolved, command.output_target.as_deref());
+        let checks = plan
+            .as_ref()
+            .map(|plan| {
+                plan.checks
+                    .iter()
+                    .map(|check| ValidationCheckReport {
+                        name: check.name.to_string(),
+                        target: check.target.to_string(),
+                        tool: check.tool.map(str::to_string),
+                        status: check.tool_status.to_string(),
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+        let delivery_evidence = delivery_evidence_report(
+            &target_profile_validations,
+            &validator_runs,
+            local_structural_has_errors,
+        );
         let report = ValidateReport {
             book_id: book.id.clone(),
             outputs: outputs.clone(),
-            target_profile_validations: target_profile_validations(
-                &resolved,
-                command.output_target.as_deref(),
-            ),
-            checks: plan
-                .as_ref()
-                .map(|plan| {
-                    plan.checks
-                        .iter()
-                        .map(|check| ValidationCheckReport {
-                            name: check.name.to_string(),
-                            target: check.target.to_string(),
-                            tool: check.tool.map(str::to_string),
-                            status: check.tool_status.to_string(),
-                        })
-                        .collect()
-                })
-                .unwrap_or_default(),
+            target_profile_validations,
+            checks,
             validator_runs,
+            delivery_evidence: delivery_evidence.clone(),
             manuscript_stats: manuscript_stats.clone(),
             issues: issues.clone(),
         };
@@ -201,6 +212,7 @@ pub(crate) fn validate_book_with_toolchain(
             ),
             plan,
             report_path,
+            delivery_evidence,
             manuscript_stats,
             issues: issues.clone(),
             issue_count: issues.len(),
@@ -219,6 +231,7 @@ struct ValidateReport {
     checks: Vec<ValidationCheckReport>,
     #[serde(rename = "validators")]
     validator_runs: Vec<ValidatorRunReport>,
+    delivery_evidence: DeliveryEvidenceReport,
     #[serde(skip_serializing_if = "Option::is_none")]
     manuscript_stats: Option<ManuscriptStats>,
     issues: Vec<ValidationIssue>,
@@ -258,6 +271,174 @@ struct ValidatorRunReport {
     summary: String,
     artifact: Option<String>,
     log_path: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct DeliveryEvidenceReport {
+    pub schema_version: u8,
+    pub host_os: String,
+    pub summary: DeliveryEvidenceSummaryReport,
+    pub required_ci_checks: Vec<DeliveryEvidenceCheckReport>,
+    pub release_checks: Vec<DeliveryEvidenceCheckReport>,
+    pub unsupported_checks: Vec<DeliveryEvidenceCheckReport>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct DeliveryEvidenceSummaryReport {
+    pub status: String,
+    pub passed: usize,
+    pub warnings: usize,
+    pub failed: usize,
+    pub missing_tool: usize,
+    pub skipped: usize,
+    pub not_implemented: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct DeliveryEvidenceCheckReport {
+    pub name: String,
+    pub layer: String,
+    pub target: String,
+    pub status: String,
+    pub required_in_ci: bool,
+    pub summary: String,
+    pub artifact: Option<String>,
+    pub log_path: Option<String>,
+}
+
+fn delivery_evidence_report(
+    target_profile_validations: &[TargetProfileValidationReport],
+    validator_runs: &[ValidatorRunReport],
+    local_structural_has_errors: bool,
+) -> DeliveryEvidenceReport {
+    let mut required_ci_checks = vec![DeliveryEvidenceCheckReport {
+        name: "local-structural-validation".to_string(),
+        layer: "portable-required-ci".to_string(),
+        target: "common".to_string(),
+        status: if local_structural_has_errors {
+            "failed".to_string()
+        } else {
+            "passed".to_string()
+        },
+        required_in_ci: true,
+        summary: "config, manuscript, asset, and editorial checks are covered by workspace tests and CLI smoke".to_string(),
+        artifact: None,
+        log_path: None,
+    }];
+
+    required_ci_checks.extend(target_profile_validations.iter().map(|validation| {
+        let warning_count = validation
+            .checks
+            .iter()
+            .filter(|check| check.status != "ok")
+            .count();
+        DeliveryEvidenceCheckReport {
+            name: "target-profile-validation".to_string(),
+            layer: "portable-required-ci".to_string(),
+            target: validation.channel.clone(),
+            status: if warning_count == 0 {
+                "passed".to_string()
+            } else {
+                "warning".to_string()
+            },
+            required_in_ci: true,
+            summary: if warning_count == 0 {
+                format!(
+                    "{} target {} matches profile {} recommendations",
+                    validation.channel, validation.target, validation.profile
+                )
+            } else {
+                format!(
+                    "{} target {} has {warning_count} profile recommendation warning(s)",
+                    validation.channel, validation.target
+                )
+            },
+            artifact: None,
+            log_path: None,
+        }
+    }));
+
+    let release_checks = validator_runs
+        .iter()
+        .map(|run| DeliveryEvidenceCheckReport {
+            name: run.name.clone(),
+            layer: validator_evidence_layer(run),
+            target: run.target.clone(),
+            status: run.status.clone(),
+            required_in_ci: false,
+            summary: run.summary.clone(),
+            artifact: run.artifact.clone(),
+            log_path: run.log_path.clone(),
+        })
+        .collect::<Vec<_>>();
+
+    let mut unsupported_checks = Vec::new();
+    if target_profile_validations
+        .iter()
+        .any(|validation| validation.channel == "kindle")
+    {
+        unsupported_checks.push(DeliveryEvidenceCheckReport {
+            name: "store-device-validators-beyond-kindle-previewer".to_string(),
+            layer: "future-work".to_string(),
+            target: "kindle".to_string(),
+            status: "not-implemented".to_string(),
+            required_in_ci: false,
+            summary: "store/device-specific validators beyond Kindle Previewer are not implemented"
+                .to_string(),
+            artifact: None,
+            log_path: None,
+        });
+    }
+
+    let mut all_checks = required_ci_checks
+        .iter()
+        .chain(release_checks.iter())
+        .chain(unsupported_checks.iter());
+    let mut summary = DeliveryEvidenceSummaryReport {
+        status: "passed".to_string(),
+        passed: 0,
+        warnings: 0,
+        failed: 0,
+        missing_tool: 0,
+        skipped: 0,
+        not_implemented: 0,
+    };
+
+    for check in all_checks.by_ref() {
+        match check.status.as_str() {
+            "passed" | "ok" => summary.passed += 1,
+            "warning" => summary.warnings += 1,
+            "failed" | "error" => summary.failed += 1,
+            "missing-tool" => summary.missing_tool += 1,
+            "skipped" => summary.skipped += 1,
+            "not-implemented" => summary.not_implemented += 1,
+            _ => summary.skipped += 1,
+        }
+    }
+    summary.status = if summary.failed > 0 {
+        "failed".to_string()
+    } else if summary.missing_tool > 0 || summary.skipped > 0 || summary.not_implemented > 0 {
+        "incomplete".to_string()
+    } else {
+        "passed".to_string()
+    };
+
+    DeliveryEvidenceReport {
+        schema_version: 1,
+        host_os: std::env::consts::OS.to_string(),
+        summary,
+        required_ci_checks,
+        release_checks,
+        unsupported_checks,
+    }
+}
+
+fn validator_evidence_layer(run: &ValidatorRunReport) -> String {
+    match run.name.as_str() {
+        "epubcheck" | "qpdf-check" => "portable-external-validator".to_string(),
+        "kindle-previewer" => "opt-in-device-oriented-validator".to_string(),
+        _ => "opt-in-validator".to_string(),
+    }
 }
 
 fn compute_manuscript_stats(
@@ -3863,6 +4044,33 @@ manga:
             relative_display(repo_root, report_path),
             "dist/logs/default-qpdf-validate.log"
         );
+    }
+
+    #[test]
+    fn delivery_evidence_counts_profile_warnings_without_marking_incomplete() {
+        let evidence = delivery_evidence_report(
+            &[TargetProfileValidationReport {
+                channel: "print".to_string(),
+                target: "print-jp-pdfx1a".to_string(),
+                profile: "novel".to_string(),
+                checks: vec![TargetProfileCheckReport {
+                    name: "print-pdf-standard".to_string(),
+                    status: "warning".to_string(),
+                    expected: Some("pdfx1a".to_string()),
+                    actual: Some("pdfx4".to_string()),
+                    summary:
+                        "print PDF standard differs from the selected print target recommendation"
+                            .to_string(),
+                }],
+            }],
+            &[],
+            false,
+        );
+
+        assert_eq!(evidence.summary.status, "passed");
+        assert_eq!(evidence.summary.warnings, 1);
+        assert_eq!(evidence.summary.skipped, 0);
+        assert_eq!(evidence.required_ci_checks[1].status, "warning");
     }
 
     #[cfg(unix)]

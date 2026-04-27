@@ -18,8 +18,9 @@ use crate::{
 };
 
 use super::{
-    BuildBookError, ValidateBookError, build_book::build_book_with_toolchain,
-    validate_book::validate_book_with_toolchain,
+    BuildBookError, ValidateBookError,
+    build_book::build_book_with_toolchain,
+    validate_book::{DeliveryEvidenceReport, validate_book_with_toolchain},
 };
 
 #[derive(Debug, Clone)]
@@ -104,6 +105,7 @@ struct HandoffManifest {
     validation_summary: String,
     validation_issue_count: usize,
     validation_has_errors: bool,
+    delivery_evidence: DeliveryEvidenceReport,
     selected_artifacts: Vec<String>,
     selected_artifact_details: Vec<HandoffArtifactDetail>,
     validation_report: String,
@@ -333,6 +335,7 @@ fn handoff_with_toolchain(
         validation_summary: validate_result.summary.clone(),
         validation_issue_count: validate_result.issue_count,
         validation_has_errors: validate_result.has_errors,
+        delivery_evidence: validate_result.delivery_evidence.clone(),
         selected_artifacts: copied_artifacts
             .iter()
             .map(|path| relative_to(&package_dir, path))

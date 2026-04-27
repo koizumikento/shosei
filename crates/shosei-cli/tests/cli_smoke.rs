@@ -82,6 +82,7 @@ git:
     .unwrap();
 }
 
+#[cfg(unix)]
 fn write_clean_kindle_validate_fixture(root: &Path, enable_epubcheck: bool) {
     fs::create_dir_all(root.join("manuscript")).unwrap();
     fs::create_dir_all(root.join("assets/cover")).unwrap();
@@ -895,6 +896,17 @@ fn validate_cli_json_includes_epubcheck_runs() {
         .find(|validator| validator["name"] == "epubcheck")
         .unwrap();
     assert_eq!(epubcheck["status"], "passed");
+    assert_eq!(
+        parsed["delivery_evidence"]["summary"]["status"],
+        "incomplete"
+    );
+    assert!(
+        parsed["delivery_evidence"]["release_checks"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|check| check["name"] == "epubcheck" && check["status"] == "passed")
+    );
     assert!(
         epubcheck["log_path"]
             .as_str()
@@ -926,6 +938,14 @@ fn validate_cli_json_records_missing_epubcheck_without_failing() {
         .find(|validator| validator["name"] == "epubcheck")
         .unwrap();
     assert_eq!(epubcheck["status"], "missing-tool");
+    assert_eq!(parsed["delivery_evidence"]["summary"]["missing_tool"], 1);
+    assert!(
+        parsed["delivery_evidence"]["release_checks"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|check| check["name"] == "epubcheck" && check["status"] == "missing-tool")
+    );
     assert_eq!(epubcheck["summary"], "epubcheck executable is unavailable");
 }
 
@@ -953,6 +973,15 @@ fn validate_cli_json_fails_when_epubcheck_reports_errors() {
         .find(|validator| validator["name"] == "epubcheck")
         .unwrap();
     assert_eq!(epubcheck["status"], "failed");
+    assert_eq!(parsed["delivery_evidence"]["summary"]["status"], "failed");
+    assert!(
+        parsed["delivery_evidence"]["required_ci_checks"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|check| check["name"] == "local-structural-validation"
+                && check["status"] == "passed")
+    );
     assert!(
         parsed["issues"]
             .as_array()
@@ -989,6 +1018,14 @@ fn validate_cli_json_includes_print_validator_runs() {
             .as_str()
             .unwrap()
             .ends_with("default-qpdf-validate.log")
+    );
+    assert!(
+        parsed["delivery_evidence"]["required_ci_checks"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|check| check["name"] == "target-profile-validation"
+                && check["target"] == "print")
     );
     assert_eq!(parsed["target_profile_validations"][0]["channel"], "print");
     assert_eq!(
@@ -2321,6 +2358,11 @@ fn handoff_proof_cli_packages_review_packet() {
     let manifest: Value =
         serde_json::from_str(&fs::read_to_string(package_dir.join("manifest.json")).unwrap())
             .unwrap();
+    assert_eq!(manifest["delivery_evidence"]["schema_version"], 1);
+    assert_eq!(
+        manifest["delivery_evidence"]["unsupported_checks"][0]["name"],
+        "store-device-validators-beyond-kindle-previewer"
+    );
     assert_eq!(manifest["review_packet"], "reports/review-packet.json");
     assert_eq!(manifest["review_notes"], "review-notes.md");
     assert_eq!(manifest["editorial_summary"]["claim_count"], 1);
@@ -2404,6 +2446,10 @@ fn handoff_print_cli_packages_manga_pdf() {
     let manifest: Value =
         serde_json::from_str(&fs::read_to_string(package_dir.join("manifest.json")).unwrap())
             .unwrap();
+    assert_eq!(
+        manifest["delivery_evidence"]["required_ci_checks"][0]["name"],
+        "local-structural-validation"
+    );
     assert_eq!(manifest["destination"], "print");
     assert_eq!(manifest["selected_artifact_details"][0]["channel"], "print");
     assert_eq!(

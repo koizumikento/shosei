@@ -73,13 +73,13 @@
               </tr>
               <tr>
                 <td>Delivery validation</td>
-                <td>supported with opt-in depth</td>
-                <td>local lint、<code>epubcheck</code>、<code>qpdf</code>、opt-in Kindle Previewer conversion check を <code>validators[]</code> に記録</td>
+                <td>supported with explicit evidence</td>
+                <td>local lint、<code>epubcheck</code>、<code>qpdf</code>、opt-in Kindle Previewer conversion check を <code>validators[]</code> と <code>delivery_evidence</code> に記録</td>
               </tr>
               <tr>
                 <td>Handoff package</td>
                 <td>supported</td>
-                <td>artifact、<code>reports/validate.json</code>、<code>manifest.json</code>、proof review packet、editorial sidecar を package 化</td>
+                <td>artifact、<code>reports/validate.json</code>、<code>delivery_evidence</code> 付き <code>manifest.json</code>、proof review packet、editorial sidecar を package 化</td>
               </tr>
               <tr>
                 <td>VS Code adapter</td>
