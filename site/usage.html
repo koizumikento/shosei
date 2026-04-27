@@ -602,12 +602,18 @@ shosei handoff proof</code></pre>
             <li><code>shosei init</code></li>
             <li><code>shosei explain</code></li>
             <li><code>shosei validate --json</code></li>
+            <li><code>shosei validate --json</code> の epubcheck validator run</li>
+            <li><code>shosei validate --json</code> の epubcheck missing tool</li>
+            <li><code>shosei validate --json</code> の epubcheck failure</li>
             <li><code>shosei validate --json</code> の print validator run</li>
+            <li><code>shosei validate --json</code> の print validator missing tool</li>
+            <li><code>shosei validate --json</code> の print validator failure</li>
             <li><code>shosei validate --json</code> の Kindle Previewer validator run</li>
             <li><code>shosei validate</code></li>
             <li><code>shosei build</code></li>
             <li><code>shosei preview</code></li>
             <li><code>shosei preview --watch</code></li>
+            <li><code>shosei page check</code></li>
             <li><code>shosei chapter add</code></li>
             <li><code>shosei chapter move</code></li>
             <li><code>shosei chapter remove</code></li>
@@ -623,15 +629,14 @@ shosei handoff proof</code></pre>
             <li><code>shosei story check</code></li>
             <li><code>shosei story drift</code></li>
             <li><code>shosei story sync</code></li>
-            <li><code>shosei page check</code></li>
             <li><code>shosei series sync</code></li>
             <li><code>shosei handoff proof</code></li>
             <li><code>shosei handoff kindle</code></li>
             <li><code>shosei handoff print</code></li>
-            <li><code>shosei doctor</code></li>
+            <li><code>shosei doctor --json</code></li>
             <li><code>shosei --help</code></li>
           </ul>
-          <p>合わせて <code>cargo test --workspace</code> と <code>cargo test -p shosei-core --test repo_discovery</code> も走ります。print validator run と Kindle Previewer validator run の smoke は Unix shell fixture を使うため Ubuntu / macOS で回します。VS Code adapter については <code>npm ci</code> の後に <code>npm run check</code>, <code>npm test</code>, <code>npm run test:host</code> を別 job で継続確認し、Ubuntu では <code>npm run test:package-smoke</code> で package 済み VSIX の smoke も回します。</p>
+          <p>合わせて <code>cargo test --workspace</code> と <code>cargo test -p shosei-core --test repo_discovery</code> も走ります。epubcheck / print validator / Kindle Previewer validator の smoke は Unix shell fixture を使うため Ubuntu / macOS で回します。VS Code adapter については <code>npm ci</code> の後に <code>npm run check</code>, <code>npm test</code>, <code>npm run test:host</code> を別 job で継続確認し、Ubuntu では <code>npm run test:package-smoke</code> で package 済み VSIX の smoke も回します。</p>
           <p>実物 Kindle Previewer は proprietary / OS-dependent なので required CI には含めません。release operator や maintainer が実物 tool の conversion evidence を残したい場合は、対応 host 上で次を実行します。</p>
           <pre><code>scripts/validate-real-kindle-previewer.sh</code></pre>
           <p>この hook は一時 workspace に最小構成の Kindle project を作り、<code>validation.kindle_previewer: true</code> で <code>shosei validate --json</code> を実行します。成功時は <code>dist/reports/default-validate.json</code> と <code>dist/logs/default-kindle-previewer-validate.log</code> を evidence として確認できます。</p>
