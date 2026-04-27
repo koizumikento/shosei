@@ -113,6 +113,16 @@ Use these exact commands when validating Rust changes:
 - focused reference/story workflow checks:
   - `cargo test -p shosei-core --test reference_commands`
   - `cargo test -p shosei-core --test story_commands`
+- focused CLI init edge checks:
+  - `cargo test -p shosei-cli --test cli_smoke init_cli_interactive_can_cancel_before_writing_files -- --exact`
+  - `cargo test -p shosei-cli --test cli_smoke init_cli_interactive_series_accepts_custom_initial_book_id -- --exact`
+  - `cargo test -p shosei-cli --test cli_smoke init_cli_interactive_can_include_introduction_and_afterword -- --exact`
+  - `cargo test -p shosei-cli --test cli_smoke init_cli_with_config_template_still_runs_interactive_wizard -- --exact`
+  - `cargo test -p shosei-cli --test cli_smoke init_cli_non_interactive_can_include_introduction_and_afterword -- --exact`
+- focused CLI reference edge checks:
+  - `cargo test -p shosei-cli --test cli_smoke reference_map_cli_suggests_scaffold_when_workspace_is_missing -- --exact`
+  - `cargo test -p shosei-cli --test cli_smoke reference_check_cli_reports_missing_claim_reference_source -- --exact`
+  - `cargo test -p shosei-cli --test cli_smoke reference_sync_cli_report_applies_shared_gap_and_skips_book_only_gap -- --exact`
 - smoke checks: `cargo run -p shosei-cli --bin shosei -- --help`
 - opt-in real Kindle Previewer evidence hook: `scripts/validate-real-kindle-previewer.sh`
 - CI runs the formatting gate, linting, workspace tests, repo discovery, and the listed Rust smoke checks on `ubuntu-latest`, `macos-latest`, and `windows-latest`.
