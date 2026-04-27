@@ -63,6 +63,7 @@ If a surface cannot be justified, do not change it.
 - Prefer examples that reflect currently supported config fields and output behavior. Remove or rewrite stale examples instead of leaving them partially correct.
 - Keep `docs/usage.md` and `site/usage.html` in sync.
 - Keep command status labels aligned across `README.md`, `docs/usage.md`, and `site/usage.html`.
+- Keep cross-platform smoke coverage aligned across `.github/workflows/ci.yml`, `README.md`, `docs/usage.md`, `site/usage.html`, and `crates/AGENTS.md`.
 - Keep `init` scaffold docs aligned across `README.md`, `docs/usage.md`, and `site/usage.html`, including the generated `.agents/skills/shosei-project/` and `.agents/skills/shosei-content-review/` templates plus the current `git init` / optional `git lfs install` / optional `shosei doctor` follow-up flow.
 - Keep install and release guidance aligned across `README.md`, `site/install.html`, `editors/vscode/README.md`, and `.github/workflows/release.yml` when GitHub Release assets, Homebrew / Scoop distribution, or VSIX packaging/update flow changes.
 - Keep Homebrew / Scoop manifest guidance aligned with the current release automation in `.github/workflows/release.yml` and the generator scripts in `scripts/generate-homebrew-formula.sh` and `scripts/generate-scoop-manifest.sh`.
