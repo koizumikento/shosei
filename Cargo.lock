@@ -1012,7 +1012,7 @@ dependencies = [
 
 [[package]]
 name = "shosei-cli"
-version = "0.2.6"
+version = "0.2.7"
 dependencies = [
  "anyhow",
  "clap",
@@ -1022,7 +1022,7 @@ dependencies = [
 
 [[package]]
 name = "shosei-core"
-version = "0.2.6"
+version = "0.2.7"
 dependencies = [
  "image",
  "printpdf",

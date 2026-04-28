@@ -109,13 +109,13 @@ npm run package
 生成物:
 
 ```text
-editors/vscode/shosei-vscode-0.2.6.vsix
+editors/vscode/shosei-vscode-0.2.7.vsix
 ```
 
 インストール方法:
 
 - VS Code で `Extensions: Install from VSIX...` を実行して上の `.vsix` を選ぶ
-- `code` CLI が使える場合は `code --install-extension editors/vscode/shosei-vscode-0.2.6.vsix`
+- `code` CLI が使える場合は `code --install-extension editors/vscode/shosei-vscode-0.2.7.vsix`
 - Cursor では `Extensions: Install from VSIX...` を実行して同じ `.vsix` を選ぶ
 
 ローカル install 後も、実処理は `shosei` CLI に委譲する。source tree の CLI を使いたい場合は、下の `shosei.cli.command` / `shosei.cli.args` 設定を使う。
@@ -134,18 +134,18 @@ GitHub Release に VSIX を載せる workflow は `.github/workflows/release.yml
 例:
 
 ```bash
-git tag v0.2.6
-git push origin v0.2.6
+git tag v0.2.7
+git push origin v0.2.7
 ```
 
 release に載る asset:
 
 ```text
-shosei-vscode-0.2.6.vsix
-shosei-v0.2.6-x86_64-unknown-linux-gnu.tar.gz
-shosei-v0.2.6-x86_64-apple-darwin.tar.gz
-shosei-v0.2.6-aarch64-apple-darwin.tar.gz
-shosei-v0.2.6-x86_64-pc-windows-msvc.zip
+shosei-vscode-0.2.7.vsix
+shosei-v0.2.7-x86_64-unknown-linux-gnu.tar.gz
+shosei-v0.2.7-x86_64-apple-darwin.tar.gz
+shosei-v0.2.7-aarch64-apple-darwin.tar.gz
+shosei-v0.2.7-x86_64-pc-windows-msvc.zip
 ```
 
 Open VSX publish には repo の Actions secret `OPEN_VSX_TOKEN` を使う。Open VSX 側では `package.json` の `publisher` である `straydog` namespace が事前に作成されている必要がある。release 再実行時は `ovsx publish --skip-duplicate` で既存 version を重複 publish しない。

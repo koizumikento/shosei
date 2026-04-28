@@ -2,7 +2,7 @@
   "name": "shosei-vscode",
   "displayName": "shosei",
   "description": "Run shosei publishing workflows from VS Code using the real shosei CLI.",
-  "version": "0.2.6",
+  "version": "0.2.7",
   "publisher": "straydog",
   "icon": "media/shosei-icon.png",
   "license": "MIT",
