@@ -499,6 +499,7 @@ prose の Kindle / EPUB build では `styles/base.css` と `styles/epub.css` を
 - `book.yml` または `series.yml`
 - `dist/`
 - `.gitignore`, `.gitattributes` (`git.lfs: true` のとき)
+- `AGENTS.md`
 - `.agents/skills/shosei-project/SKILL.md`
 - `.agents/skills/shosei-content-review/SKILL.md`
 - `single-book` では `assets/cover/`, `assets/images/`, `assets/fonts/`, `styles/`

@@ -64,8 +64,8 @@ If a surface cannot be justified, do not change it.
 - Keep `docs/usage.md` and `site/usage.html` in sync.
 - Keep command status labels aligned across `README.md`, `docs/usage.md`, and `site/usage.html`.
 - Keep cross-platform smoke coverage aligned across `.github/workflows/ci.yml`, `README.md`, `docs/usage.md`, `site/usage.html`, and `crates/AGENTS.md`.
-- Keep `init` scaffold docs aligned across `README.md`, `docs/usage.md`, and `site/usage.html`, including the generated `.agents/skills/shosei-project/` and `.agents/skills/shosei-content-review/` templates plus the current `git init` / optional `git lfs install` / optional `shosei doctor` follow-up flow.
-- Keep install and release guidance aligned across `README.md`, `site/install.html`, `editors/vscode/README.md`, and `.github/workflows/release.yml` when GitHub Release assets, Homebrew / Scoop distribution, or VSIX packaging/update flow changes.
+- Keep `init` scaffold docs aligned across `README.md`, `docs/usage.md`, and `site/usage.html`, including the generated `AGENTS.md`, `.agents/skills/shosei-project/`, and `.agents/skills/shosei-content-review/` templates plus the current `git init` / optional `git lfs install` / optional `shosei doctor` follow-up flow.
+- Keep install and release guidance aligned across `README.md`, `site/install.html`, `editors/vscode/README.md`, and `.github/workflows/release.yml` when GitHub Release assets, Homebrew / Scoop distribution, Open VSX publish, or VSIX packaging/update flow changes.
 - Keep Homebrew / Scoop manifest guidance aligned with the current release automation in `.github/workflows/release.yml` and the generator scripts in `scripts/generate-homebrew-formula.sh` and `scripts/generate-scoop-manifest.sh`.
 - Keep the `story seed` contract aligned across `docs/specs/story-support.md`, `docs/usage.md`, and `site/usage.html` when seeded structure templates or `scene_seeds` behavior changes.
 - Keep `docs/specs/vscode-extension.md` and `editors/vscode/README.md` aligned when extension flow, scope, or ownership changes.

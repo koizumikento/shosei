@@ -355,6 +355,7 @@ v0.2 で残す引数:
 - `dist/`
 - `.gitignore`
 - `.gitattributes` (`git.lfs = true` のとき)
+- `AGENTS.md`
 - `.agents/skills/shosei-project/SKILL.md`
 - `.agents/skills/shosei-content-review/SKILL.md`
 - `single-book` では `assets/cover/`, `assets/images/`, `assets/fonts/`, `styles/`
@@ -442,7 +443,20 @@ dist/
 *.jpg filter=lfs diff=lfs merge=lfs -text
 ```
 
-## 12.1 エージェントスキルテンプレート
+## 12.1 エージェント向け repo guidance
+
+`shosei init` は repo root に `AGENTS.md` を生成する。
+
+ルール:
+
+- 出力先は `AGENTS.md`
+- 本文には init 時点の `project.type` と `repo_mode` を埋め込む
+- 本文には `shosei explain` を先に使う方針、`validate`, `build`, `preview`, `handoff` の基本導線を含める
+- `series` では `--book <book-id>` を使う導線を含める
+- config path を repo-relative かつ `/` 区切りで保つルールを含める
+- optional な `reference` / `story` workspace は repo scope に合う明示 command で scaffold / map するものとして説明する
+
+## 12.2 エージェントスキルテンプレート
 
 `shosei init` は repo-scoped な agent skill templates を 2 つ生成する。
 

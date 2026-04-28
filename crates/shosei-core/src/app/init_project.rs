@@ -11,6 +11,7 @@ use crate::app::CONFIG_REFERENCE_URL;
 const SHOSEI_PROJECT_SKILL_TEMPLATE: &str = include_str!("../../templates/shosei-project-skill.md");
 const SHOSEI_CONTENT_REVIEW_SKILL_TEMPLATE: &str =
     include_str!("../../templates/shosei-content-review.md");
+const AGENTS_TEMPLATE: &str = include_str!("../../templates/agents.md");
 const DEFAULT_SERIES_BOOK_ID: &str = "vol-01";
 const INTRODUCTION_FILE: &str = "00-introduction.md";
 const AFTERWORD_FILE: &str = "99-afterword.md";
@@ -923,6 +924,12 @@ fn init_single_book(root: &Path, scaffold: &InitScaffoldConfig) -> Result<(), In
         scaffold.profile,
         scaffold.writing_mode,
     )?;
+    write_agents_template(
+        root,
+        template,
+        RepoTemplate::SingleBook,
+        scaffold.series_book_id(),
+    )?;
     write_agent_skill_templates(
         root,
         template,
@@ -982,6 +989,12 @@ fn init_series(root: &Path, scaffold: &InitScaffoldConfig) -> Result<(), InitPro
         template,
         scaffold.profile,
         scaffold.writing_mode,
+    )?;
+    write_agents_template(
+        root,
+        template,
+        RepoTemplate::Series,
+        scaffold.series_book_id(),
     )?;
     write_agent_skill_templates(
         root,
@@ -1525,6 +1538,80 @@ fn content_review_skill_contents(
     ContentReviewSkillTemplateContext::new(template, repo_mode, initial_book_id).render()
 }
 
+fn write_agents_template(
+    root: &Path,
+    template: ProjectTemplate,
+    repo_mode: RepoTemplate,
+    initial_book_id: &str,
+) -> Result<(), InitProjectError> {
+    write_file(
+        &root.join("AGENTS.md"),
+        &AgentsTemplateContext::new(template, repo_mode, initial_book_id).render(),
+    )
+}
+
+#[derive(Debug, Clone)]
+struct AgentsTemplateContext {
+    repo_mode_label: &'static str,
+    project_type: &'static str,
+    primary_config: &'static str,
+    primary_content_paths: &'static str,
+    repo_mode_rules: &'static str,
+    explain_command: String,
+    validate_command: String,
+    page_check_rule: String,
+    build_command: String,
+    preview_command: String,
+    handoff_command: String,
+    reference_scaffold_rule: String,
+    story_scaffold_rule: String,
+    optional_map_rule: String,
+}
+
+impl AgentsTemplateContext {
+    fn new(template: ProjectTemplate, repo_mode: RepoTemplate, initial_book_id: &str) -> Self {
+        Self {
+            repo_mode_label: repo_mode_label(repo_mode),
+            project_type: template.as_str(),
+            primary_config: primary_config_note(repo_mode),
+            primary_content_paths: primary_content_paths(template, repo_mode),
+            repo_mode_rules: repo_mode_rules(repo_mode),
+            explain_command: explain_command(repo_mode, initial_book_id),
+            validate_command: validate_command(repo_mode, initial_book_id),
+            page_check_rule: page_check_rule(template, repo_mode, initial_book_id),
+            build_command: build_command(repo_mode, initial_book_id),
+            preview_command: preview_command(repo_mode, initial_book_id),
+            handoff_command: handoff_command(repo_mode, initial_book_id),
+            reference_scaffold_rule: reference_scaffold_rule(repo_mode, initial_book_id),
+            story_scaffold_rule: story_scaffold_rule(repo_mode, initial_book_id),
+            optional_map_rule: optional_map_rule(repo_mode, initial_book_id),
+        }
+    }
+
+    fn render(&self) -> String {
+        let replacements = [
+            ("{{REPO_MODE}}", self.repo_mode_label),
+            ("{{PROJECT_TYPE}}", self.project_type),
+            ("{{PRIMARY_CONFIG}}", self.primary_config),
+            ("{{PRIMARY_CONTENT_PATHS}}", self.primary_content_paths),
+            ("{{REPO_MODE_RULES}}", self.repo_mode_rules),
+            ("{{EXPLAIN_COMMAND}}", self.explain_command.as_str()),
+            ("{{VALIDATE_COMMAND}}", self.validate_command.as_str()),
+            ("{{PAGE_CHECK_RULE}}", self.page_check_rule.as_str()),
+            ("{{BUILD_COMMAND}}", self.build_command.as_str()),
+            ("{{PREVIEW_COMMAND}}", self.preview_command.as_str()),
+            ("{{HANDOFF_COMMAND}}", self.handoff_command.as_str()),
+            (
+                "{{REFERENCE_SCAFFOLD_RULE}}",
+                self.reference_scaffold_rule.as_str(),
+            ),
+            ("{{STORY_SCAFFOLD_RULE}}", self.story_scaffold_rule.as_str()),
+            ("{{OPTIONAL_MAP_RULE}}", self.optional_map_rule.as_str()),
+        ];
+        render_skill_template(AGENTS_TEMPLATE, &replacements)
+    }
+}
+
 #[derive(Debug, Clone)]
 struct AgentSkillTemplateContext {
     description: &'static str,
@@ -1752,6 +1839,35 @@ fn page_check_command(
     }
 }
 
+fn reference_scaffold_rule(repo_mode: RepoTemplate, initial_book_id: &str) -> String {
+    match repo_mode {
+        RepoTemplate::SingleBook => "Add it with `shosei reference scaffold`.".to_string(),
+        RepoTemplate::Series => format!(
+            "Add book-scoped entries with `shosei reference scaffold --book {initial_book_id}` or shared entries with `shosei reference scaffold --shared`."
+        ),
+    }
+}
+
+fn story_scaffold_rule(repo_mode: RepoTemplate, initial_book_id: &str) -> String {
+    match repo_mode {
+        RepoTemplate::SingleBook => "Add it with `shosei story scaffold`.".to_string(),
+        RepoTemplate::Series => format!(
+            "Add book-scoped story notes with `shosei story scaffold --book {initial_book_id}` or shared canon notes with `shosei story scaffold --shared`."
+        ),
+    }
+}
+
+fn optional_map_rule(repo_mode: RepoTemplate, initial_book_id: &str) -> String {
+    match repo_mode {
+        RepoTemplate::SingleBook => {
+            "Use `shosei reference map` / `shosei story map` before relying on optional sidecar content.".to_string()
+        }
+        RepoTemplate::Series => format!(
+            "Use `shosei reference map --book {initial_book_id}` or `shosei reference map --shared` for reference sidecars, and `shosei story map --book {initial_book_id}` for book-scoped story sidecars before relying on optional sidecar content."
+        ),
+    }
+}
+
 fn story_check_command(repo_mode: RepoTemplate, initial_book_id: &str) -> String {
     match repo_mode {
         RepoTemplate::SingleBook => "shosei story check".to_string(),
@@ -1924,6 +2040,10 @@ mod tests {
         fs::read_to_string(root.join(format!(".agents/skills/{skill_name}/SKILL.md"))).unwrap()
     }
 
+    fn read_agents(root: &Path) -> String {
+        fs::read_to_string(root.join("AGENTS.md")).unwrap()
+    }
+
     #[test]
     fn initializes_single_book_novel_scaffold() {
         let root = temp_dir("single");
@@ -1981,6 +2101,15 @@ mod tests {
         assert!(print_css.contains("font-size: 10.5pt"));
         assert!(print_css.contains("nav#TOC a"));
         assert!(!print_css.contains("page-break-after: always;"));
+        let agents = read_agents(&root);
+        assert!(agents.contains("single-book"));
+        assert!(agents.contains("Config entrypoint: `book.yml`"));
+        assert!(agents.contains("Primary content paths: `manuscript/`, `editorial/`"));
+        assert!(agents.contains("Start with `shosei explain`"));
+        assert!(agents.contains("Run `shosei validate`"));
+        assert!(agents.contains("Build artifacts with `shosei build`"));
+        assert!(agents.contains("Add it with `shosei reference scaffold`"));
+        assert!(!agents.contains("reference scaffold --book"));
         let skill = read_skill(&root, "shosei-project");
         assert!(skill.contains("name: \"shosei-project\""));
         assert!(skill.contains("single-book"));
@@ -2066,6 +2195,19 @@ mod tests {
         assert!(book.contains(&format!(
             "cover:\n  ebook_image: books/{DEFAULT_SERIES_BOOK_ID}/assets/cover/front.png"
         )));
+        let agents = read_agents(&root);
+        assert!(agents.contains("series"));
+        assert!(agents.contains("Config entrypoint: `series.yml` and `books/<book-id>/book.yml`"));
+        assert!(agents.contains(&format!("shosei explain --book {DEFAULT_SERIES_BOOK_ID}")));
+        assert!(agents.contains(&format!("shosei validate --book {DEFAULT_SERIES_BOOK_ID}")));
+        assert!(agents.contains(&format!(
+            "shosei page check --book {DEFAULT_SERIES_BOOK_ID}"
+        )));
+        assert!(agents.contains(&format!(
+            "shosei reference scaffold --book {DEFAULT_SERIES_BOOK_ID}"
+        )));
+        assert!(agents.contains("shosei reference scaffold --shared"));
+        assert!(agents.contains(&format!("shosei story map --book {DEFAULT_SERIES_BOOK_ID}")));
         let skill = read_skill(&root, "shosei-project");
         assert!(skill.contains("series"));
         assert!(skill.contains(&format!("shosei explain --book {DEFAULT_SERIES_BOOK_ID}")));
@@ -2401,6 +2543,10 @@ mod tests {
         crate::config::load_book_config(&book_root.join("book.yml")).unwrap();
         let base_css = fs::read_to_string(root.join("shared/styles/base.css")).unwrap();
         assert!(base_css.contains("writing-mode: horizontal-tb"));
+        let agents = read_agents(&root);
+        assert!(agents.contains("series"));
+        assert!(agents.contains(&format!("shosei explain --book {DEFAULT_SERIES_BOOK_ID}")));
+        assert!(agents.contains(&format!("shosei validate --book {DEFAULT_SERIES_BOOK_ID}")));
         let skill = read_skill(&root, "shosei-project");
         assert!(skill.contains("books/<book-id>/editorial/"));
         let content_review_skill = read_skill(&root, "shosei-content-review");
@@ -2461,6 +2607,9 @@ mod tests {
         let book = fs::read_to_string(book_root.join("book.yml")).unwrap();
         assert!(book.contains("- \"Ken\""));
         assert!(book.contains("books/pilot/manuscript/01-chapter-1.md"));
+        let agents = read_agents(&root);
+        assert!(agents.contains("shosei explain --book pilot"));
+        assert!(agents.contains("shosei validate --book pilot"));
         let project_skill = read_skill(&root, "shosei-project");
         assert!(project_skill.contains("shosei explain --book pilot"));
         let content_review_skill = read_skill(&root, "shosei-content-review");

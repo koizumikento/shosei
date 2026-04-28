@@ -154,6 +154,7 @@ shosei validate --book vol-01
 ```text
 repo/
   book.yml
+  AGENTS.md
   .agents/
     skills/
       shosei-project/
@@ -174,6 +175,7 @@ repo/
 ```text
 repo/
   series.yml
+  AGENTS.md
   .agents/
     skills/
       shosei-project/
@@ -229,6 +231,7 @@ repo/
 - `dist/`
 - `.gitignore`
 - `.gitattributes` (`git.lfs: true` のとき)
+- `AGENTS.md`
 - `.agents/skills/shosei-project/SKILL.md`
 - `.agents/skills/shosei-content-review/SKILL.md`
 

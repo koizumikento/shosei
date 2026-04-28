@@ -37,7 +37,7 @@ Rules in this file apply to `editors/vscode/`.
 - Keep `README.md` in this directory aligned with `../../docs/specs/vscode-extension.md`.
 - If guided flows change, update the corresponding README examples and wording in the same change.
 - Keep adapter behavior consistent with ADR-0025 and do not fork logic that belongs in Rust.
-- Keep `package.json` scripts, `README.md` local packaging steps, and `../../.github/workflows/ci.yml` / `../../.github/workflows/release.yml` aligned when VSIX packaging or release checks change.
+- Keep `package.json` scripts, `README.md` local packaging steps, and `../../.github/workflows/ci.yml` / `../../.github/workflows/release.yml` aligned when VSIX packaging, Open VSX publish, or release checks change.
 
 ## Validation
 

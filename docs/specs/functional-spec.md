@@ -144,6 +144,7 @@ VS Code 拡張のような editor integration は追加してよいが、build /
 ```text
 project/
   book.yml
+  AGENTS.md
   [prose] editorial/
     style.yml
     claims.yml
@@ -202,7 +203,7 @@ project/
 - 設定ファイル生成
 - 標準ディレクトリ作成
 - `.gitignore`, `.gitattributes` の作成
-- repo-scoped agent skill templates の生成
+- root `AGENTS.md` と repo-scoped agent skill templates の生成
 - Git リポジトリ初期化
 - 依存チェック案内
 

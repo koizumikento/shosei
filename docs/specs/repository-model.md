@@ -86,6 +86,7 @@
 ```text
 repo/
   book.yml
+  AGENTS.md
   .agents/
     skills/
       shosei-project/
@@ -116,6 +117,7 @@ repo/
 ```text
 repo/
   series.yml
+  AGENTS.md
   .agents/
     skills/
       shosei-project/

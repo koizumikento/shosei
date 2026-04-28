@@ -19,7 +19,7 @@ Rules in this file apply to `docs/` and documentation changes that update the pu
 - Prefer examples that reflect currently supported config fields and output behavior. Remove or rewrite stale examples instead of leaving them partially correct.
 - When documenting story workspaces, distinguish freeform `structures/` notes from the `scene_seeds` frontmatter contract that `story seed` reads.
 - For machine-readable command surfaces, keep `--json` docs aligned with the current CLI behavior instead of older report-file-only guidance.
-- When documenting `init`, keep the generated repo-scoped agent skill templates aligned with the current scaffold output under `.agents/skills/shosei-project/` and `.agents/skills/shosei-content-review/`.
+- When documenting `init`, keep the generated repo guidance aligned with the current scaffold output: root `AGENTS.md`, `.agents/skills/shosei-project/`, and `.agents/skills/shosei-content-review/`.
 - When documenting `init`, keep the implemented post-scaffold guidance aligned too: interactive Git setup may run `git init`, `git lfs install` is only suggested when `git.lfs: true`, and `shosei doctor` is either run explicitly or left as the printed follow-up hint.
 
 ## Spec-first Rules
@@ -37,9 +37,10 @@ Rules in this file apply to `docs/` and documentation changes that update the pu
 - Keep cross-platform smoke lists aligned across `../.github/workflows/ci.yml`, `../README.md`, `usage.md`, `../site/usage.html`, and `../crates/AGENTS.md`.
 - Keep `series sync` descriptions aligned across `specs/functional-spec.md`, `usage.md`, `../site/usage.html`, and `../README.md`, especially the generated catalog/backmatter scope.
 - Keep `validate --json` and `handoff <kindle|print|proof>` descriptions aligned across `specs/functional-spec.md`, `usage.md`, `../site/usage.html`, and `../README.md`.
-- Keep install and release guidance aligned across `../README.md`, `../site/install.html`, and `../editors/vscode/README.md` when GitHub Release assets, Homebrew / Scoop distribution, or VSIX packaging/update flow changes.
+- Keep install and release guidance aligned across `../README.md`, `../site/install.html`, and `../editors/vscode/README.md` when GitHub Release assets, Homebrew / Scoop distribution, Open VSX publish, or VSIX packaging/update flow changes.
 - Keep prose `validate --json` docs aligned on the `manuscript_stats` payload across `specs/functional-spec.md`, `usage.md`, `../site/usage.html`, and `../editors/vscode/README.md`.
 - Keep `validate --json` docs aligned on the `target_profile_validations` payload across `specs/functional-spec.md`, `usage.md`, and `../site/usage.html`.
+- Keep validation and handoff docs aligned on the `delivery_evidence` payload across `specs/functional-spec.md`, `usage.md`, `../site/usage.html`, and `../README.md`.
 - Keep the opt-in real Kindle Previewer evidence hook aligned across `specs/functional-spec.md`, `usage.md`, and `../README.md`; do not describe it as required CI.
 - Keep `specs/vscode-extension.md` and `../editors/vscode/README.md` aligned when the extension flow, scope, or ownership changes.
 - Keep recurring concept-fulfillment reviews aligned with `concept-fulfillment-rubric.md`, including weights, rounding, and comparison rules.

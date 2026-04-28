@@ -43,7 +43,7 @@ Keep examples and command handling aligned with the actually implemented surface
 - For current user flows, prefer examples in the order `init` -> `explain` -> `build` / `validate`.
 - Keep `init` guidance aligned across interactive and `--non-interactive --config-template ...` flows, including `paper` `--config-profile`, prose `--include-introduction` / `--include-afterword`, and `series` `--initial-book-id`.
 - Keep `init` follow-up guidance aligned with the implemented post-scaffold flow: interactive init can optionally run `shosei doctor`, and otherwise prints the `toolchain hint: run shosei doctor` reminder.
-- Keep `init` scaffold guidance aligned with the implemented repo-scoped agent skill templates under `.agents/skills/shosei-project/` and `.agents/skills/shosei-content-review/`.
+- Keep `init` scaffold guidance aligned with the implemented root `AGENTS.md` and repo-scoped agent skill templates under `.agents/skills/shosei-project/` and `.agents/skills/shosei-content-review/`.
 - `explain` is the supported way to inspect resolved config and origin data before running output commands.
 - Kindle-capable `init` scaffolds are expected to wire `cover.ebook_image` and placeholder cover assets so a fresh scaffold does not start with a missing-cover warning.
 - `preview` supports both one-shot output checks and a longer-running `--watch` loop. Describe `--watch` only for iterative local preview workflows.
@@ -56,8 +56,8 @@ Keep examples and command handling aligned with the actually implemented surface
 - Keep `story seed` examples book-scoped only. Do not imply that shared story workspaces or plain `story scaffold` populate `scenes.yml` or scene notes automatically.
 - `shosei story sync --report <path> --force` and `shosei reference sync --report <path> --force` are the batch replay flows; do not describe report-driven sync without the explicit reviewed report and `--force`.
 - `shosei page check` is for manga books only and inspects page order and spread-related issues without mutating prose chapter config.
-- `shosei validate --json` is supported. Keep the stdout JSON payload aligned with the written report schema, and reserve the human issue preview for non-JSON output.
-- `shosei handoff kindle`, `shosei handoff print`, and `shosei handoff proof` are the supported handoff destinations. Keep package contents and docs aligned with the implemented destination behavior.
+- `shosei validate --json` is supported. Keep the stdout JSON payload aligned with the written report schema, including `delivery_evidence`, and reserve the human issue preview for non-JSON output.
+- `shosei handoff kindle`, `shosei handoff print`, and `shosei handoff proof` are the supported handoff destinations. Keep package contents, `delivery_evidence`, and docs aligned with the implemented destination behavior.
 
 ## Validation
 
