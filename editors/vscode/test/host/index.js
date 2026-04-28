@@ -7,7 +7,9 @@ const path = require("node:path");
 
 const vscode = require("vscode");
 
-const EXTENSION_ID = "koizumikento.shosei-vscode";
+const packageJson = require("../../package.json");
+
+const EXTENSION_ID = `${packageJson.publisher}.${packageJson.name}`;
 const COMMAND_IDS = [
   "shosei.explain",
   "shosei.validate",

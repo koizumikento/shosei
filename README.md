@@ -59,7 +59,7 @@ README のコマンド例は、今の CLI surface に合わせています。`ca
 
 ## インストール
 
-tag 付き GitHub Release では CLI archive と VSIX を配布します。Homebrew / Scoop 向け manifest は package repository publish が通ったときに更新されます。VSIX は VS Code と Cursor の手動 install / update に使えます。source install も引き続き使えます。
+tag 付き GitHub Release では CLI archive と VSIX を配布します。Homebrew / Scoop 向け manifest は package repository publish が通ったときに更新されます。VSIX は Open VSX に publish され、VS Code と Cursor の手動 install / update にも使えます。source install も引き続き使えます。
 
 ### Homebrew (macOS)
 
@@ -98,9 +98,9 @@ cargo install --path crates/shosei-cli
 cargo run -p shosei-cli --bin shosei -- --help
 ```
 
-### VS Code / Cursor 拡張の更新
+### VS Code 互換拡張の更新
 
-拡張は GitHub Release の `shosei-vscode-<version>.vsix` を使います。既存の拡張を更新するときも、新しい VSIX を選んで再 install すれば置き換わります。
+Open VSX 対応 editor では Open VSX から更新できます。手動 install / update では GitHub Release の `shosei-vscode-<version>.vsix` を使います。既存の拡張を更新するときも、新しい VSIX を選んで再 install すれば置き換わります。
 
 - VS Code: `Extensions: Install from VSIX...`
 - Cursor: `Extensions: Install from VSIX...`

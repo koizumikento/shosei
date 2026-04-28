@@ -258,6 +258,40 @@ jobs:
 
           gh release upload "${RELEASE_TAG}" "${assets[@]}" --clobber
 
+  publish-openvsx:
+    needs:
+      - meta
+      - build-vscode
+      - release
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - name: Download VSIX artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: ${{ needs.meta.outputs.vsix_name }}
+          path: dist
+
+      - name: Publish VSIX to Open VSX
+        shell: bash
+        env:
+          OVSX_PAT: ${{ secrets.OPEN_VSX_TOKEN }}
+          VSIX_NAME: ${{ needs.meta.outputs.vsix_name }}
+        run: |
+          set -euo pipefail
+
+          if [[ -z "${OVSX_PAT:-}" ]]; then
+            echo "OPEN_VSX_TOKEN is not set; skipping Open VSX publish."
+            exit 0
+          fi
+
+          npx --yes ovsx@0.10.11 publish "dist/${VSIX_NAME}" --skip-duplicate
+
   publish-package-repo:
     needs:
       - meta

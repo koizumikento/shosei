@@ -3,7 +3,7 @@
   "displayName": "shosei",
   "description": "Run shosei publishing workflows from VS Code using the real shosei CLI.",
   "version": "0.2.5",
-  "publisher": "koizumikento",
+  "publisher": "straydog",
   "license": "MIT",
   "repository": {
     "type": "git",

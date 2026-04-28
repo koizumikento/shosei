@@ -6,7 +6,7 @@
     <title>shosei | Install</title>
     <meta
       name="description"
-      content="Install or update shosei with Homebrew, Scoop, or from source, and update the VS Code / Cursor extension from VSIX."
+      content="Install or update shosei with Homebrew, Scoop, or from source, and update the VS Code-compatible extension from Open VSX or VSIX."
     />
     <link rel="stylesheet" href="assets/style.css" />
   </head>
@@ -30,7 +30,7 @@
     <main class="content">
       <article class="page">
         <h1>Install</h1>
-        <p class="lead">tag 付き GitHub Release では CLI archive と VSIX を配布し、Homebrew / Scoop 向け manifest は package repository publish が通ったときに更新します。VSIX は VS Code と Cursor の手動 install / update に使えます。source install も引き続き使えます。</p>
+        <p class="lead">tag 付き GitHub Release では CLI archive と VSIX を配布し、Homebrew / Scoop 向け manifest は package repository publish が通ったときに更新します。VSIX は Open VSX に publish され、VS Code と Cursor の手動 install / update にも使えます。source install も引き続き使えます。</p>
 
         <section>
           <h2>Requirements</h2>
@@ -68,12 +68,12 @@ cargo install --path crates/shosei-cli</code></pre>
 
         <section>
           <h2>Release archives</h2>
-          <p>GitHub Release には `x86_64-unknown-linux-gnu`, `x86_64-apple-darwin`, `aarch64-apple-darwin`, `x86_64-pc-windows-msvc` の CLI archive と VSIX が載ります。Linux では `x86_64-unknown-linux-gnu` archive をそのまま展開して使えます。</p>
+          <p>GitHub Release には <code>x86_64-unknown-linux-gnu</code>, <code>x86_64-apple-darwin</code>, <code>aarch64-apple-darwin</code>, <code>x86_64-pc-windows-msvc</code> の CLI archive と VSIX が載ります。Linux では <code>x86_64-unknown-linux-gnu</code> archive をそのまま展開して使えます。</p>
         </section>
 
         <section>
           <h2>Update the extension</h2>
-          <p>GitHub Release の <code>shosei-vscode-&lt;version&gt;.vsix</code> を使います。既存の拡張を更新するときも、新しい VSIX を選んで再 install すれば置き換わります。</p>
+          <p>Open VSX 対応 editor では Open VSX から更新できます。手動 install / update では GitHub Release の <code>shosei-vscode-&lt;version&gt;.vsix</code> を使います。既存の拡張を更新するときも、新しい VSIX を選んで再 install すれば置き換わります。</p>
           <ul>
             <li>VS Code: <code>Extensions: Install from VSIX...</code></li>
             <li>Cursor: <code>Extensions: Install from VSIX...</code></li>
@@ -88,8 +88,8 @@ cargo install --path crates/shosei-cli</code></pre>
 
         <section>
           <h2>What gets installed</h2>
-          <p>GitHub Release archive は release asset の `shosei` binary を使います。Homebrew / Scoop は release 後に package repository publish が成功した場合、その archive を参照する formula / manifest から導入できます。</p>
-          <p>`cargo install --path crates/shosei-cli` は workspace 内の CLI crate から `shosei` バイナリを build して install します。VSIX は VS Code と Cursor の手動 install / update に使います。</p>
+          <p>GitHub Release archive は release asset の <code>shosei</code> binary を使います。Homebrew / Scoop は release 後に package repository publish が成功した場合、その archive を参照する formula / manifest から導入できます。</p>
+          <p><code>cargo install --path crates/shosei-cli</code> は workspace 内の CLI crate から <code>shosei</code> バイナリを build して install します。VSIX は Open VSX publish と VS Code / Cursor の手動 install / update に使います。</p>
         </section>
 
         <section>

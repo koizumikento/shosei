@@ -126,6 +126,7 @@ GitHub Release に VSIX を載せる workflow は `.github/workflows/release.yml
 
 - repo release tag は `shosei-cli` の version に合わせた `v<cli-version>` を使う
 - その tag を push すると VSIX と CLI binary archive を package して同名 release に asset として添付する
+- `OPEN_VSX_TOKEN` secret が設定されていれば、同じ VSIX を Open VSX に publish する
 - `workflow_dispatch` でも実行でき、tag 未指定なら `v<shosei-cli-version>` を使う
 - VSIX asset 名は `editors/vscode/package.json` の version を使う
 - release workflow では `npm ci`, `npm run check`, `npm test`, `npm run test:host` を通した後に package し、Ubuntu では `npm run test:package-smoke` で package 済み VSIX も確認する
@@ -147,7 +148,9 @@ shosei-v0.2.5-aarch64-apple-darwin.tar.gz
 shosei-v0.2.5-x86_64-pc-windows-msvc.zip
 ```
 
-Homebrew / Scoop 向け manifest の publish は release 後段の package repository push が通った場合だけ行う。CLI archive と VSIX 自体は GitHub Release asset として常に添付される。Cursor を含む VS Code 互換 editor の手動 update でも、この VSIX を使う。
+Open VSX publish には repo の Actions secret `OPEN_VSX_TOKEN` を使う。Open VSX 側では `package.json` の `publisher` である `straydog` namespace が事前に作成されている必要がある。release 再実行時は `ovsx publish --skip-duplicate` で既存 version を重複 publish しない。
+
+Homebrew / Scoop 向け manifest の publish は release 後段の package repository push が通った場合だけ行う。CLI archive と VSIX 自体は GitHub Release asset として常に添付される。Open VSX 対応 editor は registry から更新でき、Cursor を含む VS Code 互換 editor の手動 update でも、この VSIX を使う。
 
 ## Development
 
