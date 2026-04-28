@@ -33,6 +33,7 @@ Architecture Decision Record の一覧。
 - [ADR-0029: prose の default design は scaffolded stylesheet で持ち、build 時に適用する](0029-prose-default-design-lives-in-scaffolded-stylesheets.md)
 - [ADR-0030: 縦組み prose print は Chromium backend を使う](0030-vertical-prose-print-uses-chromium.md)
 - [ADR-0031: Kindle Previewer validation is opt-in](0031-kindle-previewer-validation-is-opt-in.md)
+- [ADR-0032: delivery evidence exposes submission readiness](0032-delivery-evidence-readiness-contract.md)
 
 記法:
 
