@@ -630,7 +630,7 @@ GitHub Actions の CI は `ubuntu-latest`, `macos-latest`, `windows-latest` の 
 - `shosei doctor --json`
 - `shosei --help`
 
-合わせて `cargo test --workspace` と `cargo test -p shosei-core --test repo_discovery` も走る。epubcheck / print validator / Kindle Previewer validator の smoke は Unix shell fixture を使うため Ubuntu / macOS で回す。VS Code adapter については `npm ci` の後に `npm run check`, `npm test`, `npm run test:host` を別 job で継続確認し、Ubuntu では `npm run test:package-smoke` で package 済み VSIX の smoke も回す。
+合わせて `cargo test --workspace` と `cargo test -p shosei-core --test repo_discovery` も走る。epubcheck / print validator / Kindle Previewer validator の smoke は platform-specific fake tool fixture を使い、Ubuntu / macOS / Windows の 3 OS すべてで回す。VS Code adapter については `npm ci` の後に `npm run check`, `npm test`, `npm run test:host` を別 job で継続確認し、Ubuntu では `npm run test:package-smoke` で package 済み VSIX の smoke も回す。
 
 実物 Kindle Previewer は proprietary / OS-dependent なので required CI には含めない。release operator や maintainer が実物 tool の conversion evidence を残したい場合は、対応 host 上で次を実行する。
 

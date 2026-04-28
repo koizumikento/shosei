@@ -348,7 +348,7 @@ npm run test:host
 npm run test:package-smoke
 ```
 
-GitHub Actions では CLI smoke を `ubuntu-latest`, `macos-latest`, `windows-latest` の 3 OS matrix で回す。`epubcheck`, `qpdf`, Kindle Previewer の validator contract smoke は Unix shell fixture を使うため Ubuntu / macOS で回す。VS Code adapter は `npm ci` の後に `npm run check`, `npm test`, `npm run test:host` を 3 OS で、`npm run test:package-smoke` を Ubuntu で継続確認する。
+GitHub Actions では CLI smoke を `ubuntu-latest`, `macos-latest`, `windows-latest` の 3 OS matrix で回す。`epubcheck`, `qpdf`, Kindle Previewer の validator contract smoke も platform-specific fake tool fixture で 3 OS すべて継続確認する。VS Code adapter は `npm ci` の後に `npm run check`, `npm test`, `npm run test:host` を 3 OS で、`npm run test:package-smoke` を Ubuntu で継続確認する。
 
 ## コントリビュート
 

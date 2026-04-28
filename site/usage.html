@@ -643,7 +643,7 @@ shosei handoff proof</code></pre>
             <li><code>shosei doctor --json</code></li>
             <li><code>shosei --help</code></li>
           </ul>
-          <p>合わせて <code>cargo test --workspace</code> と <code>cargo test -p shosei-core --test repo_discovery</code> も走ります。epubcheck / print validator / Kindle Previewer validator の smoke は Unix shell fixture を使うため Ubuntu / macOS で回します。VS Code adapter については <code>npm ci</code> の後に <code>npm run check</code>, <code>npm test</code>, <code>npm run test:host</code> を別 job で継続確認し、Ubuntu では <code>npm run test:package-smoke</code> で package 済み VSIX の smoke も回します。</p>
+          <p>合わせて <code>cargo test --workspace</code> と <code>cargo test -p shosei-core --test repo_discovery</code> も走ります。epubcheck / print validator / Kindle Previewer validator の smoke は platform-specific fake tool fixture を使い、Ubuntu / macOS / Windows の 3 OS すべてで回します。VS Code adapter については <code>npm ci</code> の後に <code>npm run check</code>, <code>npm test</code>, <code>npm run test:host</code> を別 job で継続確認し、Ubuntu では <code>npm run test:package-smoke</code> で package 済み VSIX の smoke も回します。</p>
           <p>実物 Kindle Previewer は proprietary / OS-dependent なので required CI には含めません。release operator や maintainer が実物 tool の conversion evidence を残したい場合は、対応 host 上で次を実行します。</p>
           <pre><code>scripts/validate-real-kindle-previewer.sh</code></pre>
           <p>この hook は一時 workspace に最小構成の Kindle project を作り、<code>validation.kindle_previewer: true</code> で <code>shosei validate --json</code> を実行します。成功時は <code>dist/reports/default-validate.json</code> と <code>dist/logs/default-kindle-previewer-validate.log</code> を evidence として確認できます。</p>

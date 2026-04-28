@@ -82,7 +82,6 @@ git:
     .unwrap();
 }
 
-#[cfg(unix)]
 fn write_clean_kindle_validate_fixture(root: &Path, enable_epubcheck: bool) {
     fs::create_dir_all(root.join("manuscript")).unwrap();
     fs::create_dir_all(root.join("assets/cover")).unwrap();
@@ -123,7 +122,6 @@ git:
     .unwrap();
 }
 
-#[cfg(unix)]
 fn write_print_validate_fixture(root: &Path) {
     fs::create_dir_all(root.join("manuscript")).unwrap();
     fs::write(root.join("manuscript/01.md"), "# Chapter 1\n").unwrap();
@@ -681,6 +679,19 @@ fn write_fake_pandoc(root: &Path) -> PathBuf {
     tools_dir
 }
 
+#[cfg(windows)]
+fn write_fake_batch_tool(root: &Path, name: &str, message: &str, exit_code: i32) -> PathBuf {
+    let tools_dir = root.join("tools");
+    fs::create_dir_all(&tools_dir).unwrap();
+    let tool = tools_dir.join(format!("{name}.cmd"));
+    fs::write(
+        &tool,
+        format!("@echo off\r\necho {message}\r\nexit /b {exit_code}\r\n"),
+    )
+    .unwrap();
+    tools_dir
+}
+
 #[cfg(unix)]
 fn write_fake_epubcheck(root: &Path) -> PathBuf {
     use std::os::unix::fs::PermissionsExt;
@@ -700,6 +711,11 @@ exit 0
     permissions.set_mode(0o755);
     fs::set_permissions(&epubcheck, permissions).unwrap();
     tools_dir
+}
+
+#[cfg(windows)]
+fn write_fake_epubcheck(root: &Path) -> PathBuf {
+    write_fake_batch_tool(root, "epubcheck", "fake epubcheck", 0)
 }
 
 #[cfg(unix)]
@@ -723,6 +739,11 @@ exit 2
     tools_dir
 }
 
+#[cfg(windows)]
+fn write_fake_failing_epubcheck(root: &Path) -> PathBuf {
+    write_fake_batch_tool(root, "epubcheck", "fake epubcheck failure", 2)
+}
+
 #[cfg(unix)]
 fn write_fake_qpdf(root: &Path) -> PathBuf {
     use std::os::unix::fs::PermissionsExt;
@@ -742,6 +763,11 @@ exit 0
     permissions.set_mode(0o755);
     fs::set_permissions(&qpdf, permissions).unwrap();
     tools_dir
+}
+
+#[cfg(windows)]
+fn write_fake_qpdf(root: &Path) -> PathBuf {
+    write_fake_batch_tool(root, "qpdf", "fake qpdf", 0)
 }
 
 #[cfg(unix)]
@@ -765,6 +791,11 @@ exit 2
     tools_dir
 }
 
+#[cfg(windows)]
+fn write_fake_failing_qpdf(root: &Path) -> PathBuf {
+    write_fake_batch_tool(root, "qpdf", "fake qpdf failure", 2)
+}
+
 #[cfg(unix)]
 fn write_fake_kindle_previewer(root: &Path) -> PathBuf {
     use std::os::unix::fs::PermissionsExt;
@@ -784,6 +815,11 @@ exit 0
     permissions.set_mode(0o755);
     fs::set_permissions(&previewer, permissions).unwrap();
     tools_dir
+}
+
+#[cfg(windows)]
+fn write_fake_kindle_previewer(root: &Path) -> PathBuf {
+    write_fake_batch_tool(root, "kindlepreviewer", "fake Kindle Previewer", 0)
 }
 
 #[cfg(unix)]
@@ -807,6 +843,11 @@ exit 0
     tools_dir
 }
 
+#[cfg(windows)]
+fn write_fake_weasyprint(root: &Path) -> PathBuf {
+    write_fake_batch_tool(root, "weasyprint", "fake weasyprint", 0)
+}
+
 fn prepend_path(path: &Path) -> std::ffi::OsString {
     let current = env::var_os("PATH").unwrap_or_default();
     let mut paths = vec![path.to_path_buf()];
@@ -822,6 +863,11 @@ fn fixture_path(path: &Path) -> std::ffi::OsString {
         PathBuf::from("/bin"),
     ])
     .unwrap()
+}
+
+#[cfg(windows)]
+fn fixture_path(path: &Path) -> std::ffi::OsString {
+    env::join_paths([path.to_path_buf()]).unwrap()
 }
 
 #[test]
@@ -868,7 +914,6 @@ fn validate_cli_can_emit_json_report() {
     assert!(parsed["checks"].is_array());
 }
 
-#[cfg(unix)]
 #[test]
 fn validate_cli_json_includes_epubcheck_runs() {
     let root = temp_dir("validate-kindle-epubcheck-json");
@@ -931,7 +976,6 @@ fn validate_cli_json_includes_epubcheck_runs() {
     );
 }
 
-#[cfg(unix)]
 #[test]
 fn validate_cli_json_records_missing_epubcheck_without_failing() {
     let root = temp_dir("validate-kindle-missing-epubcheck-json");
@@ -969,7 +1013,6 @@ fn validate_cli_json_records_missing_epubcheck_without_failing() {
     assert_eq!(epubcheck["summary"], "epubcheck executable is unavailable");
 }
 
-#[cfg(unix)]
 #[test]
 fn validate_cli_json_fails_when_epubcheck_reports_errors() {
     let root = temp_dir("validate-kindle-failing-epubcheck-json");
@@ -1011,7 +1054,6 @@ fn validate_cli_json_fails_when_epubcheck_reports_errors() {
     );
 }
 
-#[cfg(unix)]
 #[test]
 fn validate_cli_json_includes_print_validator_runs() {
     let root = temp_dir("validate-print-json");
@@ -1070,7 +1112,6 @@ fn validate_cli_json_includes_print_validator_runs() {
     );
 }
 
-#[cfg(unix)]
 #[test]
 fn validate_cli_json_records_missing_print_validator_without_failing() {
     let root = temp_dir("validate-print-missing-qpdf-json");
@@ -1099,7 +1140,6 @@ fn validate_cli_json_records_missing_print_validator_without_failing() {
     );
 }
 
-#[cfg(unix)]
 #[test]
 fn validate_cli_json_fails_when_print_validator_reports_errors() {
     let root = temp_dir("validate-print-failing-qpdf-json");
@@ -1128,7 +1168,6 @@ fn validate_cli_json_fails_when_print_validator_reports_errors() {
     );
 }
 
-#[cfg(unix)]
 #[test]
 fn validate_cli_json_includes_kindle_previewer_runs() {
     let root = temp_dir("validate-kindle-previewer-json");
@@ -2477,12 +2516,10 @@ fn handoff_kindle_cli_packages_manifest_with_artifact_details() {
 fn handoff_print_cli_packages_manga_pdf() {
     let root = temp_dir("handoff-print");
     write_handoff_manga_fixture(&root, true);
-    #[cfg(unix)]
     let tools_dir = write_fake_qpdf(&root);
 
     let mut command = Command::new(env!("CARGO_BIN_EXE_shosei"));
     command.args(["handoff", "print", "--path", root.to_str().unwrap()]);
-    #[cfg(unix)]
     command.env("PATH", prepend_path(&tools_dir));
     let output = command.output().unwrap();
 
@@ -2490,7 +2527,6 @@ fn handoff_print_cli_packages_manga_pdf() {
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("handoff packaged for default (print)"));
     assert!(stdout.contains("default-print-manga.pdf"));
-    #[cfg(unix)]
     assert!(!stdout.contains("warning: delivery evidence is incomplete"));
 
     let package_dir = root.join("dist/handoff/default-print");

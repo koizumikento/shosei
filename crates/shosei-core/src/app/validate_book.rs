@@ -3430,7 +3430,6 @@ mod tests {
         }
     }
 
-    #[cfg(unix)]
     fn fake_toolchain_with_paths(
         pandoc: Option<PathBuf>,
         epubcheck: Option<PathBuf>,
@@ -3517,7 +3516,6 @@ mod tests {
         }
     }
 
-    #[cfg(unix)]
     fn fake_toolchain_with_kindle_previewer(
         pandoc: PathBuf,
         kindle_previewer: PathBuf,
@@ -3541,15 +3539,41 @@ mod tests {
         report
     }
 
-    #[cfg(unix)]
     fn write_fake_pandoc(root: &std::path::Path) -> PathBuf {
+        write_fake_tool(root, "pandoc", 0, None)
+    }
+
+    fn write_fake_tool(
+        root: &std::path::Path,
+        name: &str,
+        exit_code: i32,
+        args_path: Option<&std::path::Path>,
+    ) -> PathBuf {
+        #[cfg(unix)]
+        {
+            write_fake_unix_tool(root, name, exit_code, args_path)
+        }
+        #[cfg(windows)]
+        {
+            write_fake_windows_tool(root, name, exit_code, args_path)
+        }
+    }
+
+    #[cfg(unix)]
+    fn write_fake_unix_tool(
+        root: &std::path::Path,
+        name: &str,
+        exit_code: i32,
+        args_path: Option<&std::path::Path>,
+    ) -> PathBuf {
         use std::os::unix::fs::PermissionsExt;
 
-        let pandoc = root.join("pandoc");
-        fs::write(
-            &pandoc,
-            r#"#!/bin/sh
-out=""
+        let tool = root.join(name);
+        let args_capture = args_path
+            .map(|path| format!("printf '%s\\n' \"$@\" > \"{}\"\n", path.display()))
+            .unwrap_or_default();
+        let body = if name == "pandoc" {
+            r#"out=""
 prev=""
 for arg in "$@"; do
   if [ "$prev" = "--output" ]; then
@@ -3559,97 +3583,80 @@ for arg in "$@"; do
 done
 mkdir -p "$(dirname "$out")"
 printf 'fake epub' > "$out"
-"#,
-        )
-        .unwrap();
-        let mut permissions = fs::metadata(&pandoc).unwrap().permissions();
+"#
+            .to_string()
+        } else {
+            format!("{args_capture}echo \"fake {name}\"\nexit {exit_code}\n")
+        };
+        fs::write(&tool, format!("#!/bin/sh\n{body}")).unwrap();
+        let mut permissions = fs::metadata(&tool).unwrap().permissions();
         permissions.set_mode(0o755);
-        fs::set_permissions(&pandoc, permissions).unwrap();
-        pandoc
+        fs::set_permissions(&tool, permissions).unwrap();
+        tool
     }
 
-    #[cfg(unix)]
+    #[cfg(windows)]
+    fn write_fake_windows_tool(
+        root: &std::path::Path,
+        name: &str,
+        exit_code: i32,
+        args_path: Option<&std::path::Path>,
+    ) -> PathBuf {
+        let tool = root.join(format!("{name}.cmd"));
+        let args_capture = args_path
+            .map(|path| {
+                format!(
+                    "break > \"{}\"\r\n:args_loop\r\nif \"%~1\"==\"\" goto args_done\r\n>> \"{}\" echo %~1\r\nshift\r\ngoto args_loop\r\n:args_done\r\n",
+                    path.display(),
+                    path.display()
+                )
+            })
+            .unwrap_or_default();
+        let body = if name == "pandoc" {
+            r#"setlocal enabledelayedexpansion
+set "out="
+set "prev="
+:loop
+if "%~1"=="" goto done
+if "!prev!"=="--output" set "out=%~1"
+set "prev=%~1"
+shift
+goto loop
+:done
+if "%out%"=="" exit /b 1
+for %%I in ("%out%") do if not exist "%%~dpI" mkdir "%%~dpI" >nul 2>&1
+> "%out%" echo fake epub
+"#
+            .to_string()
+        } else {
+            format!("{args_capture}echo fake {name}\r\nexit /b {exit_code}\r\n")
+        };
+        fs::write(&tool, format!("@echo off\r\n{body}")).unwrap();
+        tool
+    }
+
     fn write_fake_epubcheck(
         root: &std::path::Path,
         exit_code: i32,
         args_path: &std::path::Path,
     ) -> PathBuf {
-        use std::os::unix::fs::PermissionsExt;
-
-        let epubcheck = root.join("epubcheck");
-        fs::write(
-            &epubcheck,
-            format!(
-                r#"#!/bin/sh
-printf '%s\n' "$@" > "{}"
-echo "fake epubcheck"
-exit {}
-"#,
-                args_path.display(),
-                exit_code
-            ),
-        )
-        .unwrap();
-        let mut permissions = fs::metadata(&epubcheck).unwrap().permissions();
-        permissions.set_mode(0o755);
-        fs::set_permissions(&epubcheck, permissions).unwrap();
-        epubcheck
+        write_fake_tool(root, "epubcheck", exit_code, Some(args_path))
     }
 
-    #[cfg(unix)]
     fn write_fake_kindle_previewer(
         root: &std::path::Path,
         exit_code: i32,
         args_path: &std::path::Path,
     ) -> PathBuf {
-        use std::os::unix::fs::PermissionsExt;
-
-        let previewer = root.join("kindlepreviewer");
-        fs::write(
-            &previewer,
-            format!(
-                r#"#!/bin/sh
-printf '%s\n' "$@" > "{}"
-echo "fake Kindle Previewer"
-exit {}
-"#,
-                args_path.display(),
-                exit_code
-            ),
-        )
-        .unwrap();
-        let mut permissions = fs::metadata(&previewer).unwrap().permissions();
-        permissions.set_mode(0o755);
-        fs::set_permissions(&previewer, permissions).unwrap();
-        previewer
+        write_fake_tool(root, "kindlepreviewer", exit_code, Some(args_path))
     }
 
-    #[cfg(unix)]
     fn write_fake_qpdf(
         root: &std::path::Path,
         exit_code: i32,
         args_path: &std::path::Path,
     ) -> PathBuf {
-        use std::os::unix::fs::PermissionsExt;
-
-        let qpdf = root.join("qpdf");
-        fs::write(
-            &qpdf,
-            format!(
-                r#"#!/bin/sh
-printf '%s\n' "$@" > "{}"
-echo "fake qpdf"
-exit {}
-"#,
-                args_path.display(),
-                exit_code
-            ),
-        )
-        .unwrap();
-        let mut permissions = fs::metadata(&qpdf).unwrap().permissions();
-        permissions.set_mode(0o755);
-        fs::set_permissions(&qpdf, permissions).unwrap();
-        qpdf
+        write_fake_tool(root, "qpdf", exit_code, Some(args_path))
     }
 
     fn write_print_book_with_profile(
@@ -3993,7 +4000,6 @@ manga:
         bytes
     }
 
-    #[cfg(unix)]
     #[test]
     fn validate_records_missing_epubcheck_without_failing() {
         let root = temp_dir("missing-epubcheck");
@@ -4020,7 +4026,6 @@ manga:
         assert!(report.contains("epubcheck executable is unavailable"));
     }
 
-    #[cfg(unix)]
     #[test]
     fn validate_runs_epubcheck_against_generated_kindle_artifact() {
         let root = temp_dir("epubcheck-success");
@@ -4051,7 +4056,6 @@ manga:
         assert!(args.contains(".epub"));
     }
 
-    #[cfg(unix)]
     #[test]
     fn validate_reports_epubcheck_failures() {
         let root = temp_dir("epubcheck-failure");
@@ -4084,7 +4088,6 @@ manga:
         assert!(args.contains(".epub"));
     }
 
-    #[cfg(unix)]
     #[test]
     fn validate_runs_kindle_previewer_against_generated_epub() {
         let root = temp_dir("kindle-previewer-success");
@@ -4124,7 +4127,6 @@ manga:
         assert!(args[3].ends_with("default-kindle-previewer"));
     }
 
-    #[cfg(unix)]
     #[test]
     fn validate_records_missing_kindle_previewer_without_failing() {
         let root = temp_dir("missing-kindle-previewer");
@@ -4181,7 +4183,6 @@ manga:
         assert!(report.contains("\"status\": \"missing-tool\""));
     }
 
-    #[cfg(unix)]
     #[test]
     fn validate_runs_qpdf_against_generated_print_artifact() {
         let root = temp_dir("qpdf-success");
@@ -4270,7 +4271,6 @@ manga:
         assert_eq!(evidence.submission_readiness[0].status, "ready");
     }
 
-    #[cfg(unix)]
     #[test]
     fn validate_reports_qpdf_failures() {
         let root = temp_dir("qpdf-failure");
