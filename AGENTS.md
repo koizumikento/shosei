@@ -12,6 +12,7 @@ Keep this root file short and repo-wide. Put specialized rules near the code the
 - `docs/AGENTS.md`: specs, ADRs, usage docs, and site sync
 - `crates/AGENTS.md`: Rust CLI/core implementation and validation rules
 - `editors/vscode/AGENTS.md`: VS Code adapter rules
+- `.codex/agents/*.toml`: project-scoped Codex custom subagents
 
 Add deeper `AGENTS.md` files only when a subtree has materially different rules.
 
@@ -56,6 +57,13 @@ If a surface cannot be justified, do not change it.
 
 - For read-heavy tasks, prefer delegating the repository exploration and summary pass first when subagents are available and allowed.
 - Skip delegation for small, targeted reads where spawning a subagent adds more overhead than value.
+
+## Custom Subagents
+
+- Keep project-scoped Codex custom subagents under `.codex/agents/*.toml`.
+- Keep review, research, and exploration subagents read-only by default.
+- Use `.agents/skills/` only for repo-scoped agent skills generated or maintained by `shosei init`; do not put Codex custom subagent TOML there.
+- Prefer narrow subagents with clear boundaries over broad catch-all roles.
 
 ## Cross-surface Sync
 
