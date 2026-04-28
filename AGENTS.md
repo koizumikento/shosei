@@ -57,6 +57,9 @@ If a surface cannot be justified, do not change it.
 
 - For read-heavy tasks, prefer delegating the repository exploration and summary pass first when subagents are available and allowed.
 - Skip delegation for small, targeted reads where spawning a subagent adds more overhead than value.
+- Use `shosei-explorer` before broad or ambiguous implementation work to map source-of-truth files, edit surfaces, sync obligations, and focused validation.
+- Use `shosei-sync-auditor` during or after cross-surface changes to check required mirrors before final review.
+- Use `shosei-reviewer` for findings-first review of a proposed change or working-tree diff.
 
 ## Custom Subagents
 
