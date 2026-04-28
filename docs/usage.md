@@ -383,16 +383,18 @@ severity は `validation.accessibility`, `validation.missing_image`, `validation
 issue の `location` は、特定できる場合は file path に加えて line 番号も持つ。
 CLI では summary の後に、先頭最大 5 件の issue を `原因 / 発生箇所 / 修正例` の形で続けて表示する。
 
-`validate --json` は同じ report schema を stdout に出す。file へ書き出す report には `checks`, `target_profile_validations`, `validators`, `issues` を含み、prose では `manuscript_stats` も含む。`target_profile_validations` には Kindle / print の target、book profile、target / PDF standard / profile default の判定 summary が入る。external validator を実行した場合は `artifact`, `log_path`, `summary` も取れる。
+`validate --json` は同じ report schema を stdout に出す。file へ書き出す report には `checks`, `target_profile_validations`, `validators`, `delivery_evidence`, `issues` を含み、prose では `manuscript_stats` も含む。`target_profile_validations` には Kindle / print の target、book profile、target / PDF standard / profile default の判定 summary が入る。external validator を実行した場合は `artifact`, `log_path`, `summary` も取れる。
 
 現在の `validate` は local lint と tool availability check に加えて、Kindle 出力が有効で `validation.epubcheck: true` のときは生成した EPUB に対して `epubcheck` を走らせる。Kindle 出力が有効で `validation.kindle_previewer: true` のときは、生成した Kindle artifact に対して Kindle Previewer の conversion check も試みる。print 出力が有効なときは生成した PDF に対して `qpdf --check` も試みる。`epubcheck`, `qpdf`, Kindle Previewer が未導入でも `validators[]` に `missing-tool` として記録し、validation 自体はそれだけでは fail にしない。これらの validator の検査失敗は validation error として返す。validator の詳細ログは `dist/logs/` に保存し、report から参照できる。validator 前提の build が失敗した場合も validator entry 自体は `failed` または `skipped` として残り、`summary` と `log_path` で build prerequisite failure を読める。
+
+`delivery_evidence` は提出前に読む evidence summary。`schema_version`, `host_os`, `summary`, `required_ci_checks`, `release_checks`, `unsupported_checks` を持つ。required CI で継続確認する local structural / target-profile checks と、release host で読む opt-in validator evidence を分けている。`summary.status` は `passed`, `failed`, `incomplete` のいずれかで、missing optional tool、skipped validator、未実装の store/device validator が残る場合は `incomplete` になる。profile recommendation は `summary.warnings` に数え、実行 evidence の欠落とは扱わない。
 
 validator confidence は次の層で読む。
 
 | Layer | What is proven | How to use it |
 |---|---|---|
 | Local structural checks | config / preflight / manuscript / target-profile checks | `shosei validate` の標準結果として読む |
-| Portable external validators | `epubcheck` / `qpdf` の `passed` / `failed` / `missing-tool` / `skipped` | tool がある release host では実行し、ない host では `missing-tool` を明示的に扱う |
+| Portable external validators | `epubcheck` / `qpdf` の `passed` / `failed` / `missing-tool` / `skipped` と `delivery_evidence.release_checks[]` | tool がある release host では実行し、ない host では `missing-tool` を明示的に扱う |
 | Kindle Previewer report contract | fake executable による `validators[]`, `log_path`, failure semantics | required CI の保証として読む |
 | Real Kindle Previewer conversion | 実物 Kindle Previewer が生成 artifact を変換できること | Kindle handoff 前に `scripts/validate-real-kindle-previewer.sh` で opt-in 確認する |
 | Additional store/device validators | 未実装 | future work として扱う |
@@ -575,7 +577,7 @@ shosei handoff proof
 - `handoff print`: 対応する print artifact、`reports/validate.json`、`manifest.json` を package に含める
 - `handoff proof`: build できた artifact 全件、`reports/validate.json`、`review-notes.md`、`reports/review-packet.json` を package に含める。prose では editorial sidecar もコピーする
 
-`manifest.json` には `build_summary`, `build_stages`, `build_inputs`, `selected_artifacts`, `selected_artifact_details`, `validation_report`, `git_commit`, `git_dirty`, `dirty_worktree_warning` を含める。`proof` では加えて `review_notes`, `review_packet`, `editorial_summary`, `editorial_files` も入る。
+`manifest.json` には `build_summary`, `build_stages`, `build_inputs`, `selected_artifacts`, `selected_artifact_details`, `validation_report`, `delivery_evidence`, `git_commit`, `git_dirty`, `dirty_worktree_warning` を含める。`proof` では加えて `review_notes`, `review_packet`, `editorial_summary`, `editorial_files` も入る。
 
 `selected_artifact_details` の各 entry には `channel`, `target`, `path`, `primary_tool`, `target_profile`, `artifact_metadata` を含める。`artifact_metadata` には少なくとも次を入れる。
 

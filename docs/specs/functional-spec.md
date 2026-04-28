@@ -306,6 +306,21 @@ v0.2 の最小要件:
 - 外部 validator を実行できない場合も、missing tool / skipped validator を report に残す
 - 外部 validator の詳細ログは `dist/logs/` に保存し、report から参照できる
 - Kindle Previewer は proprietary / OS-dependent な tool なので、`validation.kindle_previewer: true` のときだけ optional device-oriented validator として実行する
+- report には top-level `delivery_evidence` を含め、portable required CI checks、release/maintainer opt-in checks、未実装の store/device validator を分けて記録する
+- `delivery_evidence.summary.status` は `passed`, `failed`, `incomplete` のいずれかとし、missing optional tool、skipped validator、future-work validator が残る場合は `incomplete` とする
+
+`delivery_evidence` contract:
+
+| Field | Meaning |
+|---|---|
+| `schema_version` | delivery evidence schema version。v0.2 では `1` |
+| `host_os` | report を生成した OS。`macos`, `windows`, `linux` など Rust の host OS 名を使う |
+| `summary` | status と `passed` / `warnings` / `failed` / `missing_tool` / `skipped` / `not_implemented` counts |
+| `required_ci_checks[]` | required CI で継続確認する portable evidence。local structural validation と target-profile validation を含む |
+| `release_checks[]` | release operator / maintainer が読む opt-in evidence。`validators[]` の各 external validator run を layer 付きで再掲する |
+| `unsupported_checks[]` | 現時点で未実装の delivery validator。Kindle 出力では Kindle Previewer beyond の store/device validator を `not-implemented` として明示する |
+
+`release_checks[]` は既存の `validators[]` と同じ `status`, `artifact`, `log_path`, `summary` を持つ。`epubcheck` / `qpdf` は `portable-external-validator`、Kindle Previewer は `opt-in-device-oriented-validator` として分類する。これにより Windows/macOS/Linux の差分は `host_os` と validator status に残し、required CI で証明できない real-tool execution を required proof として扱わない。
 
 validator confidence は次の層で扱う。
 
@@ -409,6 +424,7 @@ v0.2 の最小要件:
 - 本体成果物
 - 仕様サマリ
 - build 情報
+- `delivery_evidence` を含む validate report と manifest summary
 - commit 情報
 - proof 向け review note
 
