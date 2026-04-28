@@ -143,6 +143,8 @@ struct EditorialSummary {
 struct ReviewPacket {
     book_id: String,
     issue_summary: ReviewIssueSummary,
+    delivery_readiness: Vec<crate::app::validate_book::DeliverySubmissionReadinessReport>,
+    missing_delivery_evidence: Vec<crate::app::validate_book::DeliveryEvidenceCheckReport>,
     issues: Vec<crate::diagnostics::ValidationIssue>,
     reviewer_notes: Vec<String>,
     editorial_summary: Option<EditorialSummary>,
@@ -293,6 +295,7 @@ fn handoff_with_toolchain(
             &package_dir.join("review-notes.md"),
             &book.id,
             &validate_result.issues,
+            &validate_result.delivery_evidence,
             editorial.as_ref(),
         )?)
     } else {
@@ -303,6 +306,7 @@ fn handoff_with_toolchain(
             &reports_dir.join("review-packet.json"),
             &book.id,
             &validate_result.issues,
+            &validate_result.delivery_evidence,
             editorial.as_ref(),
         )?)
     } else {
@@ -394,6 +398,9 @@ fn handoff_with_toolchain(
     if dirty_worktree_warning {
         summary.push_str(", warning: git worktree is dirty");
     }
+    if !delivery_evidence_ready_for_destination(&manifest.delivery_evidence, destination) {
+        summary.push_str(", warning: delivery evidence is incomplete");
+    }
 
     Ok(HandoffResult {
         summary,
@@ -406,12 +413,14 @@ fn write_review_notes(
     path: &Path,
     book_id: &str,
     issues: &[crate::diagnostics::ValidationIssue],
+    delivery_evidence: &DeliveryEvidenceReport,
     editorial: Option<&editorial::EditorialBundle>,
 ) -> Result<PathBuf, HandoffError> {
     let mut lines = vec![
         format!("# Review Notes: {book_id}"),
         String::new(),
         format!("- open issues: {}", issues.len()),
+        format!("- delivery evidence: {}", delivery_evidence.summary.status),
     ];
 
     if let Some(editorial) = editorial {
@@ -491,6 +500,24 @@ fn write_review_notes(
         }
     }
 
+    lines.push(String::new());
+    lines.push("## Delivery Evidence".to_string());
+    for readiness in &delivery_evidence.submission_readiness {
+        lines.push(format!(
+            "- {}: {} ({})",
+            readiness.target, readiness.status, readiness.summary
+        ));
+    }
+    let missing_evidence = missing_delivery_evidence(delivery_evidence);
+    if missing_evidence.is_empty() {
+        lines.push("- missing evidence: none".to_string());
+    } else {
+        lines.push("- missing evidence:".to_string());
+        for check in missing_evidence {
+            lines.push(format!("- {}: {}", check.name, check.summary));
+        }
+    }
+
     fs::write(path, lines.join("\n")).map_err(|source| HandoffError::WriteReviewNotes {
         path: path.to_path_buf(),
         source,
@@ -502,9 +529,10 @@ fn write_review_packet(
     path: &Path,
     book_id: &str,
     issues: &[crate::diagnostics::ValidationIssue],
+    delivery_evidence: &DeliveryEvidenceReport,
     editorial: Option<&editorial::EditorialBundle>,
 ) -> Result<PathBuf, HandoffError> {
-    let packet = build_review_packet(book_id, issues, editorial);
+    let packet = build_review_packet(book_id, issues, delivery_evidence, editorial);
     let contents = serde_json::to_string_pretty(&packet).map_err(|source| {
         HandoffError::SerializeReviewPacket {
             path: path.to_path_buf(),
@@ -521,6 +549,7 @@ fn write_review_packet(
 fn build_review_packet(
     book_id: &str,
     issues: &[crate::diagnostics::ValidationIssue],
+    delivery_evidence: &DeliveryEvidenceReport,
     editorial: Option<&editorial::EditorialBundle>,
 ) -> ReviewPacket {
     let warnings = issues
@@ -596,6 +625,11 @@ fn build_review_packet(
             warnings,
             errors,
         },
+        delivery_readiness: delivery_evidence.submission_readiness.clone(),
+        missing_delivery_evidence: missing_delivery_evidence(delivery_evidence)
+            .into_iter()
+            .cloned()
+            .collect(),
         issues: issues.to_vec(),
         reviewer_notes,
         editorial_summary: editorial.map(build_editorial_summary),
@@ -603,6 +637,40 @@ fn build_review_packet(
         figures,
         freshness,
     }
+}
+
+fn missing_delivery_evidence(
+    delivery_evidence: &DeliveryEvidenceReport,
+) -> Vec<&crate::app::validate_book::DeliveryEvidenceCheckReport> {
+    delivery_evidence
+        .required_ci_checks
+        .iter()
+        .chain(delivery_evidence.release_checks.iter())
+        .chain(delivery_evidence.manual_checks.iter())
+        .filter(|check| {
+            check.blocking
+                && matches!(
+                    check.status.as_str(),
+                    "failed" | "error" | "missing-tool" | "skipped" | "manual-required"
+                )
+        })
+        .collect()
+}
+
+fn delivery_evidence_ready_for_destination(
+    delivery_evidence: &DeliveryEvidenceReport,
+    destination: &str,
+) -> bool {
+    if destination == "proof" {
+        return delivery_evidence.summary.ready_for_handoff;
+    }
+
+    delivery_evidence
+        .submission_readiness
+        .iter()
+        .find(|readiness| readiness.target == destination)
+        .map(|readiness| readiness.ready_for_handoff)
+        .unwrap_or(false)
 }
 
 fn build_editorial_summary(editorial: &editorial::EditorialBundle) -> EditorialSummary {
@@ -779,6 +847,71 @@ mod tests {
             0x9c, 0x63, 0xf8, 0xcf, 0xc0, 0xf0, 0x1f, 0x00, 0x05, 0x00, 0x01, 0xff, 0x89, 0x99,
             0x3d, 0x1d, 0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4e, 0x44, 0xae, 0x42, 0x60, 0x82,
         ]
+    }
+
+    fn fake_delivery_evidence() -> DeliveryEvidenceReport {
+        DeliveryEvidenceReport {
+            schema_version: 2,
+            host_os: "test".to_string(),
+            summary: crate::app::validate_book::DeliveryEvidenceSummaryReport {
+                status: "incomplete".to_string(),
+                ready_for_handoff: false,
+                passed: 1,
+                warnings: 0,
+                failed: 0,
+                missing_tool: 0,
+                skipped: 0,
+                manual_required: 1,
+                not_implemented: 0,
+            },
+            submission_readiness: vec![
+                crate::app::validate_book::DeliverySubmissionReadinessReport {
+                    target: "kindle".to_string(),
+                    status: "incomplete".to_string(),
+                    ready_for_handoff: false,
+                    blocking_checks: vec!["kindle-device-conversion-evidence".to_string()],
+                    advisory_checks: Vec::new(),
+                    summary:
+                        "kindle handoff needs delivery evidence: kindle-device-conversion-evidence"
+                            .to_string(),
+                },
+            ],
+            required_ci_checks: Vec::new(),
+            release_checks: Vec::new(),
+            manual_checks: vec![crate::app::validate_book::DeliveryEvidenceCheckReport {
+                name: "kindle-device-conversion-evidence".to_string(),
+                layer: "manual-or-release-evidence".to_string(),
+                target: "kindle".to_string(),
+                status: "manual-required".to_string(),
+                required_in_ci: false,
+                blocking: true,
+                summary: "run the real Kindle Previewer hook before Kindle handoff".to_string(),
+                artifact: None,
+                log_path: None,
+            }],
+            unsupported_checks: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn delivery_evidence_readiness_uses_selected_destination() {
+        let mut evidence = fake_delivery_evidence();
+        evidence.submission_readiness.push(
+            crate::app::validate_book::DeliverySubmissionReadinessReport {
+                target: "print".to_string(),
+                status: "ready".to_string(),
+                ready_for_handoff: true,
+                blocking_checks: Vec::new(),
+                advisory_checks: Vec::new(),
+                summary: "print handoff has required delivery evidence".to_string(),
+            },
+        );
+
+        assert!(!delivery_evidence_ready_for_destination(
+            &evidence, "kindle"
+        ));
+        assert!(delivery_evidence_ready_for_destination(&evidence, "print"));
+        assert!(!delivery_evidence_ready_for_destination(&evidence, "proof"));
     }
 
     fn write_manga_book(root: &Path, output_block: &str, with_cover: bool) {
@@ -1122,9 +1255,19 @@ editorial:
             }),
         };
 
-        write_review_notes(&path, "default", &issues, Some(&editorial)).unwrap();
+        let delivery_evidence = fake_delivery_evidence();
+        write_review_notes(
+            &path,
+            "default",
+            &issues,
+            &delivery_evidence,
+            Some(&editorial),
+        )
+        .unwrap();
 
         let contents = fs::read_to_string(path).unwrap();
+        assert!(contents.contains("- delivery evidence: incomplete"));
+        assert!(contents.contains("kindle-device-conversion-evidence"));
         assert!(
             contents.contains("preferred term `Git` should replace `git` (manuscript/01.md:2)")
         );
@@ -1190,10 +1333,23 @@ editorial:
             }),
         };
 
-        write_review_packet(&path, "default", &issues, Some(&editorial)).unwrap();
+        let delivery_evidence = fake_delivery_evidence();
+        write_review_packet(
+            &path,
+            "default",
+            &issues,
+            &delivery_evidence,
+            Some(&editorial),
+        )
+        .unwrap();
 
         let packet: Value = serde_json::from_str(&fs::read_to_string(path).unwrap()).unwrap();
         assert_eq!(packet["book_id"], "default");
+        assert_eq!(packet["delivery_readiness"][0]["target"], "kindle");
+        assert_eq!(
+            packet["missing_delivery_evidence"][0]["name"],
+            "kindle-device-conversion-evidence"
+        );
         assert_eq!(packet["issue_summary"]["total"], 1);
         assert_eq!(packet["issue_summary"]["warnings"], 1);
         assert_eq!(packet["issue_summary"]["errors"], 0);

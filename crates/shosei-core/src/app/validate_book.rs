@@ -278,19 +278,23 @@ pub struct DeliveryEvidenceReport {
     pub schema_version: u8,
     pub host_os: String,
     pub summary: DeliveryEvidenceSummaryReport,
+    pub submission_readiness: Vec<DeliverySubmissionReadinessReport>,
     pub required_ci_checks: Vec<DeliveryEvidenceCheckReport>,
     pub release_checks: Vec<DeliveryEvidenceCheckReport>,
+    pub manual_checks: Vec<DeliveryEvidenceCheckReport>,
     pub unsupported_checks: Vec<DeliveryEvidenceCheckReport>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct DeliveryEvidenceSummaryReport {
     pub status: String,
+    pub ready_for_handoff: bool,
     pub passed: usize,
     pub warnings: usize,
     pub failed: usize,
     pub missing_tool: usize,
     pub skipped: usize,
+    pub manual_required: usize,
     pub not_implemented: usize,
 }
 
@@ -301,9 +305,20 @@ pub struct DeliveryEvidenceCheckReport {
     pub target: String,
     pub status: String,
     pub required_in_ci: bool,
+    pub blocking: bool,
     pub summary: String,
     pub artifact: Option<String>,
     pub log_path: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct DeliverySubmissionReadinessReport {
+    pub target: String,
+    pub status: String,
+    pub ready_for_handoff: bool,
+    pub blocking_checks: Vec<String>,
+    pub advisory_checks: Vec<String>,
+    pub summary: String,
 }
 
 fn delivery_evidence_report(
@@ -321,6 +336,7 @@ fn delivery_evidence_report(
             "passed".to_string()
         },
         required_in_ci: true,
+        blocking: true,
         summary: "config, manuscript, asset, and editorial checks are covered by workspace tests and CLI smoke".to_string(),
         artifact: None,
         log_path: None,
@@ -342,6 +358,7 @@ fn delivery_evidence_report(
                 "warning".to_string()
             },
             required_in_ci: true,
+            blocking: false,
             summary: if warning_count == 0 {
                 format!(
                     "{} target {} matches profile {} recommendations",
@@ -366,11 +383,14 @@ fn delivery_evidence_report(
             target: run.target.clone(),
             status: run.status.clone(),
             required_in_ci: false,
+            blocking: matches!(run.status.as_str(), "failed" | "missing-tool" | "skipped"),
             summary: run.summary.clone(),
             artifact: run.artifact.clone(),
             log_path: run.log_path.clone(),
         })
         .collect::<Vec<_>>();
+
+    let manual_checks = manual_delivery_checks(target_profile_validations, validator_runs);
 
     let mut unsupported_checks = Vec::new();
     if target_profile_validations
@@ -383,6 +403,7 @@ fn delivery_evidence_report(
             target: "kindle".to_string(),
             status: "not-implemented".to_string(),
             required_in_ci: false,
+            blocking: false,
             summary: "store/device-specific validators beyond Kindle Previewer are not implemented"
                 .to_string(),
             artifact: None,
@@ -393,16 +414,20 @@ fn delivery_evidence_report(
     let mut all_checks = required_ci_checks
         .iter()
         .chain(release_checks.iter())
+        .chain(manual_checks.iter())
         .chain(unsupported_checks.iter());
     let mut summary = DeliveryEvidenceSummaryReport {
         status: "passed".to_string(),
+        ready_for_handoff: true,
         passed: 0,
         warnings: 0,
         failed: 0,
         missing_tool: 0,
         skipped: 0,
+        manual_required: 0,
         not_implemented: 0,
     };
+    let mut has_blocking_incomplete = false;
 
     for check in all_checks.by_ref() {
         match check.status.as_str() {
@@ -411,26 +436,188 @@ fn delivery_evidence_report(
             "failed" | "error" => summary.failed += 1,
             "missing-tool" => summary.missing_tool += 1,
             "skipped" => summary.skipped += 1,
+            "manual-required" => summary.manual_required += 1,
             "not-implemented" => summary.not_implemented += 1,
             _ => summary.skipped += 1,
+        }
+        if check.blocking
+            && matches!(
+                check.status.as_str(),
+                "failed" | "error" | "missing-tool" | "skipped" | "manual-required"
+            )
+        {
+            has_blocking_incomplete = true;
         }
     }
     summary.status = if summary.failed > 0 {
         "failed".to_string()
-    } else if summary.missing_tool > 0 || summary.skipped > 0 || summary.not_implemented > 0 {
+    } else if has_blocking_incomplete {
         "incomplete".to_string()
     } else {
         "passed".to_string()
     };
+    summary.ready_for_handoff = summary.status == "passed";
+
+    let submission_readiness = submission_readiness_reports(
+        target_profile_validations,
+        &required_ci_checks,
+        &release_checks,
+        &manual_checks,
+        &unsupported_checks,
+    );
 
     DeliveryEvidenceReport {
-        schema_version: 1,
+        schema_version: 2,
         host_os: std::env::consts::OS.to_string(),
         summary,
+        submission_readiness,
         required_ci_checks,
         release_checks,
+        manual_checks,
         unsupported_checks,
     }
+}
+
+fn manual_delivery_checks(
+    target_profile_validations: &[TargetProfileValidationReport],
+    validator_runs: &[ValidatorRunReport],
+) -> Vec<DeliveryEvidenceCheckReport> {
+    let has_target = |target: &str| {
+        target_profile_validations
+            .iter()
+            .any(|validation| validation.channel == target)
+    };
+    let validator_passed = |name: &str| {
+        validator_runs
+            .iter()
+            .any(|run| run.name == name && run.status == "passed")
+    };
+    let validator_recorded = |name: &str| validator_runs.iter().any(|run| run.name == name);
+    let mut checks = Vec::new();
+
+    if has_target("kindle") {
+        if !validator_recorded("epubcheck") {
+            checks.push(DeliveryEvidenceCheckReport {
+                name: "kindle-epub-validation-evidence".to_string(),
+                layer: "manual-or-release-evidence".to_string(),
+                target: "kindle".to_string(),
+                status: "manual-required".to_string(),
+                required_in_ci: false,
+                blocking: true,
+                summary: "run epubcheck or record equivalent EPUB validation before Kindle handoff"
+                    .to_string(),
+                artifact: None,
+                log_path: None,
+            });
+        }
+        if !validator_passed("kindle-previewer") {
+            checks.push(DeliveryEvidenceCheckReport {
+                name: "kindle-device-conversion-evidence".to_string(),
+                layer: "manual-or-release-evidence".to_string(),
+                target: "kindle".to_string(),
+                status: "manual-required".to_string(),
+                required_in_ci: false,
+                blocking: true,
+                summary:
+                    "run the real Kindle Previewer hook or record manual device conversion evidence before Kindle handoff"
+                        .to_string(),
+                artifact: None,
+                log_path: None,
+            });
+        }
+    }
+
+    if has_target("print") && !validator_recorded("qpdf-check") {
+        checks.push(DeliveryEvidenceCheckReport {
+            name: "print-pdf-structural-evidence".to_string(),
+            layer: "manual-or-release-evidence".to_string(),
+            target: "print".to_string(),
+            status: "manual-required".to_string(),
+            required_in_ci: false,
+            blocking: true,
+            summary: "run qpdf or record equivalent PDF structural validation before print handoff"
+                .to_string(),
+            artifact: None,
+            log_path: None,
+        });
+    }
+
+    checks
+}
+
+fn submission_readiness_reports(
+    target_profile_validations: &[TargetProfileValidationReport],
+    required_ci_checks: &[DeliveryEvidenceCheckReport],
+    release_checks: &[DeliveryEvidenceCheckReport],
+    manual_checks: &[DeliveryEvidenceCheckReport],
+    unsupported_checks: &[DeliveryEvidenceCheckReport],
+) -> Vec<DeliverySubmissionReadinessReport> {
+    let targets = target_profile_validations
+        .iter()
+        .map(|validation| validation.channel.as_str())
+        .collect::<BTreeSet<_>>();
+    targets
+        .into_iter()
+        .map(|target| {
+            let relevant_checks = required_ci_checks
+                .iter()
+                .chain(release_checks.iter())
+                .chain(manual_checks.iter())
+                .chain(unsupported_checks.iter())
+                .filter(|check| check.target == "common" || check.target == target)
+                .collect::<Vec<_>>();
+            let blocking_checks = relevant_checks
+                .iter()
+                .filter(|check| {
+                    check.blocking
+                        && matches!(
+                            check.status.as_str(),
+                            "failed" | "error" | "missing-tool" | "skipped" | "manual-required"
+                        )
+                })
+                .map(|check| check.name.clone())
+                .collect::<Vec<_>>();
+            let advisory_checks = relevant_checks
+                .iter()
+                .filter(|check| !check.blocking && check.status != "passed")
+                .map(|check| check.name.clone())
+                .collect::<Vec<_>>();
+            let has_failed = relevant_checks
+                .iter()
+                .any(|check| check.blocking && matches!(check.status.as_str(), "failed" | "error"));
+            let status = if has_failed {
+                "blocked"
+            } else if blocking_checks.is_empty() {
+                "ready"
+            } else {
+                "incomplete"
+            }
+            .to_string();
+            let ready_for_handoff = status == "ready";
+            let summary = if ready_for_handoff {
+                format!("{target} handoff has required delivery evidence")
+            } else if has_failed {
+                format!(
+                    "{target} handoff is blocked by failed delivery evidence: {}",
+                    blocking_checks.join(", ")
+                )
+            } else {
+                format!(
+                    "{target} handoff needs delivery evidence: {}",
+                    blocking_checks.join(", ")
+                )
+            };
+
+            DeliverySubmissionReadinessReport {
+                target: target.to_string(),
+                status,
+                ready_for_handoff,
+                blocking_checks,
+                advisory_checks,
+                summary,
+            }
+        })
+        .collect()
 }
 
 fn validator_evidence_layer(run: &ValidatorRunReport) -> String {
@@ -4063,14 +4250,24 @@ manga:
                             .to_string(),
                 }],
             }],
-            &[],
+            &[ValidatorRunReport {
+                name: "qpdf-check".to_string(),
+                target: "print".to_string(),
+                tool: "qpdf".to_string(),
+                status: "passed".to_string(),
+                summary: "qpdf reported no structural PDF issues".to_string(),
+                artifact: Some("dist/default-print.pdf".to_string()),
+                log_path: Some("dist/logs/default-qpdf-validate.log".to_string()),
+            }],
             false,
         );
 
         assert_eq!(evidence.summary.status, "passed");
+        assert!(evidence.summary.ready_for_handoff);
         assert_eq!(evidence.summary.warnings, 1);
         assert_eq!(evidence.summary.skipped, 0);
         assert_eq!(evidence.required_ci_checks[1].status, "warning");
+        assert_eq!(evidence.submission_readiness[0].status, "ready");
     }
 
     #[cfg(unix)]

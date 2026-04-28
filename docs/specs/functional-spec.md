@@ -307,21 +307,26 @@ v0.2 の最小要件:
 - 外部 validator を実行できない場合も、missing tool / skipped validator を report に残す
 - 外部 validator の詳細ログは `dist/logs/` に保存し、report から参照できる
 - Kindle Previewer は proprietary / OS-dependent な tool なので、`validation.kindle_previewer: true` のときだけ optional device-oriented validator として実行する
-- report には top-level `delivery_evidence` を含め、portable required CI checks、release/maintainer opt-in checks、未実装の store/device validator を分けて記録する
-- `delivery_evidence.summary.status` は `passed`, `failed`, `incomplete` のいずれかとし、missing optional tool、skipped validator、future-work validator が残る場合は `incomplete` とする
+- report には top-level `delivery_evidence` を含め、portable required CI checks、release/maintainer opt-in checks、manual / operator evidence、未実装の store/device validator を分けて記録する
+- `delivery_evidence.summary.status` は `passed`, `failed`, `incomplete` のいずれかとし、blocking な missing optional tool、skipped validator、manual evidence が残る場合は `incomplete` とする
+- `delivery_evidence.summary.ready_for_handoff` と `submission_readiness[]` で、target ごとの提出前 evidence が揃っているかを示す
 
 `delivery_evidence` contract:
 
 | Field | Meaning |
 |---|---|
-| `schema_version` | delivery evidence schema version。v0.2 では `1` |
+| `schema_version` | delivery evidence schema version。v0.2 では `2` |
 | `host_os` | report を生成した OS。`macos`, `windows`, `linux` など Rust の host OS 名を使う |
-| `summary` | status と `passed` / `warnings` / `failed` / `missing_tool` / `skipped` / `not_implemented` counts |
+| `summary` | status、`ready_for_handoff`、`passed` / `warnings` / `failed` / `missing_tool` / `skipped` / `manual_required` / `not_implemented` counts |
+| `submission_readiness[]` | enabled target ごとの `ready`, `incomplete`, `blocked` status と blocking / advisory check 名 |
 | `required_ci_checks[]` | required CI で継続確認する portable evidence。local structural validation と target-profile validation を含む |
 | `release_checks[]` | release operator / maintainer が読む opt-in evidence。`validators[]` の各 external validator run を layer 付きで再掲する |
-| `unsupported_checks[]` | 現時点で未実装の delivery validator。Kindle 出力では Kindle Previewer beyond の store/device validator を `not-implemented` として明示する |
+| `manual_checks[]` | required CI では証明しないが handoff 前に必要な manual / operator evidence。実物 Kindle Previewer conversion や同等の手動 device review など |
+| `unsupported_checks[]` | 現時点で未実装の delivery validator。Kindle 出力では Kindle Previewer beyond の store/device validator を advisory な `not-implemented` として明示する |
 
-`release_checks[]` は既存の `validators[]` と同じ `status`, `artifact`, `log_path`, `summary` を持つ。`epubcheck` / `qpdf` は `portable-external-validator`、Kindle Previewer は `opt-in-device-oriented-validator` として分類する。これにより Windows/macOS/Linux の差分は `host_os` と validator status に残し、required CI で証明できない real-tool execution を required proof として扱わない。
+各 evidence check は `blocking` を持つ。`blocking: false` の warning や advisory future work は `summary.warnings` / `not_implemented` に数えるが、それだけでは `ready_for_handoff` を false にしない。
+
+`release_checks[]` は既存の `validators[]` と同じ `status`, `artifact`, `log_path`, `summary` を持つ。`epubcheck` / `qpdf` は `portable-external-validator`、Kindle Previewer は `opt-in-device-oriented-validator` として分類する。これにより Windows/macOS/Linux の差分は `host_os` と validator status に残し、required CI で証明できない real-tool execution を required CI proof として扱わない。
 
 validator confidence は次の層で扱う。
 
@@ -331,7 +336,8 @@ validator confidence は次の層で扱う。
 | Portable external validators | `epubcheck` / `qpdf` の `passed` / `failed` / `missing-tool` / `skipped` report | fake または install 済み tool fixture で report contract を確認する | tool があれば delivery 前に実行し、なければ `missing-tool` を確認する |
 | Kindle device-oriented contract | fake Kindle Previewer executable による `validators[]` schema、log path、failure semantics | real proprietary binary は要求せず、fake executable smoke で継続確認する | `validation.kindle_previewer: true` を明示したときだけ有効にする |
 | Real Kindle Previewer execution | 実物 Kindle Previewer による conversion check と `dist/logs/<book-id>-kindle-previewer-validate.log` | required CI にはしない | maintainer / release operator が local hook で必要時に確認する |
-| Store/device-specific validators beyond Kindle Previewer | 未定義 | CI 対象外 | future work として扱う |
+| Manual / operator evidence | `manual_checks[]` と `submission_readiness[]` の missing evidence | required CI にはしない | handoff 前の残タスクとして解消する |
+| Store/device-specific validators beyond Kindle Previewer | advisory な `unsupported_checks[]` | CI 対象外 | future work として扱うが、それだけでは handoff blocker にしない |
 
 - 共通 lint
 - prose editorial lint

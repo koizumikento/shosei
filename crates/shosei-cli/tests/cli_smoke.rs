@@ -900,6 +900,22 @@ fn validate_cli_json_includes_epubcheck_runs() {
         parsed["delivery_evidence"]["summary"]["status"],
         "incomplete"
     );
+    assert_eq!(
+        parsed["delivery_evidence"]["summary"]["ready_for_handoff"],
+        false
+    );
+    assert!(
+        parsed["delivery_evidence"]["manual_checks"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|check| check["name"] == "kindle-device-conversion-evidence"
+                && check["status"] == "manual-required")
+    );
+    assert_eq!(
+        parsed["delivery_evidence"]["submission_readiness"][0]["status"],
+        "incomplete"
+    );
     assert!(
         parsed["delivery_evidence"]["release_checks"]
             .as_array()
@@ -939,6 +955,10 @@ fn validate_cli_json_records_missing_epubcheck_without_failing() {
         .unwrap();
     assert_eq!(epubcheck["status"], "missing-tool");
     assert_eq!(parsed["delivery_evidence"]["summary"]["missing_tool"], 1);
+    assert_eq!(
+        parsed["delivery_evidence"]["summary"]["ready_for_handoff"],
+        false
+    );
     assert!(
         parsed["delivery_evidence"]["release_checks"]
             .as_array()
@@ -1013,6 +1033,14 @@ fn validate_cli_json_includes_print_validator_runs() {
     assert!(parsed["validators"].is_array());
     assert_eq!(parsed["validators"][0]["name"], "qpdf-check");
     assert_eq!(parsed["validators"][0]["status"], "passed");
+    assert_eq!(
+        parsed["delivery_evidence"]["summary"]["ready_for_handoff"],
+        true
+    );
+    assert_eq!(
+        parsed["delivery_evidence"]["submission_readiness"][0]["status"],
+        "ready"
+    );
     assert!(
         parsed["validators"][0]["log_path"]
             .as_str()
@@ -1061,6 +1089,10 @@ fn validate_cli_json_records_missing_print_validator_without_failing() {
     let parsed: Value = serde_json::from_str(&stdout).unwrap();
     assert_eq!(parsed["validators"][0]["name"], "qpdf-check");
     assert_eq!(parsed["validators"][0]["status"], "missing-tool");
+    assert_eq!(
+        parsed["delivery_evidence"]["summary"]["ready_for_handoff"],
+        false
+    );
     assert_eq!(
         parsed["validators"][0]["summary"],
         "qpdf executable is unavailable"
@@ -1127,6 +1159,13 @@ fn validate_cli_json_includes_kindle_previewer_runs() {
         .find(|validator| validator["name"] == "kindle-previewer")
         .unwrap();
     assert_eq!(previewer["status"], "passed");
+    assert!(
+        parsed["delivery_evidence"]["manual_checks"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|check| check["name"] == "kindle-epub-validation-evidence")
+    );
     assert!(
         previewer["log_path"]
             .as_str()
@@ -2358,10 +2397,18 @@ fn handoff_proof_cli_packages_review_packet() {
     let manifest: Value =
         serde_json::from_str(&fs::read_to_string(package_dir.join("manifest.json")).unwrap())
             .unwrap();
-    assert_eq!(manifest["delivery_evidence"]["schema_version"], 1);
+    assert_eq!(manifest["delivery_evidence"]["schema_version"], 2);
+    assert_eq!(
+        manifest["delivery_evidence"]["summary"]["ready_for_handoff"],
+        false
+    );
     assert_eq!(
         manifest["delivery_evidence"]["unsupported_checks"][0]["name"],
         "store-device-validators-beyond-kindle-previewer"
+    );
+    assert_eq!(
+        manifest["delivery_evidence"]["manual_checks"][0]["status"],
+        "manual-required"
     );
     assert_eq!(manifest["review_packet"], "reports/review-packet.json");
     assert_eq!(manifest["review_notes"], "review-notes.md");
@@ -2371,11 +2418,15 @@ fn handoff_proof_cli_packages_review_packet() {
     let review_packet = fs::read_to_string(package_dir.join("reports/review-packet.json")).unwrap();
     assert!(review_packet.contains("\"book_id\": \"default\""));
     assert!(review_packet.contains("\"issue_summary\""));
+    assert!(review_packet.contains("\"delivery_readiness\""));
+    assert!(review_packet.contains("\"missing_delivery_evidence\""));
     assert!(review_packet.contains("\"reviewer_notes\""));
     assert!(review_packet.contains("\"claim-1\""));
     assert!(review_packet.contains("\"fig-1\""));
 
     let review_notes = fs::read_to_string(package_dir.join("review-notes.md")).unwrap();
+    assert!(review_notes.contains("## Delivery Evidence"));
+    assert!(review_notes.contains("kindle-device-conversion-evidence"));
     assert!(review_notes.contains("double-check the source"));
     assert!(review_notes.contains("replace logo"));
     assert!(review_notes.contains("refresh before launch"));
@@ -2426,16 +2477,21 @@ fn handoff_kindle_cli_packages_manifest_with_artifact_details() {
 fn handoff_print_cli_packages_manga_pdf() {
     let root = temp_dir("handoff-print");
     write_handoff_manga_fixture(&root, true);
+    #[cfg(unix)]
+    let tools_dir = write_fake_qpdf(&root);
 
-    let output = Command::new(env!("CARGO_BIN_EXE_shosei"))
-        .args(["handoff", "print", "--path", root.to_str().unwrap()])
-        .output()
-        .unwrap();
+    let mut command = Command::new(env!("CARGO_BIN_EXE_shosei"));
+    command.args(["handoff", "print", "--path", root.to_str().unwrap()]);
+    #[cfg(unix)]
+    command.env("PATH", prepend_path(&tools_dir));
+    let output = command.output().unwrap();
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("handoff packaged for default (print)"));
     assert!(stdout.contains("default-print-manga.pdf"));
+    #[cfg(unix)]
+    assert!(!stdout.contains("warning: delivery evidence is incomplete"));
 
     let package_dir = root.join("dist/handoff/default-print");
     assert!(
@@ -2449,6 +2505,17 @@ fn handoff_print_cli_packages_manga_pdf() {
     assert_eq!(
         manifest["delivery_evidence"]["required_ci_checks"][0]["name"],
         "local-structural-validation"
+    );
+    assert_eq!(
+        manifest["delivery_evidence"]["summary"]["ready_for_handoff"],
+        false
+    );
+    assert!(
+        manifest["delivery_evidence"]["release_checks"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|check| check["name"] == "qpdf-check" && check["target"] == "print")
     );
     assert_eq!(manifest["destination"], "print");
     assert_eq!(manifest["selected_artifact_details"][0]["channel"], "print");
