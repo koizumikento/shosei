@@ -928,12 +928,14 @@ fn init_single_book(root: &Path, scaffold: &InitScaffoldConfig) -> Result<(), In
         root,
         template,
         RepoTemplate::SingleBook,
+        scaffold.output_preset,
         scaffold.series_book_id(),
     )?;
     write_agent_skill_templates(
         root,
         template,
         RepoTemplate::SingleBook,
+        scaffold.output_preset,
         scaffold.series_book_id(),
     )?;
     Ok(())
@@ -994,12 +996,14 @@ fn init_series(root: &Path, scaffold: &InitScaffoldConfig) -> Result<(), InitPro
         root,
         template,
         RepoTemplate::Series,
+        scaffold.output_preset,
         scaffold.series_book_id(),
     )?;
     write_agent_skill_templates(
         root,
         template,
         RepoTemplate::Series,
+        scaffold.output_preset,
         scaffold.series_book_id(),
     )?;
     Ok(())
@@ -1488,9 +1492,10 @@ fn write_agent_skill_templates(
     root: &Path,
     template: ProjectTemplate,
     repo_mode: RepoTemplate,
+    output_preset: OutputPreset,
     initial_book_id: &str,
 ) -> Result<(), InitProjectError> {
-    write_project_skill_template(root, template, repo_mode, initial_book_id)?;
+    write_project_skill_template(root, template, repo_mode, output_preset, initial_book_id)?;
     write_content_review_skill_template(root, template, repo_mode, initial_book_id)
 }
 
@@ -1498,22 +1503,24 @@ fn write_project_skill_template(
     root: &Path,
     template: ProjectTemplate,
     repo_mode: RepoTemplate,
+    output_preset: OutputPreset,
     initial_book_id: &str,
 ) -> Result<(), InitProjectError> {
     let skill_dir = root.join(".agents/skills/shosei-project");
     ensure_dir(&skill_dir)?;
     write_file(
         &skill_dir.join("SKILL.md"),
-        &agent_skill_contents(template, repo_mode, initial_book_id),
+        &agent_skill_contents(template, repo_mode, output_preset, initial_book_id),
     )
 }
 
 fn agent_skill_contents(
     template: ProjectTemplate,
     repo_mode: RepoTemplate,
+    output_preset: OutputPreset,
     initial_book_id: &str,
 ) -> String {
-    AgentSkillTemplateContext::new(template, repo_mode, initial_book_id).render()
+    AgentSkillTemplateContext::new(template, repo_mode, output_preset, initial_book_id).render()
 }
 
 fn write_content_review_skill_template(
@@ -1542,11 +1549,12 @@ fn write_agents_template(
     root: &Path,
     template: ProjectTemplate,
     repo_mode: RepoTemplate,
+    output_preset: OutputPreset,
     initial_book_id: &str,
 ) -> Result<(), InitProjectError> {
     write_file(
         &root.join("AGENTS.md"),
-        &AgentsTemplateContext::new(template, repo_mode, initial_book_id).render(),
+        &AgentsTemplateContext::new(template, repo_mode, output_preset, initial_book_id).render(),
     )
 }
 
@@ -1569,7 +1577,12 @@ struct AgentsTemplateContext {
 }
 
 impl AgentsTemplateContext {
-    fn new(template: ProjectTemplate, repo_mode: RepoTemplate, initial_book_id: &str) -> Self {
+    fn new(
+        template: ProjectTemplate,
+        repo_mode: RepoTemplate,
+        output_preset: OutputPreset,
+        initial_book_id: &str,
+    ) -> Self {
         Self {
             repo_mode_label: repo_mode_label(repo_mode),
             project_type: template.as_str(),
@@ -1581,7 +1594,7 @@ impl AgentsTemplateContext {
             page_check_rule: page_check_rule(template, repo_mode, initial_book_id),
             build_command: build_command(repo_mode, initial_book_id),
             preview_command: preview_command(repo_mode, initial_book_id),
-            handoff_command: handoff_command(repo_mode, initial_book_id),
+            handoff_command: handoff_command(repo_mode, output_preset, initial_book_id),
             reference_scaffold_rule: reference_scaffold_rule(repo_mode, initial_book_id),
             story_scaffold_rule: story_scaffold_rule(repo_mode, initial_book_id),
             optional_map_rule: optional_map_rule(repo_mode, initial_book_id),
@@ -1629,7 +1642,12 @@ struct AgentSkillTemplateContext {
 }
 
 impl AgentSkillTemplateContext {
-    fn new(template: ProjectTemplate, repo_mode: RepoTemplate, initial_book_id: &str) -> Self {
+    fn new(
+        template: ProjectTemplate,
+        repo_mode: RepoTemplate,
+        output_preset: OutputPreset,
+        initial_book_id: &str,
+    ) -> Self {
         Self {
             description: agent_skill_description(template, repo_mode),
             repo_mode_label: repo_mode_label(repo_mode),
@@ -1642,7 +1660,7 @@ impl AgentSkillTemplateContext {
             page_check_rule: page_check_rule(template, repo_mode, initial_book_id),
             build_command: build_command(repo_mode, initial_book_id),
             preview_command: preview_command(repo_mode, initial_book_id),
-            handoff_command: handoff_command(repo_mode, initial_book_id),
+            handoff_command: handoff_command(repo_mode, output_preset, initial_book_id),
         }
     }
 
@@ -2019,10 +2037,18 @@ fn preview_command(repo_mode: RepoTemplate, initial_book_id: &str) -> String {
     }
 }
 
-fn handoff_command(repo_mode: RepoTemplate, initial_book_id: &str) -> String {
+fn handoff_command(
+    repo_mode: RepoTemplate,
+    output_preset: OutputPreset,
+    initial_book_id: &str,
+) -> String {
+    let destination = match output_preset {
+        OutputPreset::Kindle => "kindle",
+        OutputPreset::Print | OutputPreset::Both => "print",
+    };
     match repo_mode {
-        RepoTemplate::SingleBook => "shosei handoff print".to_string(),
-        RepoTemplate::Series => format!("shosei handoff print --book {initial_book_id}"),
+        RepoTemplate::SingleBook => format!("shosei handoff {destination}"),
+        RepoTemplate::Series => format!("shosei handoff {destination} --book {initial_book_id}"),
     }
 }
 
@@ -2108,6 +2134,7 @@ mod tests {
         assert!(agents.contains("Start with `shosei explain`"));
         assert!(agents.contains("Run `shosei validate`"));
         assert!(agents.contains("Build artifacts with `shosei build`"));
+        assert!(agents.contains("Prepare handoff packages with `shosei handoff print`"));
         assert!(agents.contains("Add it with `shosei reference scaffold`"));
         assert!(!agents.contains("reference scaffold --book"));
         let skill = read_skill(&root, "shosei-project");
@@ -2115,6 +2142,7 @@ mod tests {
         assert!(skill.contains("single-book"));
         assert!(skill.contains("shosei explain"));
         assert!(skill.contains("manuscript/"));
+        assert!(skill.contains("Use `shosei handoff print` only for packaging tasks"));
         assert!(skill.contains("shosei story scaffold"));
         assert!(skill.contains("shosei story check"));
         let content_review_skill = read_skill(&root, "shosei-content-review");
@@ -2204,6 +2232,10 @@ mod tests {
             "shosei page check --book {DEFAULT_SERIES_BOOK_ID}"
         )));
         assert!(agents.contains(&format!(
+            "shosei handoff kindle --book {DEFAULT_SERIES_BOOK_ID}"
+        )));
+        assert!(!agents.contains("shosei handoff print"));
+        assert!(agents.contains(&format!(
             "shosei reference scaffold --book {DEFAULT_SERIES_BOOK_ID}"
         )));
         assert!(agents.contains("shosei reference scaffold --shared"));
@@ -2214,6 +2246,10 @@ mod tests {
         assert!(skill.contains(&format!(
             "shosei page check --book {DEFAULT_SERIES_BOOK_ID}"
         )));
+        assert!(skill.contains(&format!(
+            "shosei handoff kindle --book {DEFAULT_SERIES_BOOK_ID}"
+        )));
+        assert!(!skill.contains("shosei handoff print"));
         assert!(skill.contains("books/<book-id>/manga/"));
         assert!(skill.contains("shosei story scaffold --book <book-id>"));
         assert!(skill.contains("shared/metadata/story/"));
