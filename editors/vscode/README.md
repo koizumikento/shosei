@@ -2,15 +2,25 @@
 
 `shosei` is a VS Code-compatible extension for working with shosei publishing repositories.
 
-The extension is a thin adapter over the real `shosei` CLI. It adds command palette actions, a project sidebar, output channel integration, and Problems reporting while keeping publishing logic in the CLI.
+This extension does not include the publishing engine. It is a thin editor adapter over the real `shosei` CLI: command palette actions, a project sidebar, output channel integration, and Problems reporting all shell out to the configured CLI.
+
+## Install The CLI First
+
+Install or update the `shosei` CLI before using the extension. The extension expects to run `shosei` from `PATH` by default.
+
+Check the CLI from a terminal:
+
+```bash
+shosei --help
+```
+
+If that command is not available, install the CLI from the [shosei install guide](https://github.com/koizumikento/shosei#install). If you use a custom binary path or a source checkout, configure `shosei.cli.command` and `shosei.cli.args` in the extension settings.
 
 ## Requirements
 
 - A VS Code-compatible editor such as VS Code or Cursor
 - The `shosei` CLI installed and available on `PATH`
 - A shosei repository with either `book.yml` or `series.yml`
-
-If you have not installed the CLI yet, see the shosei install guide in the project repository.
 
 ## What You Can Do
 
@@ -75,6 +85,8 @@ By default, the extension runs `shosei` from `PATH`.
   "shosei.cli.args": []
 }
 ```
+
+If the CLI is installed somewhere else, set `shosei.cli.command` to that executable path and keep `shosei.cli.args` empty.
 
 To run a local source checkout of the CLI, set `shosei.cli.command` to `cargo` and pass the CLI crate with `--manifest-path`.
 
