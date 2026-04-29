@@ -73,10 +73,12 @@ If a surface cannot be justified, do not change it.
 - Do not describe commands or features as available unless the current code path actually implements them.
 - Prefer examples that reflect currently supported config fields and output behavior. Remove or rewrite stale examples instead of leaving them partially correct.
 - Keep `docs/usage.md` and `site/usage.html` in sync.
+- Keep config field docs aligned across `docs/specs/config-schema.md`, `docs/config-reference.md`, and `site/config-reference.html`; update usage surfaces too when examples or workflows mention the field.
 - Keep command status labels aligned across `README.md`, `docs/usage.md`, and `site/usage.html`.
 - Keep cross-platform smoke coverage aligned across `.github/workflows/ci.yml`, `README.md`, `docs/usage.md`, `site/usage.html`, and `crates/AGENTS.md`.
 - Keep `init` scaffold docs aligned across `README.md`, `docs/usage.md`, and `site/usage.html`, including the generated `AGENTS.md`, `.agents/skills/shosei-project/`, and `.agents/skills/shosei-content-review/` templates plus the current `git init` / optional `git lfs install` / optional `shosei doctor` follow-up flow.
-- Keep install and release guidance aligned across `README.md`, `site/install.html`, `editors/vscode/README.md`, and `.github/workflows/release.yml` when GitHub Release assets, Homebrew / Scoop distribution, Open VSX publish, or VSIX packaging/update flow changes.
+- Keep validation and handoff docs aligned on the `delivery_evidence` payload across `docs/specs/functional-spec.md`, `README.md`, `docs/usage.md`, and `site/usage.html`.
+- Keep install and release guidance aligned across `README.md`, `site/install.html`, `editors/vscode/README.md`, `editors/vscode/DEVELOPMENT.md`, and `.github/workflows/release.yml` when GitHub Release assets, Homebrew / Scoop distribution, Open VSX publish, or VSIX packaging/update flow changes.
 - Keep Homebrew / Scoop manifest guidance aligned with the current release automation in `.github/workflows/release.yml` and the generator scripts in `scripts/generate-homebrew-formula.sh` and `scripts/generate-scoop-manifest.sh`.
 - Keep the `story seed` contract aligned across `docs/specs/story-support.md`, `docs/usage.md`, and `site/usage.html` when seeded structure templates or `scene_seeds` behavior changes.
 - Keep `docs/specs/vscode-extension.md` and `editors/vscode/README.md` aligned when extension flow, scope, or ownership changes.
