@@ -218,3 +218,39 @@ test("formatManuscriptStatsSummary renders validate report character counts", ()
   );
   assert.equal(extension.__test.formatManuscriptStatsSummary(null), null);
 });
+
+test("formatManuscriptStatsStatus renders compact status bar text", () => {
+  assert.deepEqual(
+    extension.__test.formatManuscriptStatsStatus({
+      total_characters: 12345,
+      chapter_characters: 12000,
+      frontmatter_characters: 200,
+      backmatter_characters: 145
+    }),
+    {
+      text: "$(pencil) shosei 12,345 chars",
+      tooltip: [
+        "shosei manuscript characters from the latest validate report",
+        "Total: 12,345",
+        "Chapters: 12,000",
+        "Frontmatter: 200",
+        "Backmatter: 145",
+        "Click to run Shosei: Validate"
+      ].join("\n")
+    }
+  );
+  assert.equal(extension.__test.formatManuscriptStatsStatus(null), null);
+});
+
+test("manuscriptStatsCacheKey is scoped by repo and book", () => {
+  assert.notEqual(
+    extension.__test.manuscriptStatsCacheKey({
+      repoRoot: "/tmp/series",
+      bookId: "vol-01"
+    }),
+    extension.__test.manuscriptStatsCacheKey({
+      repoRoot: "/tmp/series",
+      bookId: "vol-02"
+    })
+  );
+});

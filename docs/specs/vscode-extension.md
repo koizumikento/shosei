@@ -142,6 +142,7 @@ book が必要な command では `--book <book-id> --path <repo-root>` を付け
 `shosei validate` は既存の `dist/reports/*-validate.json` を出力する。拡張は CLI 実行後に report path を読み取り、`issues[].location` を VS Code Problems に反映する。
 
 - report に `manuscript_stats` が含まれる prose project では、拡張は output channel に total / chapters / frontmatter / backmatter の文字数 summary を追加表示してよい
+- report に `manuscript_stats` が含まれる prose project では、拡張は VS Code status bar に最新の total character count を表示してよい。表示値は `shosei validate` が返した report の値に限り、拡張側で独自に原稿文字数を再計算しない
 
 ### 6.2 `page check`
 

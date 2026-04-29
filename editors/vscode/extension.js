@@ -21,6 +21,8 @@ function activate(context) {
   );
   const storyCheckDiagnostics = vscode.languages.createDiagnosticCollection("shosei-story-check");
   const storyDriftDiagnostics = vscode.languages.createDiagnosticCollection("shosei-story-drift");
+  const manuscriptStatsStatus = createManuscriptStatsStatusBar(vscode);
+  const manuscriptStatsCache = new Map();
   const viewProvider = new ShoseiViewProvider(vscode, {
     getSnapshot: () => resolveViewSnapshot(vscode, context)
   });
@@ -37,13 +39,21 @@ function activate(context) {
     referenceDriftDiagnostics,
     storyCheckDiagnostics,
     storyDriftDiagnostics,
+    manuscriptStatsStatus,
     treeView
   );
   context.subscriptions.push(
-    vscode.window.onDidChangeActiveTextEditor(() => viewProvider.refresh()),
-    vscode.workspace.onDidChangeWorkspaceFolders(() => viewProvider.refresh()),
+    vscode.window.onDidChangeActiveTextEditor(() => {
+      viewProvider.refresh();
+      refreshManuscriptStatsStatusBar(vscode, context, manuscriptStatsStatus, manuscriptStatsCache);
+    }),
+    vscode.workspace.onDidChangeWorkspaceFolders(() => {
+      viewProvider.refresh();
+      refreshManuscriptStatsStatusBar(vscode, context, manuscriptStatsStatus, manuscriptStatsCache);
+    }),
     vscode.workspace.onDidSaveTextDocument(() => viewProvider.refresh())
   );
+  refreshManuscriptStatsStatusBar(vscode, context, manuscriptStatsStatus, manuscriptStatsCache);
 
   registerCommand(context, "shosei.init", () =>
     runInitCommand(vscode, output, context, viewProvider)
@@ -96,7 +106,11 @@ function activate(context) {
           validateDiagnostics,
           "shosei validate",
           result,
-          resolved
+          resolved,
+          {
+            manuscriptStatsStatus,
+            manuscriptStatsCache
+          }
         )
     });
   });
@@ -514,7 +528,15 @@ function spawnProcessQuiet(invocation) {
   });
 }
 
-async function applyDiagnosticsFromReport(vscode, output, collection, source, result, resolved) {
+async function applyDiagnosticsFromReport(
+  vscode,
+  output,
+  collection,
+  source,
+  result,
+  resolved,
+  options = {}
+) {
   const reportPath = core.extractReportPath([result.stdout, result.stderr].join("\n"));
   if (!reportPath) {
     output.appendLine(`[shosei] ${source}: report path not found in command output`);
@@ -567,6 +589,14 @@ async function applyDiagnosticsFromReport(vscode, output, collection, source, re
   if (manuscriptStatsSummary) {
     output.appendLine(`[shosei] ${source}: ${manuscriptStatsSummary}`);
   }
+  if (options.manuscriptStatsStatus && options.manuscriptStatsCache) {
+    updateManuscriptStatsStatusBar(
+      options.manuscriptStatsStatus,
+      options.manuscriptStatsCache,
+      resolved,
+      report?.manuscript_stats
+    );
+  }
 }
 
 function formatManuscriptStatsSummary(manuscriptStats) {
@@ -584,6 +614,144 @@ function formatManuscriptStatsSummary(manuscriptStats) {
   }
 
   return `manuscript characters: ${formatInteger(total)} total (chapters ${formatInteger(chapters)}, frontmatter ${formatInteger(frontmatter)}, backmatter ${formatInteger(backmatter)})`;
+}
+
+function formatManuscriptStatsStatus(manuscriptStats) {
+  const normalized = normalizeManuscriptStats(manuscriptStats);
+  if (!normalized) {
+    return null;
+  }
+
+  return {
+    text: `$(pencil) shosei ${formatInteger(normalized.total)} chars`,
+    tooltip: [
+      "shosei manuscript characters from the latest validate report",
+      `Total: ${formatInteger(normalized.total)}`,
+      `Chapters: ${formatInteger(normalized.chapters)}`,
+      `Frontmatter: ${formatInteger(normalized.frontmatter)}`,
+      `Backmatter: ${formatInteger(normalized.backmatter)}`,
+      "Click to run Shosei: Validate"
+    ].join("\n")
+  };
+}
+
+function normalizeManuscriptStats(manuscriptStats) {
+  if (!manuscriptStats || typeof manuscriptStats !== "object") {
+    return null;
+  }
+
+  const total = normalizeNonNegativeInteger(manuscriptStats.total_characters);
+  const chapters = normalizeNonNegativeInteger(manuscriptStats.chapter_characters);
+  const frontmatter = normalizeNonNegativeInteger(manuscriptStats.frontmatter_characters);
+  const backmatter = normalizeNonNegativeInteger(manuscriptStats.backmatter_characters);
+
+  if (total === null || chapters === null || frontmatter === null || backmatter === null) {
+    return null;
+  }
+
+  return {
+    total,
+    chapters,
+    frontmatter,
+    backmatter
+  };
+}
+
+function createManuscriptStatsStatusBar(vscode) {
+  const item = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 90);
+  item.name = "shosei Manuscript Characters";
+  item.command = "shosei.validate";
+  item.hide();
+  return item;
+}
+
+async function refreshManuscriptStatsStatusBar(
+  vscode,
+  extensionContext,
+  statusBarItem,
+  manuscriptStatsCache
+) {
+  const resolved = await resolveCachedStatusContext(vscode, extensionContext);
+  if (!resolved) {
+    statusBarItem.hide();
+    return;
+  }
+
+  const cachedStats = manuscriptStatsCache.get(manuscriptStatsCacheKey(resolved));
+  renderManuscriptStatsStatusBar(statusBarItem, cachedStats);
+}
+
+async function resolveCachedStatusContext(vscode, extensionContext) {
+  const startPath = await pickStartPath(vscode, { promptForWorkspace: false });
+  if (!startPath) {
+    return null;
+  }
+
+  const repo = core.findRepoRoot(startPath);
+  if (!repo) {
+    return null;
+  }
+
+  let bookId = null;
+  if (repo.mode === "series") {
+    bookId =
+      getStoredSeriesBookSelection(extensionContext, repo.repoRoot) ||
+      core.inferSeriesBookId(repo.repoRoot, startPath) ||
+      null;
+    if (!bookId) {
+      const configured = vscode.workspace
+        .getConfiguration("shosei")
+        .get("series.defaultBookId");
+      bookId = typeof configured === "string" && configured.trim() ? configured.trim() : null;
+    }
+    if (!bookId) {
+      return null;
+    }
+  }
+
+  return {
+    repoRoot: repo.repoRoot,
+    mode: repo.mode,
+    bookId
+  };
+}
+
+function updateManuscriptStatsStatusBar(
+  statusBarItem,
+  manuscriptStatsCache,
+  resolved,
+  manuscriptStats
+) {
+  const normalized = normalizeManuscriptStats(manuscriptStats);
+  if (!normalized) {
+    manuscriptStatsCache.delete(manuscriptStatsCacheKey(resolved));
+    statusBarItem.hide();
+    return;
+  }
+
+  manuscriptStatsCache.set(manuscriptStatsCacheKey(resolved), {
+    total_characters: normalized.total,
+    chapter_characters: normalized.chapters,
+    frontmatter_characters: normalized.frontmatter,
+    backmatter_characters: normalized.backmatter
+  });
+  renderManuscriptStatsStatusBar(statusBarItem, manuscriptStats);
+}
+
+function renderManuscriptStatsStatusBar(statusBarItem, manuscriptStats) {
+  const status = formatManuscriptStatsStatus(manuscriptStats);
+  if (!status) {
+    statusBarItem.hide();
+    return;
+  }
+
+  statusBarItem.text = status.text;
+  statusBarItem.tooltip = status.tooltip;
+  statusBarItem.show();
+}
+
+function manuscriptStatsCacheKey(resolved) {
+  return [path.resolve(resolved.repoRoot), resolved.bookId || ""].join("\0");
 }
 
 function normalizeNonNegativeInteger(value) {
@@ -3137,6 +3305,9 @@ module.exports = {
     storyStructuresRoot,
     storyWorkspaceRoot,
     formatManuscriptStatsSummary,
+    formatManuscriptStatsStatus,
+    manuscriptStatsCacheKey,
+    normalizeManuscriptStats,
     resolveDiagnosticLocation,
     suggestChapterPath,
     validateChapterPathInput,

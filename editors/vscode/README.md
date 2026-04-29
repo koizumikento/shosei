@@ -27,6 +27,7 @@ If that command is not available yet, follow the [shosei CLI setup guide](https:
 - Initialize a shosei repository from the editor
 - Inspect the current repository model, selected book, resolved config, structure, and toolchain state
 - Run `explain`, `doctor`, `validate`, `build`, `preview`, and `page check`
+- Show the latest prose manuscript character count in the status bar after `validate`
 - Manage prose chapters with add, move, remove, and renumber commands
 - Use reference workspace commands: scaffold, map, check, drift, and sync
 - Use story workspace commands: scaffold, seed, map, check, drift, and sync
