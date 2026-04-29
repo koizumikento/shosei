@@ -61,6 +61,13 @@
 - `0.5`: 枠組みだけ
 - `0.0`: 未着手
 
+解釈:
+
+- この項目の `validator` は、現在の product concept と specs が delivery 前提として扱う validator / evidence を指す。
+- specs / docs で明示的に advisory future work として分離され、handoff blocker ではないと説明されている validator は、それ自体を未実装減点に使わない。
+- 例: Kindle Previewer 以外の store / device 固有 validator は、`unsupported_checks[]` に advisory として正しく記録・説明されていれば減点対象ではない。
+- 減点対象になるのは、現在の concept 上必要な validator / evidence が薄い場合、または advisory / unsupported の扱いが docs や report で誤解を招く場合。
+
 ### 3. Cross-platform and proof in CI: 0.0 - 2.0
 
 対象:
@@ -129,6 +136,7 @@
 - 以前から分かっていた未実装項目を、別カテゴリで二重に数える
 - 今回たまたま読む範囲が広がっただけで、新しい事実が増えていない
 - docs の表現差を、実装差のように扱う
+- specs / docs で advisory future work として明示された範囲外 validator が、未実装のまま正直に `unsupported` / advisory として扱われている
 
 ## Delta Rule
 
