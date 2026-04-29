@@ -1,14 +1,39 @@
-# shosei VS Code extension
+# shosei
 
-`editors/vscode/` は、`shosei` CLI の薄い VS Code adapter です。
+`shosei` is a VS Code-compatible extension for working with shosei publishing repositories.
 
-方針:
+The extension is a thin adapter over the real `shosei` CLI. It adds command palette actions, a project sidebar, output channel integration, and Problems reporting while keeping publishing logic in the CLI.
 
-- 出版ロジックは `shosei` CLI に委譲する
-- VS Code 側では command 実行、output channel、Problems 反映を担当する
-- `validate` と `page check` は既存 JSON report を再利用する
-- prose の `validate` report に `manuscript_stats` があれば、output channel に文字数サマリも出す
-- 専用 sidebar view から repo 状態と主要操作にアクセスする
+## Requirements
+
+- A VS Code-compatible editor such as VS Code or Cursor
+- The `shosei` CLI installed and available on `PATH`
+- A shosei repository with either `book.yml` or `series.yml`
+
+If you have not installed the CLI yet, see the shosei install guide in the project repository.
+
+## What You Can Do
+
+- Initialize a shosei repository from the editor
+- Inspect the current repository model, selected book, resolved config, structure, and toolchain state
+- Run `explain`, `doctor`, `validate`, `build`, `preview`, and `page check`
+- Manage prose chapters with add, move, remove, and renumber commands
+- Use reference workspace commands: scaffold, map, check, drift, and sync
+- Use story workspace commands: scaffold, seed, map, check, drift, and sync
+- Run `series sync` for series repositories
+- Open validation and drift findings in the Problems panel
+
+## Sidebar
+
+The `Shosei` activity bar view shows the current project context:
+
+- `Context`: repository mode, root, and selected series book
+- `Structure`: config files, chapters, reference files, story files, structure templates, and editorial sidecars
+- `Actions`: project, chapter, reference, story, and series commands
+- `Resolved Config`: title, project type, language, outputs, writing mode, binding, and editorial summary
+- `Toolchain`: required and optional tool status from `shosei doctor --json`
+
+For series repositories, use `Shosei: Select Book` when the active file is outside `books/<book-id>/`.
 
 ## Commands
 
@@ -40,35 +65,9 @@
 - `Shosei: Select Book`
 - `Shosei: Refresh View`
 
-## View
-
-Activity Bar に `Shosei` view container を追加する。
-
-- `Context`: repo mode、repo root、series の target book
-- `Structure`: config file、chapter list、初期化済み reference workspace file、初期化済み story workspace file、book-scoped な story structure template file、editorial sidecar file
-- `Actions`: `Project` / `Chapters` / `Reference` / `Story` / `Series` に分けて主要操作を表示する
-- `Resolved Config`: title、project type、language、outputs、writing mode、binding、editorial summary
-- `Toolchain`: host OS、required / optional summary、tool status
-
-初期表示では `Structure` と `Actions` を優先し、`Context` / `Resolved Config` / `Toolchain` は折りたたんだ状態で始まる。`Actions` のうち `Reference` / `Story` / `Series` も折りたたみで始め、必要なときだけ展開する。
-
-repo が見つからない場合は、view から `Init` を直接起動できる。
-
-`series` では view から target book を選べる。選択値は workspace state に保持し、コマンド実行時の `--book` に使う。
-
-prose project では chapter item の context menu から move / remove を呼べる。add / renumber は action と command palette から使う。
-
-reference surface は command palette と sidebar action から使う。`reference scaffold|map|check` は single-book / series shared / series book を切り替えて起動でき、`reference drift|sync` は series book を対象に実行する。`reference map` / `reference check` は対象 workspace が未初期化なら `reference scaffold` を提案する。`reference check` と `reference drift` は CLI report を読んで Problems に反映する。
-
-初期化済みの reference workspace がある場合、`Structure` には single-book の `references/`、または series の current book / shared scope の reference file を出す。
-
-story surface も command palette と sidebar action から使う。`story scaffold` は single-book / series shared / series book を切り替えて起動でき、`story seed` は book-scoped structure template を選んで `scenes.yml` と scene note 下書きを起こす。`story map|check` は current book scope を対象に実行する。`story drift|sync` は series book を対象に実行する。`story map` / `story check` は対象 workspace が未初期化なら `story scaffold` を提案する。`story check` と `story drift` は CLI report を読んで Problems に反映する。scene note item の context action からは、対応する `scenes.yml` entry を直接開ける。
-
-初期化済みの story workspace がある場合、`Structure` には single-book の `story/`、または series の current book / shared scope の story file を出す。book scope では `scene-notes/` の scene note と `structures/` 配下の構成テンプレートも同じ tree に出す。
-
 ## Settings
 
-既定ではインストール済みの `shosei` を実行する。
+By default, the extension runs `shosei` from `PATH`.
 
 ```json
 {
@@ -77,7 +76,7 @@ story surface も command palette と sidebar action から使う。`story scaff
 }
 ```
 
-この source tree の CLI を直接使う場合は、`cwd` が対象 book repo になっても動くように `--manifest-path` を付ける。
+To run a local source checkout of the CLI, set `shosei.cli.command` to `cargo` and pass the CLI crate with `--manifest-path`.
 
 ```json
 {
@@ -93,109 +92,13 @@ story surface も command palette と sidebar action から使う。`story scaff
 }
 ```
 
-`series` repo で active file が `books/<book-id>/` 配下にない場合は、`shosei.series.defaultBookId` を設定できる。
+For series repositories, set `shosei.series.defaultBookId` when commands should use a specific book and the active file is not under `books/<book-id>/`.
 
-## Local install / update
+## Manual VSIX Install
 
-Marketplace に公開しなくても、手元の VS Code や Cursor に拡張を入れられる。同じ VSIX を新しい version で再 install すれば update になる。
+Open VSX-compatible editors can update from Open VSX. For manual installs, use the `shosei-vscode-<version>.vsix` asset from the GitHub Release page.
 
-VSIX を作る:
+- VS Code: run `Extensions: Install from VSIX...`
+- Cursor: run `Extensions: Install from VSIX...`
 
-```bash
-cd editors/vscode
-npm run package
-```
-
-生成物:
-
-```text
-editors/vscode/shosei-vscode-0.2.7.vsix
-```
-
-インストール方法:
-
-- VS Code で `Extensions: Install from VSIX...` を実行して上の `.vsix` を選ぶ
-- `code` CLI が使える場合は `code --install-extension editors/vscode/shosei-vscode-0.2.7.vsix`
-- Cursor では `Extensions: Install from VSIX...` を実行して同じ `.vsix` を選ぶ
-
-ローカル install 後も、実処理は `shosei` CLI に委譲する。source tree の CLI を使いたい場合は、下の `shosei.cli.command` / `shosei.cli.args` 設定を使う。
-
-## GitHub Release
-
-GitHub Release に VSIX を載せる workflow は `.github/workflows/release.yml` にある。
-
-- repo release tag は `shosei-cli` の version に合わせた `v<cli-version>` を使う
-- その tag を push すると VSIX と CLI binary archive を package して同名 release に asset として添付する
-- `OPEN_VSX_TOKEN` secret が設定されていれば、同じ VSIX を Open VSX に publish する
-- `workflow_dispatch` でも実行でき、tag 未指定なら `v<shosei-cli-version>` を使う
-- VSIX asset 名は `editors/vscode/package.json` の version を使う
-- release workflow では `npm ci`, `npm run check`, `npm test`, `npm run test:host` を通した後に package し、Ubuntu では `npm run test:package-smoke` で package 済み VSIX も確認する
-
-例:
-
-```bash
-git tag v0.2.7
-git push origin v0.2.7
-```
-
-release に載る asset:
-
-```text
-shosei-vscode-0.2.7.vsix
-shosei-v0.2.7-x86_64-unknown-linux-gnu.tar.gz
-shosei-v0.2.7-x86_64-apple-darwin.tar.gz
-shosei-v0.2.7-aarch64-apple-darwin.tar.gz
-shosei-v0.2.7-x86_64-pc-windows-msvc.zip
-```
-
-Open VSX publish には repo の Actions secret `OPEN_VSX_TOKEN` を使う。Open VSX 側では `package.json` の `publisher` である `straydog` namespace が事前に作成されている必要がある。release 再実行時は `ovsx publish --skip-duplicate` で既存 version を重複 publish しない。
-
-Homebrew / Scoop 向け manifest の publish は release 後段の package repository push が通った場合だけ行う。CLI archive と VSIX 自体は GitHub Release asset として常に添付される。Open VSX 対応 editor は registry から更新でき、Cursor を含む VS Code 互換 editor の手動 update でも、この VSIX を使う。
-
-## Development
-
-VS Code で repo root を開けば、`.vscode/launch.json` の `shosei: Extension Development Host` からそのまま `F5` で拡張を起動できる。開発ホストは `--disable-extensions` 付きで立ち上げ、手元の他拡張の activation error を切り離す。
-
-開発ホストでは `shosei.cli.command` / `shosei.cli.args` が未設定でも、repo 内の `crates/shosei-cli/Cargo.toml` が見つかれば `cargo run --manifest-path ... --bin shosei --` に自動フォールバックする。
-
-`Shosei: Init` は VS Code 側で template / `paper` の場合は profile / repo mode / `series` の場合は初期 book id / title / author / language / output preset を集め、prose では前付き / 後付き scaffold 有無も確認して、`shosei init <path> --non-interactive ...` に変換して実行する。`paper` は print を先頭に出し、`conference-preprint` は `--config-profile conference-preprint` に変換する。`series` の初期 book id は `--initial-book-id` に変換し、既定値は `vol-01`、`/`, `\\`, 空白, `.`, `..` は受け付けない。前付き / 後付き scaffold を選んだ場合は `--include-introduction`, `--include-afterword` を付ける。scaffold 自体は CLI が生成する。
-
-view の config / structure 表示は `shosei explain --json`、toolchain 表示は `shosei doctor --json` を使っており、required / optional の分類も含めて VS Code 側で config merge や依存検出を再実装しない。
-
-Extension Development Host 側でこの source tree の CLI を使うときは、workspace settings を次のようにする。
-
-```json
-{
-  "shosei.cli.command": "cargo",
-  "shosei.cli.args": [
-    "run",
-    "--manifest-path",
-    "/path/to/shosei/crates/shosei-cli/Cargo.toml",
-    "--bin",
-    "shosei",
-    "--"
-  ]
-}
-```
-
-ローカルの依存取得:
-
-```bash
-npm ci
-```
-
-構文チェック:
-
-```bash
-npm run check
-```
-
-テスト:
-
-```bash
-npm test
-npm run test:host
-npm run test:package-smoke
-```
-
-PR CI では `npm ci` の後に `npm run check`, `npm test`, `npm run test:host` を 3 OS で継続実行し、Ubuntu では `npm run test:package-smoke` で package 済み VSIX の smoke も回す。release workflow でも package 前に同じ install/check の流れを通す。
+After installing the extension, the actual publishing work is still performed by the configured `shosei` CLI.
