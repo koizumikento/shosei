@@ -148,7 +148,7 @@ editorial:
 | `outputs.kindle.target` | 同上 | prose は通常 `kindle-ja`、manga は `kindle-comic` |
 | `outputs.print.enabled` | 同上 | print 出力を有効化するか |
 | `outputs.print.target` | 同上 | `print-jp-pdfx1a`, `print-jp-pdfx4`, `print-manga` |
-| `images.epub_figure_layout` | `book.yml` または `series.yml.defaults.images` | EPUB の図版レイアウト。`auto` は light-novel だけ standalone、それ以外は inline |
+| `images.epub_figure_layout` | `book.yml` または `series.yml.defaults.images` | EPUB の図版レイアウト。`auto` は light-novel だけ standalone、それ以外は inline。standalone は図表メディアの単独ページ化と中央配置を意図し、キャプションを下側の flexible grid track の先頭へ置いて start-aligned に保つ |
 | `pdf.engine` | prose の print 時 | print PDF のレンダラ。`chromium` や `weasyprint` |
 | `print.trim_size` | print 時 | 仕上がりサイズ。`A4`, `bunko` など |
 | `editorial.style` | prose の `book.yml` | 用語や表記ルールの sidecar file |

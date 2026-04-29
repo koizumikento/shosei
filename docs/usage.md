@@ -486,7 +486,7 @@ pdf:
 
 prose の Kindle / EPUB build では `styles/base.css` と `styles/epub.css` を Pandoc に渡す。`series` repo では対応する `shared/styles/base.css`, `shared/styles/epub.css` を使う。
 
-`images.epub_figure_layout` は EPUB 内の図版レイアウト方針を制御する。既定の `auto` では `book.profile: light-novel` だけが `standalone` として解決され、generated EPUB figure stylesheet が `base.css` / `epub.css` の後に追加される。`business`, `paper`, `conference-preprint`, `novel` は従来どおり `inline` になる。非 light-novel でも明示的に `images.epub_figure_layout: standalone` を書けば同じ generated stylesheet を使える。EPUB reader ごとに CSS 改ページ対応は異なるため、これは reader が対応する範囲で図版単独ページ化を意図する設定として扱う。
+`images.epub_figure_layout` は EPUB 内の図版レイアウト方針を制御する。既定の `auto` では `book.profile: light-novel` だけが `standalone` として解決され、generated EPUB figure stylesheet が `base.css` / `epub.css` の後に追加される。`business`, `paper`, `conference-preprint`, `novel` は従来どおり `inline` になる。非 light-novel でも明示的に `images.epub_figure_layout: standalone` を書けば同じ generated stylesheet を使える。EPUB reader ごとに CSS 改ページや grid layout の対応は異なるため、これは reader が対応する範囲で図表の単独ページ化と中央配置を意図する設定として扱う。standalone figure layout は `writing-mode: horizontal-tb` を明示し、図表メディアを zero-min flexible track に挟まれた grid の中央行に置くことで、縦組み本文やキャプションの有無に影響されにくい物理中央配置を狙う。キャプションは下側の flexible grid track の先頭へ置き、本文は中央揃えにせず、reader が対応する範囲で通常の行揃えを保つ。
 
 standalone figure layout は `figure` コンテナに改ページ指定を当てる。図とキャプションを同じページに保持したい場合は `![図：キャプション。](assets/images/example.png)` のように Markdown 画像の `[]` に表示キャプションを入れる。画像の次段落に `*図：キャプション。*` と書く形は Pandoc の `figure` 外に出るため、standalone figure layout では非推奨。
 

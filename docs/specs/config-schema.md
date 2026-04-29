@@ -367,9 +367,9 @@ images:
 
 - `auto`: `book.profile: light-novel` では `standalone`、それ以外の prose profile では `inline`
 - `inline`: 従来どおり本文フロー内の図版として扱う
-- `standalone`: EPUB reader が CSS 改ページを解釈する範囲で、図版を単独ページに置くことを意図した generated stylesheet を追加する
+- `standalone`: EPUB reader が CSS 改ページや grid layout を解釈する範囲で、図版を単独ページに置き、図表メディアをページ中央へ寄せ、キャプション本文は中央揃えにしない generated stylesheet を追加する
 
-`standalone` は `figure` コンテナに改ページ指定を当てる。画像とキャプションを同じページに保持したい場合は、Markdown 画像の `[]` に表示キャプションを入れて Pandoc の `figcaption` にする。画像の次段落に `*図：...*` と書く形は `figure` の外側に出るため、単独ページ化とは相性が悪い。
+`standalone` は `figure` コンテナに改ページ指定を当て、本文が縦組みでも図表ページの中央配置が物理方向で安定するように standalone figure layout の `writing-mode` を `horizontal-tb` に固定する。生成 CSS は図表メディアを zero-min flexible track に挟まれた grid の中央行に置き、`figcaption` を下側の flexible grid track の先頭へ置いて start-aligned に保つため、キャプションがあっても図表メディア自体の中央位置を保つ。画像とキャプションを同じページに保持したい場合は、Markdown 画像の `[]` に表示キャプションを入れて Pandoc の `figcaption` にする。画像の次段落に `*図：...*` と書く形は `figure` の外側に出るため、単独ページ化とは相性が悪い。
 
 ## 14. `validation`
 

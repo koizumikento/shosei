@@ -16,13 +16,13 @@ Add `images.epub_figure_layout` with values `auto`, `inline`, and `standalone`.
 - `auto` resolves to `inline` for `business`, `paper`, `conference-preprint`, and `novel`.
 - `standalone` can be set explicitly for those non-light-novel prose profiles.
 
-For prose Kindle / EPUB builds that resolve to `standalone`, `shosei build` writes a generated EPUB figure stylesheet and passes it to Pandoc after authored `base.css` and `epub.css`. The generated CSS targets `figure`, not bare `img`, and keeps `figcaption` from being intentionally sent to a separate page. EPUB reader support for CSS page breaks varies, so the contract is to express the standalone-page intent where the reader honors it.
+For prose Kindle / EPUB builds that resolve to `standalone`, `shosei build` writes a generated EPUB figure stylesheet and passes it to Pandoc after authored `base.css` and `epub.css`. The generated CSS targets `figure`, not bare `img`, keeps `figcaption` from being intentionally sent to a separate page, and centers `figure img` / `figure svg` within the standalone page while keeping caption text start-aligned. It fixes standalone figure layout to `writing-mode: horizontal-tb`, places figure media in the middle row of a grid between zero-min flexible tracks, and places `figcaption` at the start of the lower flexible track so vertical prose writing and captions do not move the media away from the physical page center. EPUB reader support for CSS page breaks and grid layout varies, so the contract is to express the standalone-page and figure-centering intent where the reader honors it.
 
 Manga builds keep their fixed-layout page image model and do not use this prose generated stylesheet.
 
 ## Consequences
 
 - Existing prose projects can get the new light-novel behavior without editing scaffolded CSS.
-- Authored CSS remains responsible for general EPUB look and feel; generated CSS owns the profile/config-driven figure pagination rule.
+- Authored CSS remains responsible for general EPUB look and feel; generated CSS owns the profile/config-driven figure pagination, figure-media centering, and caption alignment needed for standalone figure pages.
 - Captions should live inside Pandoc's `figure` when the image and caption must stay together. The recommended Markdown form is `![図：キャプション。](assets/images/example.png)`. A following `*図：...*` paragraph is outside the `figure` and is not compatible with standalone figure pagination.
 - `series.yml` can provide `defaults.images.epub_figure_layout`, with book-level config able to override it.
