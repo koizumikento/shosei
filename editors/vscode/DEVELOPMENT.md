@@ -26,13 +26,13 @@ npm run package
 Generated file:
 
 ```text
-editors/vscode/shosei-vscode-0.2.9.vsix
+editors/vscode/shosei-vscode-0.2.10.vsix
 ```
 
 Install options:
 
 - VS Code: run `Extensions: Install from VSIX...` and select the `.vsix`
-- `code` CLI: `code --install-extension editors/vscode/shosei-vscode-0.2.9.vsix`
+- `code` CLI: `code --install-extension editors/vscode/shosei-vscode-0.2.10.vsix`
 - Cursor: run `Extensions: Install from VSIX...` and select the same `.vsix`
 
 After local install, real work is still delegated to the configured `shosei` CLI. To use the source tree CLI, set `shosei.cli.command` / `shosei.cli.args` as shown in the public README.
@@ -52,18 +52,18 @@ The workflow that attaches a VSIX to GitHub Releases is `.github/workflows/relea
 Example:
 
 ```bash
-git tag v0.2.9
-git push origin v0.2.9
+git tag v0.2.10
+git push origin v0.2.10
 ```
 
 Release assets:
 
 ```text
-shosei-vscode-0.2.9.vsix
-shosei-v0.2.9-x86_64-unknown-linux-gnu.tar.gz
-shosei-v0.2.9-x86_64-apple-darwin.tar.gz
-shosei-v0.2.9-aarch64-apple-darwin.tar.gz
-shosei-v0.2.9-x86_64-pc-windows-msvc.zip
+shosei-vscode-0.2.10.vsix
+shosei-v0.2.10-x86_64-unknown-linux-gnu.tar.gz
+shosei-v0.2.10-x86_64-apple-darwin.tar.gz
+shosei-v0.2.10-aarch64-apple-darwin.tar.gz
+shosei-v0.2.10-x86_64-pc-windows-msvc.zip
 ```
 
 Open VSX publishing uses the repository Actions secret `OPEN_VSX_TOKEN`. The `straydog` namespace from `package.json` must exist in Open VSX before publishing. Release reruns use `ovsx publish --skip-duplicate` to avoid duplicate version failures.

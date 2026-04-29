@@ -4,22 +4,22 @@
 
 This extension does not include the publishing engine. It is a thin editor adapter over the real `shosei` CLI: command palette actions, a project sidebar, output channel integration, and Problems reporting all shell out to the configured CLI.
 
-## Install The CLI First
+## CLI Requirement
 
-Install or update the `shosei` CLI before using the extension. The extension expects to run `shosei` from `PATH` by default.
+The extension runs the `shosei` CLI you already use in your shell. By default it calls `shosei` from `PATH`.
 
-Check the CLI from a terminal:
+Check that the command is available:
 
 ```bash
 shosei --help
 ```
 
-If that command is not available, install the CLI from the [shosei install guide](https://github.com/koizumikento/shosei#install). If you use a custom binary path or a source checkout, configure `shosei.cli.command` and `shosei.cli.args` in the extension settings.
+If that command is not available yet, follow the [shosei CLI setup guide](https://github.com/koizumikento/shosei#install). If you use a custom binary path or a source checkout, configure `shosei.cli.command` and `shosei.cli.args` in the extension settings.
 
 ## Requirements
 
 - A VS Code-compatible editor such as VS Code or Cursor
-- The `shosei` CLI installed and available on `PATH`
+- The `shosei` CLI available on `PATH` or configured in extension settings
 - A shosei repository with either `book.yml` or `series.yml`
 
 ## What You Can Do
