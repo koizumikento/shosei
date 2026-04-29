@@ -1044,7 +1044,7 @@ fn book_yml(scaffold: &InitScaffoldConfig) -> String {
         )
     } else {
         format!(
-            "{}{}{}validation:\n  strict: true\n  epubcheck: true\n  accessibility: warn\ngit:\n  lfs: {}\neditorial:\n  style: editorial/style.yml\n  claims: editorial/claims.yml\n  figures: editorial/figures.yml\n  freshness: editorial/freshness.yml\n",
+            "{}{}{}images:\n  epub_figure_layout: auto\nvalidation:\n  strict: true\n  epubcheck: true\n  accessibility: warn\ngit:\n  lfs: {}\neditorial:\n  style: editorial/style.yml\n  claims: editorial/claims.yml\n  figures: editorial/figures.yml\n  freshness: editorial/freshness.yml\n",
             cover_block,
             prose_manuscript_block(scaffold, None),
             outputs_block(scaffold),
@@ -1071,11 +1071,16 @@ fn book_yml(scaffold: &InitScaffoldConfig) -> String {
 fn series_yml(scaffold: &InitScaffoldConfig) -> String {
     let template = scaffold.template;
     let outputs = indent_block(&outputs_block(scaffold), 2);
+    let images_defaults = if template == ProjectTemplate::Manga {
+        String::new()
+    } else {
+        "  images:\n    epub_figure_layout: auto\n".to_string()
+    };
     let book_id = scaffold.series_book_id();
     let book_path = format!("books/{book_id}");
 
     format!(
-        "series:\n  id: sample-series\n  title: \"{}\"\n  language: {}\n  type: {}\nshared:\n  assets:\n    - shared/assets\n  styles:\n    - shared/styles\n  fonts:\n    - shared/fonts\n  metadata:\n    - shared/metadata\ndefaults:\n  book:\n    profile: {}\n    writing_mode: {}\n    reading_direction: {}\n  layout:\n    binding: {}\n    chapter_start_page: {}\n    allow_blank_pages: {}\n{}validation:\n  strict: true\n  epubcheck: {}\n  accessibility: warn\ngit:\n  lfs: {}\n  require_clean_worktree_for_handoff: true\nbooks:\n  - id: {}\n    path: {}\n    number: 1\n    title: \"Volume 1\"\n",
+        "series:\n  id: sample-series\n  title: \"{}\"\n  language: {}\n  type: {}\nshared:\n  assets:\n    - shared/assets\n  styles:\n    - shared/styles\n  fonts:\n    - shared/fonts\n  metadata:\n    - shared/metadata\ndefaults:\n  book:\n    profile: {}\n    writing_mode: {}\n    reading_direction: {}\n  layout:\n    binding: {}\n    chapter_start_page: {}\n    allow_blank_pages: {}\n{}{}validation:\n  strict: true\n  epubcheck: {}\n  accessibility: warn\ngit:\n  lfs: {}\n  require_clean_worktree_for_handoff: true\nbooks:\n  - id: {}\n    path: {}\n    number: 1\n    title: \"Volume 1\"\n",
         scaffold.title,
         scaffold.language,
         template.as_str(),
@@ -1086,6 +1091,7 @@ fn series_yml(scaffold: &InitScaffoldConfig) -> String {
         scaffold.profile.chapter_start_page(),
         scaffold.profile.allow_blank_pages(),
         outputs,
+        images_defaults,
         if template == ProjectTemplate::Manga {
             "false"
         } else {
@@ -2118,6 +2124,7 @@ mod tests {
         assert!(!book.contains("frontmatter:"));
         assert!(!book.contains("backmatter:"));
         assert!(book.contains("cover:\n  ebook_image: assets/cover/front.png"));
+        assert!(book.contains("images:\n  epub_figure_layout: auto"));
         assert!(book.contains("editorial:\n  style: editorial/style.yml"));
         assert!(book.contains("engine: chromium"));
         crate::config::load_book_config(&root.join("book.yml")).unwrap();
@@ -2219,6 +2226,8 @@ mod tests {
         assert!(book_root.join("assets/cover/front.png").is_file());
         crate::config::load_series_config(&root.join("series.yml")).unwrap();
         crate::config::load_book_config(&book_root.join("book.yml")).unwrap();
+        let series = fs::read_to_string(root.join("series.yml")).unwrap();
+        assert!(!series.contains("epub_figure_layout"));
         let book = fs::read_to_string(book_root.join("book.yml")).unwrap();
         assert!(book.contains(&format!(
             "cover:\n  ebook_image: books/{DEFAULT_SERIES_BOOK_ID}/assets/cover/front.png"
@@ -2572,6 +2581,8 @@ mod tests {
         assert!(root.join("shared/styles/base.css").is_file());
         assert!(root.join("shared/styles/epub.css").is_file());
         assert!(root.join("shared/styles/print.css").is_file());
+        let series = fs::read_to_string(root.join("series.yml")).unwrap();
+        assert!(series.contains("images:\n    epub_figure_layout: auto"));
         let book = fs::read_to_string(book_root.join("book.yml")).unwrap();
         assert!(book.contains(&format!(
             "editorial:\n  style: books/{DEFAULT_SERIES_BOOK_ID}/editorial/style.yml"

@@ -72,6 +72,7 @@ pub struct EffectiveBookConfig {
     pub book: BookSettings,
     pub layout: LayoutSettings,
     pub cover: CoverSettings,
+    pub images: ImagesSettings,
     pub pdf: Option<PdfSettings>,
     pub print: Option<PrintSettings>,
     pub outputs: OutputSettings,
@@ -164,6 +165,45 @@ pub struct LayoutSettings {
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct CoverSettings {
     pub ebook_image: Option<RepoPath>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ImagesSettings {
+    pub epub_figure_layout: EpubFigureLayout,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EpubFigureLayout {
+    Auto,
+    Inline,
+    Standalone,
+}
+
+impl EpubFigureLayout {
+    fn parse(value: &str) -> Option<Self> {
+        match value {
+            "auto" => Some(Self::Auto),
+            "inline" => Some(Self::Inline),
+            "standalone" => Some(Self::Standalone),
+            _ => None,
+        }
+    }
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Auto => "auto",
+            Self::Inline => "inline",
+            Self::Standalone => "standalone",
+        }
+    }
+
+    pub fn resolves_to_standalone(self, profile: &str) -> bool {
+        match self {
+            Self::Auto => profile == "light-novel",
+            Self::Inline => false,
+            Self::Standalone => true,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -740,6 +780,11 @@ pub fn explain_book_config(context: &RepoContext) -> Result<ExplainedConfig, Con
             resolved.effective.cover.ebook_image.as_ref(),
             origin(&["cover", "ebook_image"]),
         ),
+        explained(
+            "images.epub_figure_layout",
+            resolved.effective.images.epub_figure_layout.as_str(),
+            origin(&["images", "epub_figure_layout"]),
+        ),
         explained_optional(
             "pdf.engine",
             resolved
@@ -1187,6 +1232,7 @@ fn parse_effective_book_config(
             .unwrap_or(true),
         },
         cover: parse_cover(raw, config_path)?,
+        images: parse_images(raw, config_path)?,
         pdf: parse_pdf(raw, config_path, project_type, &profile, writing_mode)?,
         print: parse_print(raw, config_path, outputs.print.as_deref())?,
         outputs,
@@ -1279,6 +1325,29 @@ fn parse_cover_ebook_image(
         ));
     }
     Ok(Some(path))
+}
+
+fn parse_images(raw: &Value, config_path: &Path) -> Result<ImagesSettings, ConfigError> {
+    Ok(ImagesSettings {
+        epub_figure_layout: parse_epub_figure_layout(raw, config_path)?,
+    })
+}
+
+fn parse_epub_figure_layout(
+    raw: &Value,
+    config_path: &Path,
+) -> Result<EpubFigureLayout, ConfigError> {
+    match optional_string_at(raw, &["images", "epub_figure_layout"], config_path)? {
+        Some(value) => EpubFigureLayout::parse(&value).ok_or_else(|| {
+            invalid_value(
+                config_path,
+                "images.epub_figure_layout",
+                value,
+                "must be auto, inline, or standalone",
+            )
+        }),
+        None => Ok(EpubFigureLayout::Auto),
+    }
 }
 
 fn parse_pdf(
@@ -2386,6 +2455,68 @@ manuscript:
     }
 
     #[test]
+    fn merges_series_image_defaults_with_book_overrides() {
+        let root = temp_dir("series-image-defaults");
+        fs::create_dir_all(root.join("books/vol-01")).unwrap();
+        fs::write(
+            root.join("series.yml"),
+            r#"
+series:
+  id: sample
+  title: Sample
+  type: novel
+defaults:
+  book:
+    language: ja
+    writing_mode: vertical-rl
+    reading_direction: rtl
+  images:
+    epub_figure_layout: standalone
+  outputs:
+    kindle:
+      enabled: true
+      target: kindle-ja
+books:
+  - id: vol-01
+    path: books/vol-01
+"#,
+        )
+        .unwrap();
+        fs::write(
+            root.join("books/vol-01/book.yml"),
+            r#"
+project:
+  type: novel
+book:
+  title: "Vol 1"
+  authors:
+    - "Author"
+images:
+  epub_figure_layout: inline
+manuscript:
+  chapters:
+    - books/vol-01/manuscript/01.md
+"#,
+        )
+        .unwrap();
+
+        let context = repo::discover(&root.join("books/vol-01"), None).unwrap();
+        let resolved = resolve_book_config(&context).unwrap();
+
+        assert_eq!(
+            resolved.effective.images.epub_figure_layout,
+            EpubFigureLayout::Inline
+        );
+        assert!(
+            !resolved
+                .effective
+                .images
+                .epub_figure_layout
+                .resolves_to_standalone(&resolved.effective.book.profile)
+        );
+    }
+
+    #[test]
     fn resolves_cover_ebook_image_from_book_config() {
         let root = temp_dir("cover-image");
         fs::write(
@@ -2430,6 +2561,145 @@ git:
                 .map(RepoPath::as_str),
             Some("assets/cover/front.jpg")
         );
+    }
+
+    #[test]
+    fn defaults_epub_figure_layout_to_auto() {
+        let root = temp_dir("images-epub-figure-layout-default");
+        fs::write(
+            root.join("book.yml"),
+            r#"
+project:
+  type: light-novel
+  vcs: git
+book:
+  title: "Sample"
+  authors:
+    - "Author"
+  profile: light-novel
+  reading_direction: rtl
+layout:
+  binding: right
+manuscript:
+  chapters:
+    - manuscript/01.md
+outputs:
+  kindle:
+    enabled: true
+    target: kindle-ja
+validation:
+  strict: true
+git:
+  lfs: true
+"#,
+        )
+        .unwrap();
+
+        let context = repo::discover(&root, None).unwrap();
+        let resolved = resolve_book_config(&context).unwrap();
+
+        assert_eq!(
+            resolved.effective.images.epub_figure_layout,
+            EpubFigureLayout::Auto
+        );
+        assert!(
+            resolved
+                .effective
+                .images
+                .epub_figure_layout
+                .resolves_to_standalone(&resolved.effective.book.profile)
+        );
+    }
+
+    #[test]
+    fn resolves_explicit_epub_figure_layout_from_book_config() {
+        let root = temp_dir("images-epub-figure-layout-explicit");
+        fs::write(
+            root.join("book.yml"),
+            r#"
+project:
+  type: novel
+  vcs: git
+book:
+  title: "Sample"
+  authors:
+    - "Author"
+  reading_direction: rtl
+layout:
+  binding: right
+images:
+  epub_figure_layout: standalone
+manuscript:
+  chapters:
+    - manuscript/01.md
+outputs:
+  kindle:
+    enabled: true
+    target: kindle-ja
+validation:
+  strict: true
+git:
+  lfs: true
+"#,
+        )
+        .unwrap();
+
+        let context = repo::discover(&root, None).unwrap();
+        let resolved = resolve_book_config(&context).unwrap();
+
+        assert_eq!(
+            resolved.effective.images.epub_figure_layout,
+            EpubFigureLayout::Standalone
+        );
+        assert!(
+            resolved
+                .effective
+                .images
+                .epub_figure_layout
+                .resolves_to_standalone(&resolved.effective.book.profile)
+        );
+    }
+
+    #[test]
+    fn rejects_unknown_epub_figure_layout() {
+        let root = temp_dir("images-epub-figure-layout-invalid");
+        fs::write(
+            root.join("book.yml"),
+            r#"
+project:
+  type: novel
+  vcs: git
+book:
+  title: "Sample"
+  authors:
+    - "Author"
+  reading_direction: rtl
+layout:
+  binding: right
+images:
+  epub_figure_layout: page
+manuscript:
+  chapters:
+    - manuscript/01.md
+outputs:
+  kindle:
+    enabled: true
+    target: kindle-ja
+validation:
+  strict: true
+git:
+  lfs: true
+"#,
+        )
+        .unwrap();
+
+        let context = repo::discover(&root, None).unwrap();
+        let error = resolve_book_config(&context).unwrap_err();
+
+        assert!(matches!(
+            error,
+            ConfigError::InvalidFieldValue { field, .. } if field == "images.epub_figure_layout"
+        ));
     }
 
     #[test]

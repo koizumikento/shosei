@@ -346,6 +346,7 @@ print:
 
 ```yaml
 images:
+  epub_figure_layout: auto
   default_caption: optional
   default_alt: required
   spread_policy_for_kindle: split
@@ -355,11 +356,20 @@ images:
 
 | Field | Type | Required | Default | Allowed |
 |---|---|---|---|---|
+| `epub_figure_layout` | string | no | `auto` | `auto`, `inline`, `standalone` |
 | `default_caption` | string | no | `optional` | `required`, `optional`, `none` |
 | `default_alt` | string | no | `required` | `required`, `optional`, `none` |
 | `spread_policy_for_kindle` | string | no | `split` | `split`, `single-page`, `skip` |
 | `default_page_side` | string | no | `either` | `left`, `right`, `either` |
 | `min_print_dpi` | integer | no | `300` | positive integer |
+
+`epub_figure_layout` は prose の Kindle / EPUB build で Pandoc が出力する `figure` の扱いを決める。
+
+- `auto`: `book.profile: light-novel` では `standalone`、それ以外の prose profile では `inline`
+- `inline`: 従来どおり本文フロー内の図版として扱う
+- `standalone`: EPUB reader が CSS 改ページを解釈する範囲で、図版を単独ページに置くことを意図した generated stylesheet を追加する
+
+`standalone` は `figure` コンテナに改ページ指定を当てる。画像とキャプションを同じページに保持したい場合は、Markdown 画像の `[]` に表示キャプションを入れて Pandoc の `figcaption` にする。画像の次段落に `*図：...*` と書く形は `figure` の外側に出るため、単独ページ化とは相性が悪い。
 
 ## 14. `validation`
 
@@ -581,6 +591,9 @@ outputs:
   kindle:
     enabled: true
     target: kindle-ja
+
+images:
+  epub_figure_layout: auto
 
 validation:
   strict: true

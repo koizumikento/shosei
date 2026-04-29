@@ -35,6 +35,7 @@ Architecture Decision Record の一覧。
 - [ADR-0031: Kindle Previewer validation is opt-in](0031-kindle-previewer-validation-is-opt-in.md)
 - [ADR-0032: delivery evidence exposes submission readiness](0032-delivery-evidence-readiness-contract.md)
 - [ADR-0033: prose image paths follow Pandoc book-root resolution](0033-prose-image-paths-follow-pandoc-book-root.md)
+- [ADR-0034: light-novel EPUB figure layout uses generated CSS](0034-light-novel-epub-figure-layout.md)
 
 記法:
 

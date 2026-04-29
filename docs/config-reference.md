@@ -50,6 +50,8 @@ outputs:
   kindle:
     enabled: true
     target: kindle-ja
+images:
+  epub_figure_layout: auto
 validation:
   strict: true
   epubcheck: true
@@ -92,6 +94,8 @@ defaults:
     binding: right
     chapter_start_page: odd
     allow_blank_pages: true
+  images:
+    epub_figure_layout: auto
 books:
   - id: vol-01
     path: books/vol-01
@@ -144,6 +148,7 @@ editorial:
 | `outputs.kindle.target` | 同上 | prose は通常 `kindle-ja`、manga は `kindle-comic` |
 | `outputs.print.enabled` | 同上 | print 出力を有効化するか |
 | `outputs.print.target` | 同上 | `print-jp-pdfx1a`, `print-jp-pdfx4`, `print-manga` |
+| `images.epub_figure_layout` | `book.yml` または `series.yml.defaults.images` | EPUB の図版レイアウト。`auto` は light-novel だけ standalone、それ以外は inline |
 | `pdf.engine` | prose の print 時 | print PDF のレンダラ。`chromium` や `weasyprint` |
 | `print.trim_size` | print 時 | 仕上がりサイズ。`A4`, `bunko` など |
 | `editorial.style` | prose の `book.yml` | 用語や表記ルールの sidecar file |
@@ -167,6 +172,7 @@ editorial:
 | `shared.metadata` | series catalog など shared metadata の置き場 |
 | `defaults.book.*` | 各巻の既定値 |
 | `defaults.layout.*` | 各巻の layout 既定値 |
+| `defaults.images.*` | 各巻の画像レイアウト既定値 |
 | `books[].id` | `--book` で指定する巻 ID |
 | `books[].path` | 巻ディレクトリの repo-relative path |
 | `books[].number` | 巻番号 |
@@ -205,5 +211,6 @@ editorial:
 - config の path は repo-relative
 - path 区切りは `/`
 - prose の章順は `manuscript.chapters` の配列順で決まる
+- EPUB で図とキャプションを同じページに保持したい場合は、Markdown 画像の `[]` に表示キャプションを入れる。画像直後の `*図：...*` 段落は `figure` 外に出るため、`images.epub_figure_layout: standalone` とは相性が悪い
 - `series` では `book.yml` より `series.yml` の defaults が先に入り、巻固有 `book.yml` が上書きする
 - 詳しい制約や許容値は schema を参照する
