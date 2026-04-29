@@ -482,6 +482,8 @@ figures:
 - `path` は repo-relative asset path
 - `source` と `rights` は校正・入稿時の確認対象
 
+Prose manuscript の Markdown 画像参照は、Pandoc EPUB packaging と同じ current book root 基準で解決する。`single-book` では `![alt](assets/images/example.png)` が `assets/images/example.png` を指し、`series` の巻 scope では `books/<book-id>/assets/images/example.png` を指す。既存原稿のため、実在する manuscript file 相対 path も fallback として受け付ける。`figures.yml.path` との照合は、解決後の repo-relative path で行う。
+
 ### 16.4 `freshness.yml`
 
 ```yaml

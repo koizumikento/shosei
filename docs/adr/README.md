@@ -34,6 +34,7 @@ Architecture Decision Record の一覧。
 - [ADR-0030: 縦組み prose print は Chromium backend を使う](0030-vertical-prose-print-uses-chromium.md)
 - [ADR-0031: Kindle Previewer validation is opt-in](0031-kindle-previewer-validation-is-opt-in.md)
 - [ADR-0032: delivery evidence exposes submission readiness](0032-delivery-evidence-readiness-contract.md)
+- [ADR-0033: prose image paths follow Pandoc book-root resolution](0033-prose-image-paths-follow-pandoc-book-root.md)
 
 記法:
 

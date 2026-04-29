@@ -402,6 +402,7 @@ status: unread</code></pre>
             <li>print build に設定された PDF engine の有無</li>
             <li>欠落した manuscript / cover / manga page の検出</li>
             <li>prose 原稿のリンク切れと画像参照切れ</li>
+            <li>prose 原稿の画像参照は Pandoc packaging と同じ book root 基準で解決します。<code>single-book</code> では <code>![alt](assets/images/example.png)</code> が <code>assets/images/example.png</code> を指し、<code>series</code> の巻 scope では <code>books/&lt;book-id&gt;/assets/images/example.png</code> を指します。実在する manuscript file 相対 path は fallback として受け付け、<code>figures.yml.path</code> は解決後の repo-relative path で照合します。</li>
             <li>prose 原稿の alt 欠落</li>
             <li>chapter ファイルの level-1 heading 不足</li>
             <li>heading hierarchy の飛び級</li>

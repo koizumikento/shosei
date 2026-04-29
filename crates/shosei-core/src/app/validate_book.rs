@@ -1902,6 +1902,12 @@ fn prose_validation_issues(
         .into_iter()
         .map(|path| path.as_str().to_string())
         .collect::<BTreeSet<_>>();
+    let book_root = resolved
+        .repo
+        .book
+        .as_ref()
+        .map(|book| book.root.as_path())
+        .unwrap_or(resolved.repo.repo_root.as_path());
     let mut issues = Vec::new();
     let mut referenced_images = BTreeMap::<String, IssueLocation>::new();
 
@@ -1939,7 +1945,12 @@ fn prose_validation_issues(
                 ));
             }
             if !image.is_external
-                && !resolved_path_exists(file_path, &resolved.repo.repo_root, &image.destination)
+                && !resolved_manuscript_image_exists(
+                    file_path,
+                    &resolved.repo.repo_root,
+                    book_root,
+                    &image.destination,
+                )
             {
                 issues.push(issue_from_severity_at_location(
                     resolved.effective.validation.missing_image,
@@ -1977,9 +1988,10 @@ fn prose_validation_issues(
 
             for image in &analysis.images {
                 if !image.is_external
-                    && let Some(repo_path) = resolve_destination_to_repo_path(
+                    && let Some(repo_path) = resolve_manuscript_image_to_repo_path(
                         file_path,
                         &resolved.repo.repo_root,
+                        book_root,
                         &image.destination,
                     )
                 {
@@ -2609,6 +2621,15 @@ fn resolve_destination_to_repo_path(
     repo_root: &Path,
     destination: &str,
 ) -> Option<String> {
+    let source_parent = source_path.parent().unwrap_or(repo_root);
+    resolve_destination_from_base(source_parent, repo_root, destination)
+}
+
+fn resolve_destination_from_base(
+    base_path: &Path,
+    repo_root: &Path,
+    destination: &str,
+) -> Option<String> {
     let base_destination = destination.split('#').next()?;
     if base_destination.is_empty() || is_external_destination(base_destination) {
         return None;
@@ -2617,9 +2638,8 @@ fn resolve_destination_to_repo_path(
     let mut normalized = PathBuf::new();
 
     if !base_destination.starts_with('/') {
-        let source_parent = source_path.parent().unwrap_or(repo_root);
-        let source_relative = source_parent.strip_prefix(repo_root).ok()?;
-        for component in source_relative.components() {
+        let base_relative = base_path.strip_prefix(repo_root).ok()?;
+        for component in base_relative.components() {
             match component {
                 Component::CurDir => {}
                 Component::Normal(part) => normalized.push(part),
@@ -2646,6 +2666,46 @@ fn resolve_destination_to_repo_path(
     }
 
     Some(normalized.to_string_lossy().replace('\\', "/"))
+}
+
+fn resolve_manuscript_image_to_repo_path(
+    source_path: &Path,
+    repo_root: &Path,
+    book_root: &Path,
+    destination: &str,
+) -> Option<String> {
+    let book_relative = resolve_destination_from_base(book_root, repo_root, destination);
+    let source_relative = resolve_destination_to_repo_path(source_path, repo_root, destination);
+
+    if let Some(path) = book_relative.as_ref()
+        && repo_relative_path_exists(repo_root, path)
+    {
+        return book_relative;
+    }
+    if let Some(path) = source_relative.as_ref()
+        && repo_relative_path_exists(repo_root, path)
+    {
+        return source_relative;
+    }
+
+    book_relative.or(source_relative)
+}
+
+fn repo_relative_path_exists(repo_root: &Path, repo_relative: &str) -> bool {
+    RepoPath::parse(repo_relative.to_string())
+        .map(|path| join_repo_path(repo_root, &path).exists())
+        .unwrap_or(false)
+}
+
+fn resolved_manuscript_image_exists(
+    source_path: &Path,
+    repo_root: &Path,
+    book_root: &Path,
+    destination: &str,
+) -> bool {
+    resolve_manuscript_image_to_repo_path(source_path, repo_root, book_root, destination)
+        .map(|path| repo_relative_path_exists(repo_root, &path))
+        .unwrap_or(false)
 }
 
 fn resolved_path_exists(source_path: &Path, repo_root: &Path, destination: &str) -> bool {
@@ -5323,6 +5383,165 @@ git:
                 .map(|location| location.line),
             Some(Some(6))
         );
+    }
+
+    #[test]
+    fn validate_resolves_root_relative_manuscript_images_like_pandoc() {
+        let root = temp_dir("prose-root-relative-image");
+        fs::create_dir_all(root.join("manuscript")).unwrap();
+        fs::create_dir_all(root.join("assets/images")).unwrap();
+        fs::create_dir_all(root.join("assets/cover")).unwrap();
+        fs::create_dir_all(root.join("editorial")).unwrap();
+        fs::write(
+            root.join("manuscript/01.md"),
+            "# Chapter 1\n\n![Architecture](assets/images/architecture.png)\n",
+        )
+        .unwrap();
+        fs::write(root.join("assets/images/architecture.png"), tiny_png()).unwrap();
+        fs::write(root.join("assets/cover/front.png"), tiny_png()).unwrap();
+        fs::write(
+            root.join("editorial/figures.yml"),
+            r#"
+figures:
+  - id: fig-architecture
+    path: assets/images/architecture.png
+    caption: "Architecture"
+    source: "owned"
+"#,
+        )
+        .unwrap();
+        fs::write(
+            root.join("book.yml"),
+            r#"
+project:
+  type: business
+  vcs: git
+book:
+  title: "Sample"
+  authors:
+    - "Author"
+  reading_direction: ltr
+layout:
+  binding: left
+cover:
+  ebook_image: assets/cover/front.png
+manuscript:
+  chapters:
+    - manuscript/01.md
+outputs:
+  kindle:
+    enabled: true
+    target: kindle-ja
+validation:
+  strict: true
+  epubcheck: false
+git:
+  lfs: true
+editorial:
+  figures: editorial/figures.yml
+"#,
+        )
+        .unwrap();
+
+        let result = validate_book_with_toolchain(
+            &CommandContext::new(&root, None, None),
+            &fake_toolchain(ToolStatus::Available),
+        )
+        .unwrap();
+
+        assert!(!result.has_errors);
+        let report = fs::read_to_string(result.report_path).unwrap();
+        assert!(!report.contains("image reference target not found"));
+        assert!(!report.contains("figure ledger entry is not referenced from manuscript"));
+        assert!(!report.contains("manuscript image is not tracked in figure ledger"));
+        assert!(!report.contains("manuscript/assets/images/architecture.png"));
+    }
+
+    #[test]
+    fn validate_resolves_series_book_relative_manuscript_images_like_pandoc() {
+        let root = temp_dir("series-book-relative-image");
+        let book_root = root.join("books/vol-01");
+        fs::create_dir_all(book_root.join("manuscript")).unwrap();
+        fs::create_dir_all(book_root.join("assets/images")).unwrap();
+        fs::create_dir_all(book_root.join("assets/cover")).unwrap();
+        fs::create_dir_all(book_root.join("editorial")).unwrap();
+        fs::write(
+            book_root.join("manuscript/01.md"),
+            "# Chapter 1\n\n![Architecture](assets/images/architecture.png)\n",
+        )
+        .unwrap();
+        fs::write(book_root.join("assets/images/architecture.png"), tiny_png()).unwrap();
+        fs::write(book_root.join("assets/cover/front.png"), tiny_png()).unwrap();
+        fs::write(
+            book_root.join("editorial/figures.yml"),
+            r#"
+figures:
+  - id: fig-architecture
+    path: books/vol-01/assets/images/architecture.png
+    caption: "Architecture"
+    source: "owned"
+"#,
+        )
+        .unwrap();
+        fs::write(
+            root.join("series.yml"),
+            r#"
+series:
+  id: sample
+  title: Sample
+  type: novel
+defaults:
+  book:
+    language: ja
+    writing_mode: vertical-rl
+    reading_direction: rtl
+  outputs:
+    kindle:
+      enabled: true
+      target: kindle-ja
+  validation:
+    epubcheck: false
+books:
+  - id: vol-01
+    path: books/vol-01
+"#,
+        )
+        .unwrap();
+        fs::write(
+            book_root.join("book.yml"),
+            r#"
+project:
+  type: novel
+  vcs: git
+book:
+  title: "Vol 1"
+  authors:
+    - "Author"
+cover:
+  ebook_image: books/vol-01/assets/cover/front.png
+manuscript:
+  chapters:
+    - books/vol-01/manuscript/01.md
+git:
+  lfs: true
+editorial:
+  figures: books/vol-01/editorial/figures.yml
+"#,
+        )
+        .unwrap();
+
+        let result = validate_book_with_toolchain(
+            &CommandContext::new(&root, Some("vol-01".to_string()), None),
+            &fake_toolchain(ToolStatus::Available),
+        )
+        .unwrap();
+
+        assert!(!result.has_errors);
+        let report = fs::read_to_string(result.report_path).unwrap();
+        assert!(!report.contains("image reference target not found"));
+        assert!(!report.contains("figure ledger entry is not referenced from manuscript"));
+        assert!(!report.contains("manuscript image is not tracked in figure ledger"));
+        assert!(!report.contains("books/vol-01/manuscript/assets/images/architecture.png"));
     }
 
     #[test]
