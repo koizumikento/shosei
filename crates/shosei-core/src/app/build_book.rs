@@ -58,7 +58,7 @@ pub enum BuildBookError {
     UnsupportedProjectType { project_type: ProjectType },
     #[error("requested target `{target}` is not enabled for this book")]
     TargetNotEnabled { target: String },
-    #[error("failed to write generated print stylesheet to {path}: {source}")]
+    #[error("failed to write generated stylesheet to {path}: {source}")]
     WriteGeneratedStylesheet {
         path: PathBuf,
         #[source]
@@ -532,7 +532,7 @@ fn execute_build_outputs(
                     &book.id,
                     &output.target,
                 )?;
-                let epub_stylesheets = epub_stylesheets(resolved);
+                let epub_stylesheets = generated_epub_stylesheets(resolved, output)?;
                 let run_output = toolchain::run_pandoc_epub(
                     pandoc,
                     &plan.manuscript_files,
@@ -775,6 +775,10 @@ fn generated_print_stylesheet_path(output: &Path) -> PathBuf {
     output.with_extension("layout.css")
 }
 
+fn generated_epub_figure_stylesheet_path(output: &Path) -> PathBuf {
+    output.with_extension("epub-figure-layout.css")
+}
+
 fn relative_display(base: &Path, path: &Path) -> String {
     path.strip_prefix(base)
         .map(|relative| relative.display().to_string().replace('\\', "/"))
@@ -783,6 +787,35 @@ fn relative_display(base: &Path, path: &Path) -> String {
 
 fn generated_print_html_path(output: &Path) -> PathBuf {
     output.with_extension("print.html")
+}
+
+fn generated_epub_stylesheets(
+    resolved: &config::ResolvedBookConfig,
+    output: &pipeline::BuildOutputPlan,
+) -> Result<Vec<PathBuf>, BuildBookError> {
+    let mut stylesheets = epub_stylesheets(resolved);
+    if !resolved
+        .effective
+        .images
+        .epub_figure_layout
+        .resolves_to_standalone(&resolved.effective.book.profile)
+    {
+        return Ok(stylesheets);
+    }
+
+    let generated = generated_epub_figure_stylesheet_path(&output.artifact_path);
+    fs::write(&generated, render_generated_epub_figure_stylesheet()).map_err(|source| {
+        BuildBookError::WriteGeneratedStylesheet {
+            path: generated.clone(),
+            source,
+        }
+    })?;
+    stylesheets.push(generated);
+    Ok(stylesheets)
+}
+
+fn render_generated_epub_figure_stylesheet() -> &'static str {
+    "figure {\n  break-before: page;\n  break-after: page;\n  break-inside: avoid;\n  page-break-before: always;\n  page-break-after: always;\n  page-break-inside: avoid;\n  text-align: center;\n}\n\nfigure img,\nfigure svg {\n  display: block;\n  max-width: 100%;\n  max-height: 85vh;\n  margin: 0 auto;\n  height: auto;\n}\n\nfigcaption {\n  break-before: avoid;\n}\n"
 }
 
 fn generated_print_stylesheets(
@@ -1454,6 +1487,37 @@ git:
         .unwrap();
     }
 
+    fn write_fake_pandoc_args_recorder(pandoc: &std::path::Path, args_path: &std::path::Path) {
+        fs::write(
+            pandoc,
+            format!(
+                r#"#!/bin/sh
+printf '%s\n' "$@" > "{}"
+out=""
+prev=""
+for arg in "$@"; do
+  if [ "$prev" = "--output" ]; then
+    out="$arg"
+  fi
+  prev="$arg"
+done
+mkdir -p "$(dirname "$out")"
+printf 'fake epub' > "$out"
+"#,
+                args_path.display()
+            ),
+        )
+        .unwrap();
+
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mut permissions = fs::metadata(pandoc).unwrap().permissions();
+            permissions.set_mode(0o755);
+            fs::set_permissions(pandoc, permissions).unwrap();
+        }
+    }
+
     fn write_book_with_cover(root: &std::path::Path) {
         write_book(root);
         fs::create_dir_all(root.join("assets/cover")).unwrap();
@@ -1868,8 +1932,119 @@ printf 'fake epub' > "$out"
             .windows(2)
             .filter_map(|window| (window[0] == "--css").then_some(window[1]))
             .collect::<Vec<_>>();
-        assert!(css_args.iter().any(|arg| arg.ends_with("/styles/base.css")));
-        assert!(css_args.iter().any(|arg| arg.ends_with("/styles/epub.css")));
+        assert!(css_args[0].ends_with("/styles/base.css"));
+        assert!(css_args[1].ends_with("/styles/epub.css"));
+        assert!(
+            !css_args
+                .iter()
+                .any(|arg| arg.ends_with(".epub-figure-layout.css"))
+        );
+    }
+
+    #[test]
+    fn build_writes_generated_epub_figure_stylesheet_for_light_novel_auto() {
+        if !cfg!(unix) {
+            return;
+        }
+
+        let root = temp_dir("fake-pandoc-light-novel-epub-figure-css");
+        write_book(&root);
+        let book = fs::read_to_string(root.join("book.yml")).unwrap();
+        fs::write(
+            root.join("book.yml"),
+            book.replacen(
+                "project:\n  type: novel",
+                "project:\n  type: light-novel",
+                1,
+            )
+            .replacen(
+                "book:\n  title: \"Sample\"",
+                "book:\n  title: \"Sample\"\n  profile: light-novel",
+                1,
+            ),
+        )
+        .unwrap();
+        fs::create_dir_all(root.join("styles")).unwrap();
+        fs::write(root.join("styles/base.css"), "body { color: black; }\n").unwrap();
+        fs::write(
+            root.join("styles/epub.css"),
+            "body { background: white; }\n",
+        )
+        .unwrap();
+        let pandoc = root.join("pandoc");
+        let args_path = root.join("pandoc-args.txt");
+        write_fake_pandoc_args_recorder(&pandoc, &args_path);
+
+        let result = build_book_with_toolchain(
+            &CommandContext::new(&root, None, None),
+            &fake_toolchain(Some(pandoc)),
+        )
+        .unwrap();
+
+        assert!(result.artifacts[0].is_file());
+        let args = fs::read_to_string(args_path).unwrap();
+        let css_args = args
+            .lines()
+            .collect::<Vec<_>>()
+            .windows(2)
+            .filter_map(|window| (window[0] == "--css").then_some(window[1]))
+            .collect::<Vec<_>>();
+        assert!(css_args[0].ends_with("/styles/base.css"));
+        assert!(css_args[1].ends_with("/styles/epub.css"));
+        let generated = css_args
+            .iter()
+            .find(|arg| arg.ends_with(".epub-figure-layout.css"))
+            .expect("generated EPUB figure stylesheet must be passed after authored CSS");
+        assert_eq!(css_args[2], *generated);
+        let generated_css = fs::read_to_string(generated).unwrap();
+        assert!(generated_css.contains("figure {\n  break-before: page;"));
+        assert!(generated_css.contains("page-break-after: always;"));
+        assert!(generated_css.contains("figure img,\nfigure svg {"));
+        assert!(generated_css.contains("max-height: 85vh;"));
+        assert!(generated_css.contains("figcaption {\n  break-before: avoid;"));
+        assert!(!generated_css.contains("img {\n  break-before: page;"));
+    }
+
+    #[test]
+    fn build_writes_generated_epub_figure_stylesheet_when_non_light_novel_opts_in() {
+        if !cfg!(unix) {
+            return;
+        }
+
+        let root = temp_dir("fake-pandoc-opt-in-epub-figure-css");
+        write_book(&root);
+        let book = fs::read_to_string(root.join("book.yml")).unwrap();
+        fs::write(
+            root.join("book.yml"),
+            book.replace(
+                "manuscript:\n",
+                "images:\n  epub_figure_layout: standalone\nmanuscript:\n",
+            ),
+        )
+        .unwrap();
+        let pandoc = root.join("pandoc");
+        let args_path = root.join("pandoc-args.txt");
+        write_fake_pandoc_args_recorder(&pandoc, &args_path);
+
+        let result = build_book_with_toolchain(
+            &CommandContext::new(&root, None, None),
+            &fake_toolchain(Some(pandoc)),
+        )
+        .unwrap();
+
+        assert!(result.artifacts[0].is_file());
+        let args = fs::read_to_string(args_path).unwrap();
+        let css_args = args
+            .lines()
+            .collect::<Vec<_>>()
+            .windows(2)
+            .filter_map(|window| (window[0] == "--css").then_some(window[1]))
+            .collect::<Vec<_>>();
+        assert!(
+            css_args
+                .iter()
+                .any(|arg| arg.ends_with(".epub-figure-layout.css"))
+        );
     }
 
     #[test]

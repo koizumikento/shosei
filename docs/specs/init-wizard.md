@@ -218,6 +218,7 @@ v0.2 で残す引数:
   - prose: `kindle-ja`
   - manga: `kindle-comic`
 - Kindle を含む scaffold では `cover.ebook_image` と placeholder cover asset も初期生成する
+- prose scaffold では `images.epub_figure_layout: auto` を出力する。`auto` は `light-novel` の Kindle / EPUB build では図版単独ページを意図し、それ以外の prose profile では本文中の図版として扱う
 
 ### `print`
 
@@ -370,9 +371,11 @@ v0.2 で残す引数:
 - `series` では `books/<book-id>/editorial/style.yml`, `books/<book-id>/editorial/claims.yml`, `books/<book-id>/editorial/figures.yml`, `books/<book-id>/editorial/freshness.yml`
 - `series` では `shared/styles/base.css`, `shared/styles/epub.css`, `shared/styles/print.css`
 - Kindle を含む scaffold では `single-book` に `cover.ebook_image: assets/cover/front.png` と `assets/cover/front.png`、`series` に `cover.ebook_image: books/<book-id>/assets/cover/front.png` と `books/<book-id>/assets/cover/front.png`
+- prose config には `images.epub_figure_layout: auto` を書く。`series` では `series.yml` の `defaults.images` に置き、巻側で上書きできる
 - prose の style file は template/profile ごとの既定見た目を持つ
   - `business`, `paper`: 横組み prose 向け
   - `novel`, `light-novel`: 縦組み prose 向け
+    - `light-novel` の Kindle / EPUB build では generated EPUB figure stylesheet が `epub.css` の後に追加される
     - `print.css` では PDF 用の本文サイズを半段締め、扉と目次を base / EPUB より控えめにする
   - `conference-preprint`: `paper` 系 style を継承し、強い layout 差分は config-generated print stylesheet 側で表す
 - `conference-preprint` では `book.yml` に A4 / 2 段組 / 両面 preset を出力する

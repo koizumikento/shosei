@@ -486,6 +486,10 @@ pdf:
 
 prose の Kindle / EPUB build では `styles/base.css` と `styles/epub.css` を Pandoc に渡す。`series` repo では対応する `shared/styles/base.css`, `shared/styles/epub.css` を使う。
 
+`images.epub_figure_layout` は EPUB 内の図版レイアウト方針を制御する。既定の `auto` では `book.profile: light-novel` だけが `standalone` として解決され、generated EPUB figure stylesheet が `base.css` / `epub.css` の後に追加される。`business`, `paper`, `conference-preprint`, `novel` は従来どおり `inline` になる。非 light-novel でも明示的に `images.epub_figure_layout: standalone` を書けば同じ generated stylesheet を使える。EPUB reader ごとに CSS 改ページ対応は異なるため、これは reader が対応する範囲で図版単独ページ化を意図する設定として扱う。
+
+standalone figure layout は `figure` コンテナに改ページ指定を当てる。図とキャプションを同じページに保持したい場合は `![図：キャプション。](assets/images/example.png)` のように Markdown 画像の `[]` に表示キャプションを入れる。画像の次段落に `*図：キャプション。*` と書く形は Pandoc の `figure` 外に出るため、standalone figure layout では非推奨。
+
 `chromium` を使う print build では `styles/base.css`, `styles/print.css`, generated layout stylesheet を含む self-contained HTML を Pandoc で作り、その HTML を headless Chromium で PDF 化する。`series` repo では対応する `shared/styles/base.css`, `shared/styles/print.css` を使う。縦組み prose print では、この generated layout stylesheet が frontmatter の改ページを持ち、TOC があれば本文は TOC 後の次ページ、TOC がなければ本文は title 後の次ページから始まる。Chromium の margin box 挙動に合わせて、page number は各ページの下中央、running header は有効な場合だけ各ページの上中央へ置き、title / TOC など frontmatter では両方を抑制する。
 
 `weasyprint` を使う print build では `styles/base.css`, `styles/print.css` と、`pdf` / `print` 設定から生成した layout stylesheet を合わせて Pandoc に渡す。`conference-preprint` では A4、余白、2 段組、本文サイズがこの generated stylesheet に反映される。`weasyprint` は `vertical-rl` prose print には使えない。
@@ -513,7 +517,7 @@ prose 系テンプレートでは、最初の原稿ファイルとして `paper`
 
 Kindle を含む scaffold では、`single-book` に `cover.ebook_image: assets/cover/front.png` と `assets/cover/front.png` を生成する。`series` では各巻の `book.yml` に `cover.ebook_image: books/<book-id>/assets/cover/front.png` を書き、対応する placeholder cover asset も `books/<book-id>/assets/cover/front.png` に置く。
 
-また、prose 系では空の `editorial/style.yml`, `editorial/claims.yml`, `editorial/figures.yml`, `editorial/freshness.yml` を生成し、`single-book` では `book.yml`、`series` では `books/<book-id>/book.yml` から参照する。style 側は `single-book` では `styles/base.css`, `styles/epub.css`, `styles/print.css`、`series` では `shared/styles/base.css`, `shared/styles/epub.css`, `shared/styles/print.css` を生成する。これらの default CSS は template/profile ごとに異なり、`init` で選んだ `book.writing_mode` に合わせて prose の `base.css` を切り替える。`novel` / `light-novel` の `print.css` は PDF 向けに本文サイズを半段締め、扉と目次を控えめに整える。本文へのページ分離は generated layout stylesheet が持つ。
+また、prose 系では空の `editorial/style.yml`, `editorial/claims.yml`, `editorial/figures.yml`, `editorial/freshness.yml` を生成し、`single-book` では `book.yml`、`series` では `books/<book-id>/book.yml` から参照する。style 側は `single-book` では `styles/base.css`, `styles/epub.css`, `styles/print.css`、`series` では `shared/styles/base.css`, `shared/styles/epub.css`, `shared/styles/print.css` を生成する。これらの default CSS は template/profile ごとに異なり、`init` で選んだ `book.writing_mode` に合わせて prose の `base.css` を切り替える。prose config には `images.epub_figure_layout: auto` を書き、`series` では `series.yml` の `defaults.images` に置く。`novel` / `light-novel` の `print.css` は PDF 向けに本文サイズを半段締め、扉と目次を控えめに整える。本文へのページ分離は generated layout stylesheet が持つ。
 
 生成される config field の意味は [設定リファレンス](config-reference.md) にまとめる。正式な schema や制約は `docs/specs/` を参照する。
 
