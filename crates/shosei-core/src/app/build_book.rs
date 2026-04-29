@@ -815,7 +815,7 @@ fn generated_epub_stylesheets(
 }
 
 fn render_generated_epub_figure_stylesheet() -> &'static str {
-    "figure {\n  break-before: page;\n  break-after: page;\n  break-inside: avoid;\n  page-break-before: always;\n  page-break-after: always;\n  page-break-inside: avoid;\n  text-align: center;\n}\n\nfigure img,\nfigure svg {\n  display: block;\n  max-width: 100%;\n  max-height: 85vh;\n  margin: 0 auto;\n  height: auto;\n}\n\nfigcaption {\n  break-before: avoid;\n}\n"
+    "figure {\n  break-before: page;\n  break-after: page;\n  break-inside: avoid;\n  page-break-before: always;\n  page-break-after: always;\n  page-break-inside: avoid;\n  writing-mode: horizontal-tb;\n  -epub-writing-mode: horizontal-tb;\n  -webkit-writing-mode: horizontal-tb;\n  min-height: 90vh;\n  display: grid;\n  grid-template-rows: minmax(0, 1fr) auto minmax(0, 1fr);\n  align-items: center;\n  margin: 0;\n  text-align: start;\n}\n\nfigure img,\nfigure svg {\n  grid-row: 2;\n  justify-self: center;\n  display: block;\n  max-width: 100%;\n  max-height: 85vh;\n  margin: 0 auto;\n  height: auto;\n  object-fit: contain;\n}\n\nfigcaption {\n  grid-row: 3;\n  align-self: start;\n  break-before: avoid;\n  max-width: 100%;\n  margin-block-start: 0.75em;\n  text-align: start;\n}\n"
 }
 
 fn generated_print_stylesheets(
@@ -1999,9 +1999,22 @@ printf 'fake epub' > "$out"
         let generated_css = fs::read_to_string(generated).unwrap();
         assert!(generated_css.contains("figure {\n  break-before: page;"));
         assert!(generated_css.contains("page-break-after: always;"));
+        assert!(generated_css.contains("writing-mode: horizontal-tb;"));
+        assert!(generated_css.contains("-epub-writing-mode: horizontal-tb;"));
+        assert!(generated_css.contains("-webkit-writing-mode: horizontal-tb;"));
+        assert!(generated_css.contains("min-height: 90vh;"));
+        assert!(generated_css.contains("display: grid;"));
+        assert!(generated_css.contains("grid-template-rows: minmax(0, 1fr) auto minmax(0, 1fr);"));
+        assert!(generated_css.contains("align-items: center;"));
         assert!(generated_css.contains("figure img,\nfigure svg {"));
+        assert!(generated_css.contains("grid-row: 2;"));
+        assert!(generated_css.contains("justify-self: center;"));
         assert!(generated_css.contains("max-height: 85vh;"));
-        assert!(generated_css.contains("figcaption {\n  break-before: avoid;"));
+        assert!(generated_css.contains("object-fit: contain;"));
+        assert!(generated_css.contains(
+            "figcaption {\n  grid-row: 3;\n  align-self: start;\n  break-before: avoid;\n  max-width: 100%;\n  margin-block-start: 0.75em;\n  text-align: start;\n}"
+        ));
+        assert!(!generated_css.contains("text-align: center;"));
         assert!(!generated_css.contains("img {\n  break-before: page;"));
     }
 

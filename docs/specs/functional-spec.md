@@ -1131,7 +1131,7 @@ v0.2 の既定:
 
 - prose Kindle / EPUB build では `base.css` と `epub.css` を Pandoc に渡す
 - prose Kindle / EPUB build では `images.epub_figure_layout` を解決し、`standalone` の場合は `base.css` / `epub.css` の後に generated EPUB figure stylesheet を Pandoc に渡す。`auto` は `book.profile: light-novel` だけを `standalone` とし、`business`, `paper`, `conference-preprint`, `novel` は `inline` とする
-- generated EPUB figure stylesheet は `figure` に `break-before`, `break-after`, `break-inside` と legacy `page-break-*` を付け、`figure img` / `figure svg` を中央寄せし、`figcaption` だけを意図的に別ページへ送らない。EPUB reader 間で CSS 改ページ対応に差があるため、これは reader が対応する範囲で単独ページ化を意図するものとする
+- generated EPUB figure stylesheet は `figure` に `break-before`, `break-after`, `break-inside` と legacy `page-break-*` を付け、standalone figure layout の `writing-mode` を `horizontal-tb` に固定した上で grid の中央行に `figure img` / `figure svg` を置く。上下の grid track は zero-min flexible track とし、本文が縦組みでも図表メディア自体をページの物理中央へ寄せ、キャプションの有無で図表メディアの中央位置がずれないようにする。`figcaption` は下側の flexible grid track の先頭に置き、本文は中央揃えにせず、`figcaption` だけを意図的に別ページへ送らない。EPUB reader 間で CSS 改ページ対応や grid layout 対応に差があるため、これは reader が対応する範囲で図表の単独ページ化と中央配置を意図するものとする
 - 図とキャプションを同じ単位にしたい場合は Markdown 画像の `[]` を表示キャプションとして使う。画像の直後に `*図：...*` の別段落を書く形は Pandoc の `figure` 外に出るため、standalone figure layout では非推奨とする
 - prose manuscript の Markdown 画像参照は、Pandoc 実行時の current book root 基準で asset を解決する。`validate` の `missing_image` と `figures.yml` 照合も同じ repo-relative path に正規化する。既存の source-file-relative 画像参照は、実在する場合に fallback として扱う
 - prose print build では `base.css`, `print.css`, generated layout stylesheet を解決する

@@ -64,6 +64,8 @@ outputs:
   kindle:
     enabled: true
     target: kindle-ja
+images:
+  epub_figure_layout: auto
 validation:
   strict: true
   epubcheck: true
@@ -104,6 +106,8 @@ defaults:
     binding: right
     chapter_start_page: odd
     allow_blank_pages: true
+  images:
+    epub_figure_layout: auto
 books:
   - id: vol-01
     path: books/vol-01
@@ -156,6 +160,7 @@ editorial:
               <tr><td><code>manuscript.chapters</code></td><td>prose の <code>book.yml</code></td><td>章順そのもの</td></tr>
               <tr><td><code>outputs.kindle.*</code></td><td><code>book.yml</code> または <code>series.yml.defaults.outputs</code></td><td>Kindle 出力設定</td></tr>
               <tr><td><code>outputs.print.*</code></td><td>同上</td><td>print 出力設定</td></tr>
+              <tr><td><code>images.epub_figure_layout</code></td><td><code>book.yml</code> または <code>series.yml.defaults.images</code></td><td>EPUB の図版レイアウト。<code>auto</code> は light-novel だけ standalone、それ以外は inline。standalone は図表メディアの単独ページ化と中央配置を意図し、キャプションを下側の flexible grid track の先頭へ置いて start-aligned に保つ</td></tr>
               <tr><td><code>pdf.engine</code></td><td>prose の print 時</td><td>print PDF のレンダラ</td></tr>
               <tr><td><code>print.trim_size</code></td><td>print 時</td><td>仕上がりサイズ</td></tr>
               <tr><td><code>editorial.*</code></td><td>prose の <code>book.yml</code></td><td>editorial sidecar file への参照</td></tr>
@@ -185,6 +190,7 @@ editorial:
               <tr><td><code>shared.metadata</code></td><td>series metadata の置き場</td></tr>
               <tr><td><code>defaults.book.*</code></td><td>各巻の既定値</td></tr>
               <tr><td><code>defaults.layout.*</code></td><td>各巻の layout 既定値</td></tr>
+              <tr><td><code>defaults.images.*</code></td><td>各巻の画像レイアウト既定値</td></tr>
               <tr><td><code>books[].id</code></td><td><code>--book</code> で指定する巻 ID</td></tr>
               <tr><td><code>books[].path</code></td><td>巻ディレクトリの repo-relative path</td></tr>
               <tr><td><code>books[].number</code></td><td>巻番号</td></tr>
