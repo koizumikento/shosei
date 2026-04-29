@@ -1129,6 +1129,7 @@ v0.2 では次を未対応とする。
 v0.2 の既定:
 
 - prose Kindle / EPUB build では `base.css` と `epub.css` を Pandoc に渡す
+- prose manuscript の Markdown 画像参照は、Pandoc 実行時の current book root 基準で asset を解決する。`validate` の `missing_image` と `figures.yml` 照合も同じ repo-relative path に正規化する。既存の source-file-relative 画像参照は、実在する場合に fallback として扱う
 - prose print build では `base.css`, `print.css`, generated layout stylesheet を解決する
   - `pdf.engine = weasyprint` の場合は Pandoc にそのまま渡して PDF を生成する
   - `pdf.engine = chromium` の場合は Pandoc で self-contained HTML を生成し、その HTML を headless Chromium で PDF 化する

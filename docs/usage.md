@@ -368,6 +368,7 @@ scenes:
 - print build に設定された PDF engine の有無
 - 欠落した manuscript / cover / manga page の検出
 - prose 原稿のリンク切れと画像参照切れ
+- prose 原稿の画像参照は Pandoc packaging と同じ book root 基準で解決する。`single-book` では `![alt](assets/images/example.png)` が `assets/images/example.png` を指し、`series` の巻 scope では `books/<book-id>/assets/images/example.png` を指す。実在する manuscript file 相対 path は fallback として受け付け、`figures.yml.path` は解決後の repo-relative path で照合する
 - prose 原稿の alt 欠落
 - chapter ファイルの level-1 heading 不足
 - heading hierarchy の飛び級
