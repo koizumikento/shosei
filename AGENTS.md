@@ -13,6 +13,7 @@ Keep this root file short and repo-wide. Put specialized rules near the code the
 - `crates/AGENTS.md`: Rust CLI/core implementation and validation rules
 - `editors/vscode/AGENTS.md`: VS Code adapter rules
 - `.codex/agents/*.toml`: project-scoped Codex custom subagents
+- `.serena/project.yml`: repo-local Serena language, tool, and mode configuration
 
 Add deeper `AGENTS.md` files only when a subtree has materially different rules.
 
@@ -91,3 +92,4 @@ If a surface cannot be justified, do not change it.
 - Do not commit incidental build output. Treat generated directories such as `dist/` as disposable unless a spec explicitly requires checked-in artifacts.
 - If the same mistake happens twice, tighten these instruction files with a concrete rule instead of adding more prompt text elsewhere.
 - For recurring concept-fulfillment reviews, use the fixed rubric, cite evidence by file, and compare against the previous run before changing the score.
+- When updating `.serena/project.yml`, keep tool and mode guidance pointed at current Serena docs instead of copying long generated tool lists into the repo.
