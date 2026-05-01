@@ -93,3 +93,4 @@ If a surface cannot be justified, do not change it.
 - If the same mistake happens twice, tighten these instruction files with a concrete rule instead of adding more prompt text elsewhere.
 - For recurring concept-fulfillment reviews, use the fixed rubric, cite evidence by file, and compare against the previous run before changing the score.
 - When updating `.serena/project.yml`, keep tool and mode guidance pointed at current Serena docs instead of copying long generated tool lists into the repo.
+- Keep `.serena/project.local.yml` and `.serena/cache/` as ignored local Serena state; do not promote local overrides into repo guidance.
