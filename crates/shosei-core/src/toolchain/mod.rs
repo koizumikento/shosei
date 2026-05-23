@@ -3,7 +3,9 @@ use std::{
     ffi::OsString,
     fs,
     path::{Path, PathBuf},
-    process::{Command, ExitStatus},
+    process::{Command, ExitStatus, Output, Stdio},
+    thread,
+    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
 use crate::config::PdfEngine;
@@ -470,7 +472,7 @@ fn inspect_tool(
     };
     let version = resolved_path
         .as_ref()
-        .and_then(|path| read_version(path, spec.version_args));
+        .and_then(|path| read_version(spec.key, path, spec.version_args));
 
     ToolRecord {
         key: spec.key,
@@ -489,6 +491,7 @@ fn inspect_tool(
 
 fn tool_candidates(spec: &ToolSpec, host_os: HostOs) -> Vec<String> {
     match spec.key {
+        "pandoc" => pandoc_candidates(host_os),
         "chromium" => chromium_candidates(host_os),
         "kindle-previewer" => kindle_previewer_candidates(host_os),
         _ => spec
@@ -497,6 +500,24 @@ fn tool_candidates(spec: &ToolSpec, host_os: HostOs) -> Vec<String> {
             .map(|candidate| (*candidate).to_string())
             .collect(),
     }
+}
+
+fn pandoc_candidates(host_os: HostOs) -> Vec<String> {
+    pandoc_candidates_with_local_app_data(
+        host_os,
+        env::var_os("LOCALAPPDATA").map(PathBuf::from).as_deref(),
+    )
+}
+
+fn pandoc_candidates_with_local_app_data(
+    host_os: HostOs,
+    local_app_data: Option<&Path>,
+) -> Vec<String> {
+    let mut candidates = vec!["pandoc".to_string()];
+    if host_os == HostOs::Windows {
+        candidates.extend(windows_winget_pandoc_candidates(local_app_data));
+    }
+    candidates
 }
 
 fn chromium_candidates(host_os: HostOs) -> Vec<String> {
@@ -526,7 +547,106 @@ fn chromium_candidates_with_home(host_os: HostOs, home_dir: Option<&Path>) -> Ve
         .into_iter()
         .map(str::to_string),
     );
+    if host_os == HostOs::Windows {
+        candidates.extend(windows_standard_chromium_candidates(
+            env::var_os("ProgramFiles").map(PathBuf::from).as_deref(),
+            env::var_os("ProgramFiles(x86)")
+                .map(PathBuf::from)
+                .as_deref(),
+            env::var_os("LOCALAPPDATA").map(PathBuf::from).as_deref(),
+        ));
+    }
     candidates
+}
+
+fn windows_winget_pandoc_candidates(local_app_data: Option<&Path>) -> Vec<String> {
+    let Some(local_app_data) = local_app_data else {
+        return Vec::new();
+    };
+    let packages_dir = local_app_data
+        .join("Microsoft")
+        .join("WinGet")
+        .join("Packages");
+    let Ok(packages) = fs::read_dir(packages_dir) else {
+        return Vec::new();
+    };
+
+    let mut candidates = packages
+        .filter_map(Result::ok)
+        .map(|entry| entry.path())
+        .filter(|path| {
+            path.is_dir()
+                && path
+                    .file_name()
+                    .and_then(|name| name.to_str())
+                    .is_some_and(|name| name.starts_with("JohnMacFarlane.Pandoc_"))
+        })
+        .flat_map(|package_dir| {
+            let direct = std::iter::once(package_dir.join("pandoc.exe"));
+            let versioned = fs::read_dir(&package_dir)
+                .ok()
+                .into_iter()
+                .flat_map(|entries| entries.filter_map(Result::ok))
+                .map(|entry| entry.path())
+                .filter(|path| path.is_dir())
+                .map(|path| path.join("pandoc.exe"));
+            direct.chain(versioned)
+        })
+        .filter(|path| path.is_file())
+        .map(|path| path.to_string_lossy().into_owned())
+        .collect::<Vec<_>>();
+    candidates.sort();
+    candidates.reverse();
+    candidates
+}
+
+fn windows_standard_chromium_candidates(
+    program_files: Option<&Path>,
+    program_files_x86: Option<&Path>,
+    local_app_data: Option<&Path>,
+) -> Vec<String> {
+    [
+        program_files.map(|root| {
+            root.join("Google")
+                .join("Chrome")
+                .join("Application")
+                .join("chrome.exe")
+        }),
+        program_files.map(|root| {
+            root.join("Microsoft")
+                .join("Edge")
+                .join("Application")
+                .join("msedge.exe")
+        }),
+        program_files_x86.map(|root| {
+            root.join("Google")
+                .join("Chrome")
+                .join("Application")
+                .join("chrome.exe")
+        }),
+        program_files_x86.map(|root| {
+            root.join("Microsoft")
+                .join("Edge")
+                .join("Application")
+                .join("msedge.exe")
+        }),
+        local_app_data.map(|root| {
+            root.join("Google")
+                .join("Chrome")
+                .join("Application")
+                .join("chrome.exe")
+        }),
+        local_app_data.map(|root| {
+            root.join("Microsoft")
+                .join("Edge")
+                .join("Application")
+                .join("msedge.exe")
+        }),
+    ]
+    .into_iter()
+    .flatten()
+    .map(|path| path.to_string_lossy().into_owned())
+    .collect()
 }
 
 fn kindle_previewer_candidates(host_os: HostOs) -> Vec<String> {
@@ -886,18 +1006,201 @@ fn windows_extensions(pathext: Option<&OsString>) -> Vec<String> {
         })
 }
 
-fn read_version(path: &Path, args: &[&str]) -> Option<String> {
-    let output = Command::new(path).args(args).output().ok()?;
+fn read_version(tool_key: &str, path: &Path, args: &[&str]) -> Option<String> {
+    if tool_key == "chromium"
+        && let Some(version) = windows_chromium_version_from_install_dir(path)
+    {
+        return Some(version);
+    }
+
+    let chromium_profile_dir = (tool_key == "chromium").then(chromium_version_profile_dir);
+    let args = version_args_for_tool(tool_key, args, chromium_profile_dir.as_deref());
+    let output = command_output_with_timeout(path, &args, Duration::from_secs(5));
+    if let Some(profile_dir) = chromium_profile_dir {
+        let _ = fs::remove_dir_all(profile_dir);
+    }
+    let Some(output) = output else {
+        if tool_key == "chromium" {
+            return windows_chromium_version_from_install_dir(path);
+        }
+        return None;
+    };
     let stdout = String::from_utf8_lossy(&output.stdout);
-    if let Some(line) = stdout.lines().find(|line| !line.trim().is_empty()) {
+    if let Some(line) = first_version_line(tool_key, &stdout) {
         return Some(line.trim().to_string());
     }
 
     let stderr = String::from_utf8_lossy(&output.stderr);
-    stderr
-        .lines()
-        .find(|line| !line.trim().is_empty())
-        .map(|line| line.trim().to_string())
+    if let Some(line) = first_version_line(tool_key, &stderr) {
+        return Some(line.trim().to_string());
+    }
+
+    if tool_key == "chromium" {
+        return windows_chromium_version_from_install_dir(path);
+    }
+
+    None
+}
+
+fn version_args_for_tool(
+    tool_key: &str,
+    args: &[&str],
+    chromium_profile_dir: Option<&Path>,
+) -> Vec<OsString> {
+    if tool_key != "chromium" {
+        return args.iter().map(OsString::from).collect();
+    }
+
+    let mut version_args = [
+        "--headless=new",
+        "--disable-gpu",
+        "--no-first-run",
+        "--no-default-browser-check",
+        "--disable-background-networking",
+        "--disable-extensions",
+    ]
+    .into_iter()
+    .map(OsString::from)
+    .collect::<Vec<_>>();
+    if let Some(profile_dir) = chromium_profile_dir {
+        let mut profile_arg = OsString::from("--user-data-dir=");
+        profile_arg.push(profile_dir.as_os_str());
+        version_args.push(profile_arg);
+    }
+    version_args.extend(args.iter().map(OsString::from));
+    version_args
+}
+
+fn chromium_version_profile_dir() -> PathBuf {
+    let timestamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|duration| duration.as_nanos())
+        .unwrap_or_default();
+    env::temp_dir().join(format!(
+        "shosei-chromium-version-{}-{timestamp}",
+        std::process::id()
+    ))
+}
+
+fn windows_chromium_version_from_install_dir(path: &Path) -> Option<String> {
+    if !cfg!(windows) {
+        return None;
+    }
+
+    let executable_name = path.file_name()?.to_string_lossy().to_ascii_lowercase();
+    let display_name = if executable_name == "msedge.exe" {
+        "Microsoft Edge"
+    } else if executable_name == "chrome.exe" {
+        "Google Chrome"
+    } else {
+        "Chromium"
+    };
+    let version = fs::read_dir(path.parent()?)
+        .ok()?
+        .filter_map(Result::ok)
+        .map(|entry| entry.path())
+        .filter(|path| path.is_dir())
+        .filter_map(|path| {
+            path.file_name()
+                .and_then(|name| name.to_str())
+                .filter(|name| looks_like_version_dir(name))
+                .map(str::to_string)
+        })
+        .max_by(|left, right| compare_version_strings(left, right))?;
+
+    Some(format!("{display_name} {version}"))
+}
+
+fn looks_like_version_dir(name: &str) -> bool {
+    name.contains('.')
+        && name
+            .chars()
+            .all(|character| character.is_ascii_digit() || character == '.')
+}
+
+fn compare_version_strings(left: &str, right: &str) -> std::cmp::Ordering {
+    let mut left_parts = left
+        .split('.')
+        .map(|part| part.parse::<u64>().unwrap_or_default());
+    let mut right_parts = right
+        .split('.')
+        .map(|part| part.parse::<u64>().unwrap_or_default());
+
+    loop {
+        match (left_parts.next(), right_parts.next()) {
+            (Some(left), Some(right)) => match left.cmp(&right) {
+                std::cmp::Ordering::Equal => {}
+                ordering => return ordering,
+            },
+            (Some(left), None) => {
+                return if left == 0 {
+                    std::cmp::Ordering::Equal
+                } else {
+                    std::cmp::Ordering::Greater
+                };
+            }
+            (None, Some(right)) => {
+                return if right == 0 {
+                    std::cmp::Ordering::Equal
+                } else {
+                    std::cmp::Ordering::Less
+                };
+            }
+            (None, None) => return std::cmp::Ordering::Equal,
+        }
+    }
+}
+
+fn command_output_with_timeout(
+    path: &Path,
+    args: &[OsString],
+    timeout: Duration,
+) -> Option<Output> {
+    let mut child = Command::new(path)
+        .args(args)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .ok()?;
+    let started_at = Instant::now();
+
+    loop {
+        if child.try_wait().ok()?.is_some() {
+            return child.wait_with_output().ok();
+        }
+        if started_at.elapsed() >= timeout {
+            let _ = child.kill();
+            let _ = child.wait();
+            return None;
+        }
+        thread::sleep(Duration::from_millis(50));
+    }
+}
+
+fn first_version_line<'a>(tool_key: &str, output: &'a str) -> Option<&'a str> {
+    output.lines().find(|line| {
+        !line.trim().is_empty()
+            && !looks_like_browser_diagnostic(line)
+            && (tool_key != "chromium" || looks_like_chromium_version(line))
+    })
+}
+
+fn looks_like_browser_diagnostic(line: &str) -> bool {
+    let line = line.trim();
+    line.starts_with('[')
+        && (line.contains(":ERROR:")
+            || line.contains(":WARNING:")
+            || line.contains(":INFO:")
+            || line.contains(":VERBOSE"))
+}
+
+fn looks_like_chromium_version(line: &str) -> bool {
+    let line = line.trim().to_ascii_lowercase();
+    line.chars().any(|character| character.is_ascii_digit())
+        && (line.contains("chrome")
+            || line.contains("chromium")
+            || line.contains("edge")
+            || line.contains("headless"))
 }
 
 #[cfg(test)]
@@ -995,6 +1298,125 @@ mod tests {
         );
 
         assert_eq!(resolved.as_deref(), Some(tool_path.as_path()));
+    }
+
+    #[test]
+    fn pandoc_candidates_include_winget_install_locations_on_windows() {
+        let local_app_data = temp_dir("winget-pandoc");
+        let pandoc = local_app_data
+            .join("Microsoft/WinGet/Packages")
+            .join("JohnMacFarlane.Pandoc_Microsoft.Winget.Source_8wekyb3d8bbwe")
+            .join("pandoc-3.9.0.2")
+            .join("pandoc.exe");
+        fs::create_dir_all(pandoc.parent().unwrap()).unwrap();
+        fs::write(&pandoc, "").unwrap();
+
+        let candidates =
+            pandoc_candidates_with_local_app_data(HostOs::Windows, Some(&local_app_data));
+
+        assert_eq!(candidates.first().map(String::as_str), Some("pandoc"));
+        assert!(
+            candidates
+                .iter()
+                .any(|candidate| Path::new(candidate) == pandoc)
+        );
+    }
+
+    #[test]
+    fn chromium_candidates_include_standard_windows_browser_locations() {
+        let program_files = temp_dir("program-files");
+        let program_files_x86 = temp_dir("program-files-x86");
+        let local_app_data = temp_dir("local-app-data");
+
+        let candidates = windows_standard_chromium_candidates(
+            Some(&program_files),
+            Some(&program_files_x86),
+            Some(&local_app_data),
+        );
+
+        assert!(candidates.iter().any(|candidate| {
+            Path::new(candidate).ends_with("Google/Chrome/Application/chrome.exe")
+        }));
+        assert!(candidates.iter().any(|candidate| {
+            Path::new(candidate).ends_with("Microsoft/Edge/Application/msedge.exe")
+        }));
+        assert!(candidates.iter().any(|candidate| {
+            Path::new(candidate).starts_with(&program_files_x86)
+                && Path::new(candidate).ends_with("Microsoft/Edge/Application/msedge.exe")
+        }));
+    }
+
+    #[test]
+    fn version_reader_ignores_chromium_diagnostic_lines() {
+        let diagnostics = r#"
+[53072:58440:0523/092758.696:ERROR:chrome\browser\task_manager\providers\fallback_task_provider.cc:126] Every renderer should have at least one task provided by a primary task provider.
+Microsoft Edge 148.0.3967.70
+"#;
+
+        assert_eq!(
+            first_version_line("chromium", diagnostics),
+            Some("Microsoft Edge 148.0.3967.70")
+        );
+        assert_eq!(
+            first_version_line(
+                "chromium",
+                "[1:2:0523/092758.696:ERROR:chrome.cc:1] noisy\n"
+            ),
+            None
+        );
+        assert_eq!(
+            first_version_line("chromium", "This browser session is already open.\n"),
+            None
+        );
+        assert_eq!(
+            first_version_line("pandoc", "pandoc 3.9.0.2\n"),
+            Some("pandoc 3.9.0.2")
+        );
+    }
+
+    #[test]
+    fn chromium_version_probe_uses_headless_isolated_profile_args() {
+        let profile_dir = Path::new("C:/tmp/shosei-chromium-profile");
+
+        let chromium_args = version_args_for_tool("chromium", &["--version"], Some(profile_dir));
+
+        assert_eq!(
+            chromium_args.first().map(OsString::as_os_str),
+            Some(OsStr::new("--headless=new"))
+        );
+        assert!(chromium_args.iter().any(|arg| arg == "--disable-gpu"));
+        assert!(
+            chromium_args
+                .iter()
+                .any(|arg| arg.to_string_lossy().starts_with("--user-data-dir="))
+        );
+        assert_eq!(
+            chromium_args.last().map(OsString::as_os_str),
+            Some(OsStr::new("--version"))
+        );
+        assert_eq!(
+            version_args_for_tool("pandoc", &["--version"], Some(profile_dir)),
+            vec![OsString::from("--version")]
+        );
+    }
+
+    #[test]
+    fn windows_chromium_version_falls_back_to_install_version_dir() {
+        if !cfg!(windows) {
+            return;
+        }
+
+        let application_dir = temp_dir("chrome-application");
+        let chrome = application_dir.join("chrome.exe");
+        fs::write(&chrome, "").unwrap();
+        fs::create_dir_all(application_dir.join("99.0.1.0")).unwrap();
+        fs::create_dir_all(application_dir.join("148.0.7778.179")).unwrap();
+        fs::create_dir_all(application_dir.join("SetupMetrics")).unwrap();
+
+        assert_eq!(
+            windows_chromium_version_from_install_dir(&chrome),
+            Some("Google Chrome 148.0.7778.179".to_string())
+        );
     }
 
     #[test]
