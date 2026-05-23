@@ -206,7 +206,7 @@ const TOOL_SPECS: &[ToolSpec] = &[
             "KindlePreviewer",
             "kindlepreviewer",
         ],
-        version_args: &["--version"],
+        version_args: &[],
         install_hint: kindle_previewer_install_hint,
     },
 ];
@@ -1007,6 +1007,10 @@ fn windows_extensions(pathext: Option<&OsString>) -> Vec<String> {
 }
 
 fn read_version(tool_key: &str, path: &Path, args: &[&str]) -> Option<String> {
+    if args.is_empty() {
+        return None;
+    }
+
     if tool_key == "chromium"
         && let Some(version) = windows_chromium_version_from_install_dir(path)
     {
@@ -1371,6 +1375,18 @@ Microsoft Edge 148.0.3967.70
         assert_eq!(
             first_version_line("pandoc", "pandoc 3.9.0.2\n"),
             Some("pandoc 3.9.0.2")
+        );
+    }
+
+    #[test]
+    fn version_reader_skips_tools_without_version_args() {
+        assert_eq!(
+            read_version(
+                "kindle-previewer",
+                Path::new("unused-kindle-previewer"),
+                &[]
+            ),
+            None
         );
     }
 

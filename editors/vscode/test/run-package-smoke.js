@@ -11,6 +11,13 @@ function npmCommand() {
   return process.platform === "win32" ? "npm.cmd" : "npm";
 }
 
+function runNpm(args, options) {
+  cp.execFileSync(npmCommand(), args, {
+    ...options,
+    shell: process.platform === "win32"
+  });
+}
+
 function main() {
   const extensionRoot = path.resolve(__dirname, "..");
   const packageJson = JSON.parse(
@@ -21,7 +28,7 @@ function main() {
 
   try {
     fs.rmSync(vsixPath, { force: true });
-    cp.execFileSync(npmCommand(), ["run", "package"], {
+    runNpm(["run", "package"], {
       cwd: extensionRoot,
       stdio: "inherit"
     });
