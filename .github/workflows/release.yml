@@ -178,7 +178,7 @@ jobs:
           Copy-Item LICENSE, README.md release-assets
           Compress-Archive -Path release-assets/shosei.exe, release-assets/LICENSE, release-assets/README.md -DestinationPath $env:ARCHIVE_NAME -Force
           $hash = (Get-FileHash -Algorithm SHA256 $env:ARCHIVE_NAME).Hash.ToLower()
-          "$hash  $env:ARCHIVE_NAME" | Out-File -FilePath "$env:ARCHIVE_NAME.sha256" -Encoding ascii
+          [System.IO.File]::WriteAllText("$env:ARCHIVE_NAME.sha256", "$hash  $env:ARCHIVE_NAME`n", [System.Text.UTF8Encoding]::new($false))
 
       - name: Upload CLI artifact
         uses: actions/upload-artifact@v7
