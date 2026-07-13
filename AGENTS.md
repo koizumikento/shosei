@@ -12,7 +12,8 @@ Keep this root file short and repo-wide. Put specialized rules near the code the
 - `docs/AGENTS.md`: specs, ADRs, usage docs, and site sync
 - `crates/AGENTS.md`: Rust CLI/core implementation and validation rules
 - `editors/vscode/AGENTS.md`: VS Code adapter rules
-- `.codex/agents/*.toml`: project-scoped Codex custom subagents
+- `.codex/AGENTS.md`: project-scoped Codex configuration and custom-subagent authoring rules
+- `.codex/config.toml` and `.codex/agents/*.toml`: project-scoped subagent limits and custom roles
 - `.serena/project.yml`: repo-local Serena language, tool, and mode configuration
 
 Add deeper `AGENTS.md` files only when a subtree has materially different rules.
@@ -60,11 +61,13 @@ If a surface cannot be justified, do not change it.
 - Skip delegation for small, targeted reads where spawning a subagent adds more overhead than value.
 - Use `shosei-explorer` before broad or ambiguous implementation work to map source-of-truth files, edit surfaces, sync obligations, and focused validation.
 - Use `shosei-sync-auditor` during or after cross-surface changes to check required mirrors before final review.
-- Use `shosei-reviewer` for findings-first review of a proposed change or working-tree diff.
+- Use `shosei-reviewer` for findings-first review of a proposed change, working-tree diff, or explicitly bounded current-state file set.
+- For cross-surface changes, pass the sync-auditor result to the reviewer so final review focuses on remaining correctness and validation risk instead of repeating the mirror audit.
 
 ## Custom Subagents
 
 - Keep project-scoped Codex custom subagents under `.codex/agents/*.toml`.
+- Keep project-scoped subagent runtime limits in `.codex/config.toml`.
 - Keep review, research, and exploration subagents read-only by default.
 - Use `.agents/skills/` only for repo-scoped agent skills generated or maintained by `shosei init`; do not put Codex custom subagent TOML there.
 - Prefer narrow subagents with clear boundaries over broad catch-all roles.
