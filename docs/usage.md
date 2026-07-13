@@ -81,6 +81,8 @@ shosei validate --target kindle
 shosei preview --target print
 ```
 
+`build` は外部 producer の出力を実行固有の一時 path で確認してから最終成果物へ昇格する。producer が成功終了しても今回の成果物を生成しなかった場合は失敗となり、前回の成果物を今回の成功結果や handoff 対象にはしない。
+
 `validate` では target / profile の組み合わせに対する実務上の warning も出す。
 
 - `project.type: manga` では `outputs.kindle.target: kindle-comic` を推奨し、`kindle-ja` は将来互換扱いとして warning にする
@@ -89,7 +91,7 @@ shosei preview --target print
 - `book.profile: conference-preprint` では `outputs.print.target: print-jp-pdfx4` を推奨し、それ以外は warning にする
 - prose print で `pdf.engine: typst|lualatex` を使う場合は、v0.2 では追加 proof を勧める warning を出す
 
-`series sync` は `series.yml` を正として shared metadata を更新し、prose book では生成 backmatter を同期する。
+`series sync` は `series.yml` を正として shared metadata を更新し、prose book では生成 backmatter を同期する。`books[].title` 省略時は対象 `book.yml` の `book.title` を使い、全巻の path、`book.yml` の存在、repo 内包含、更新対象の型を確認してから一括更新を始める。
 
 ```bash
 shosei series sync
@@ -153,7 +155,7 @@ shosei chapter add books/vol-01/manuscript/02.md --book vol-01 --title "Chapter 
 
 `page check` とは別系統で、`manga/pages/` や manga metadata には触れない。
 
-`renumber` は章順を変えずに filename prefix だけを整える。`book.yml` の `manuscript.chapters` と対応する `sections.file` は更新するが、Markdown 本文中の link destination は自動 rewrite しない。
+`renumber` は章順を変えずに filename prefix だけを整える。`book.yml` の `manuscript.chapters` と対応する `sections.file` は更新するが、Markdown 本文中の link destination は自動 rewrite しない。rename または config 更新に失敗した場合は rollback し、rollback が完了すれば一時 file を残さない。rollback 自体も失敗したときは回収用 data を残して未復旧 path を報告する。
 
 ## Reference scaffold
 

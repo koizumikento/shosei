@@ -194,7 +194,7 @@ editorial:
               <tr><td><code>books[].id</code></td><td><code>--book</code> で指定する巻 ID</td></tr>
               <tr><td><code>books[].path</code></td><td>巻ディレクトリの repo-relative path</td></tr>
               <tr><td><code>books[].number</code></td><td>巻番号</td></tr>
-              <tr><td><code>books[].title</code></td><td>巻タイトル</td></tr>
+              <tr><td><code>books[].title</code></td><td>巻タイトル。省略時は対象 <code>book.yml</code> の <code>book.title</code> を使用</td></tr>
             </tbody>
           </table>
         </section>
@@ -222,7 +222,7 @@ editorial:
         <section>
           <h2>注意点</h2>
           <ul>
-            <li>config の path は repo-relative</li>
+            <li>config の path は repo-relative とし、<code>..</code>、絶対 path、Windows drive path（<code>C:/...</code>, <code>C:...</code>）は実行 OS に関係なく使えません</li>
             <li>path 区切りは <code>/</code></li>
             <li>prose の章順は <code>manuscript.chapters</code> の配列順で決まります</li>
             <li><code>series</code> では <code>series.yml</code> の defaults が先に入り、巻固有 <code>book.yml</code> が上書きします</li>

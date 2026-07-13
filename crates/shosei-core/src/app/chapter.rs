@@ -1,7 +1,9 @@
 use std::{
     collections::{HashMap, HashSet},
-    fs,
+    fs::{self, OpenOptions, Permissions},
+    io::{self, Write},
     path::{Path, PathBuf},
+    sync::atomic::{AtomicU64, Ordering},
 };
 
 use serde_yaml::{Mapping, Value};
@@ -105,6 +107,18 @@ pub enum ChapterError {
         #[source]
         source: serde_yaml::Error,
     },
+    #[error("failed to resolve chapter renumber path {path}: {source}")]
+    ResolveRenumberPath {
+        path: PathBuf,
+        #[source]
+        source: std::io::Error,
+    },
+    #[error("chapter config {path} resolves outside repository {repo_root}: {resolved_path}")]
+    RenumberConfigOutsideRepository {
+        path: PathBuf,
+        resolved_path: PathBuf,
+        repo_root: PathBuf,
+    },
     #[error("failed to delete chapter file {path}: {source}")]
     DeleteChapterFile {
         path: PathBuf,
@@ -119,6 +133,31 @@ pub enum ChapterError {
         to: PathBuf,
         #[source]
         source: std::io::Error,
+    },
+    #[error("failed to create chapter renumber staging directory {path}: {source}")]
+    CreateRenumberStagingDirectory {
+        path: PathBuf,
+        #[source]
+        source: std::io::Error,
+    },
+    #[error("failed to rename chapter config {from} -> {to}: {source}")]
+    RenameChapterConfig {
+        from: PathBuf,
+        to: PathBuf,
+        #[source]
+        source: std::io::Error,
+    },
+    #[error("failed to remove chapter renumber temporary path {path}: {source}")]
+    RemoveRenumberTemporaryPath {
+        path: PathBuf,
+        #[source]
+        source: std::io::Error,
+    },
+    #[error("chapter renumber failed: {primary}; rollback was incomplete: {rollback_failures}")]
+    RenumberRollbackFailed {
+        #[source]
+        primary: Box<ChapterError>,
+        rollback_failures: String,
     },
 }
 
@@ -322,6 +361,19 @@ pub fn chapter_renumber(
     command: &CommandContext,
     options: ChapterRenumberOptions,
 ) -> Result<ChapterResult, ChapterError> {
+    chapter_renumber_with(command, options, &StdRenumberFileOps, serde_yaml::to_string)
+}
+
+fn chapter_renumber_with<O, S>(
+    command: &CommandContext,
+    options: ChapterRenumberOptions,
+    file_ops: &O,
+    serialize: S,
+) -> Result<ChapterResult, ChapterError>
+where
+    O: RenumberFileOps,
+    S: FnOnce(&Value) -> Result<String, serde_yaml::Error>,
+{
     if options.width == 0 {
         return Err(ChapterError::InvalidRenumberWidth);
     }
@@ -375,9 +427,9 @@ pub fn chapter_renumber(
         });
     }
 
-    apply_renames(&plans)?;
-
-    let mut book_config = config::load_book_config(&book.config_path)?;
+    let transaction_config_path =
+        renumber_config_transaction_path(&context.repo_root, &book.config_path)?;
+    let mut book_config = config::load_book_config(&transaction_config_path)?;
     overwrite_chapters(
         &mut book_config.raw,
         &plans
@@ -386,7 +438,14 @@ pub fn chapter_renumber(
             .collect::<Vec<_>>(),
     );
     rewrite_sections_paths(&mut book_config.raw, &resolved.raw, &rename_map(&plans));
-    write_book_config(&book_config)?;
+    let rendered_config = render_book_config_with(&book_config, serialize)?;
+
+    apply_renumber_transaction(
+        &plans,
+        &book_config.path,
+        rendered_config.as_bytes(),
+        file_ops,
+    )?;
 
     Ok(ChapterResult {
         summary: format!(
@@ -566,22 +625,58 @@ fn lookup<'a>(value: &'a Value, path: &[&str]) -> Option<&'a Value> {
 }
 
 fn write_book_config(book_config: &BookConfig) -> Result<(), ChapterError> {
-    let mut rendered = serde_yaml::to_string(&book_config.raw).map_err(|source| {
-        ChapterError::SerializeConfig {
+    let rendered = render_book_config_with(book_config, serde_yaml::to_string)?;
+    fs::write(&book_config.path, rendered).map_err(|source| ChapterError::WriteConfig {
+        path: book_config.path.clone(),
+        source,
+    })
+}
+
+fn render_book_config_with<S>(
+    book_config: &BookConfig,
+    serialize: S,
+) -> Result<String, ChapterError>
+where
+    S: FnOnce(&Value) -> Result<String, serde_yaml::Error>,
+{
+    let mut rendered =
+        serialize(&book_config.raw).map_err(|source| ChapterError::SerializeConfig {
             path: book_config.path.clone(),
             source,
-        }
-    })?;
+        })?;
     if let Some(stripped) = rendered.strip_prefix("---\n") {
         rendered = stripped.to_string();
     }
     if !rendered.ends_with('\n') {
         rendered.push('\n');
     }
-    fs::write(&book_config.path, rendered).map_err(|source| ChapterError::WriteConfig {
-        path: book_config.path.clone(),
-        source,
-    })
+    Ok(rendered)
+}
+
+fn renumber_config_transaction_path(
+    repo_root: &Path,
+    config_path: &Path,
+) -> Result<PathBuf, ChapterError> {
+    let resolved_repo_root =
+        fs::canonicalize(repo_root).map_err(|source| ChapterError::ResolveRenumberPath {
+            path: repo_root.to_path_buf(),
+            source,
+        })?;
+    let resolved_config_path =
+        fs::canonicalize(config_path).map_err(|source| ChapterError::ResolveRenumberPath {
+            path: config_path.to_path_buf(),
+            source,
+        })?;
+
+    if !resolved_config_path.starts_with(&resolved_repo_root) {
+        return Err(ChapterError::RenumberConfigOutsideRepository {
+            path: config_path.to_path_buf(),
+            resolved_path: resolved_config_path,
+            repo_root: resolved_repo_root,
+        });
+    }
+
+    Ok(resolved_config_path)
 }
 
 #[derive(Debug, Clone)]
@@ -688,52 +783,455 @@ fn validate_renumber_targets(plans: &[RenumberPlan]) -> Result<(), ChapterError>
     Ok(())
 }
 
-fn apply_renames(plans: &[RenumberPlan]) -> Result<(), ChapterError> {
-    let changing_plans: Vec<&RenumberPlan> = plans
-        .iter()
-        .filter(|plan| plan.from_repo != plan.to_repo)
-        .collect();
-    if changing_plans.is_empty() {
-        return Ok(());
-    }
+const MAX_STAGING_DIRECTORY_ATTEMPTS: usize = 1_024;
+static NEXT_STAGING_DIRECTORY_ID: AtomicU64 = AtomicU64::new(0);
 
-    let staged_paths: Vec<(PathBuf, &RenumberPlan)> = changing_plans
-        .iter()
-        .enumerate()
-        .map(|(index, plan)| (temporary_rename_path(&plan.from_fs, index), *plan))
-        .collect();
-
-    for (temporary_path, plan) in &staged_paths {
-        fs::rename(&plan.from_fs, temporary_path).map_err(|source| {
-            ChapterError::RenameChapterFile {
-                from: plan.from_fs.clone(),
-                to: temporary_path.clone(),
-                source,
-            }
-        })?;
-    }
-
-    for (temporary_path, plan) in staged_paths {
-        fs::rename(&temporary_path, &plan.to_fs).map_err(|source| {
-            ChapterError::RenameChapterFile {
-                from: temporary_path,
-                to: plan.to_fs.clone(),
-                source,
-            }
-        })?;
-    }
-
-    Ok(())
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+enum RenumberRenameStep {
+    StageChapter,
+    PublishChapter,
+    RestageChapter,
+    RestoreChapter,
+    BackupConfig,
+    InstallConfig,
+    UninstallConfig,
+    RestoreConfig,
 }
 
-fn temporary_rename_path(original: &Path, index: usize) -> PathBuf {
-    let mut candidate = original.to_path_buf();
-    let file_name = original
-        .file_name()
-        .expect("chapter path should have a file name")
-        .to_string_lossy();
-    candidate.set_file_name(format!("{file_name}.shosei-renumber-{index}.tmp"));
-    candidate
+trait RenumberFileOps {
+    fn create_dir(&self, path: &Path) -> io::Result<()>;
+    fn write_new_file(
+        &self,
+        path: &Path,
+        contents: &[u8],
+        permissions: Permissions,
+    ) -> io::Result<()>;
+    fn rename(&self, step: RenumberRenameStep, from: &Path, to: &Path) -> io::Result<()>;
+    fn remove_file(&self, path: &Path) -> io::Result<()>;
+    fn remove_dir(&self, path: &Path) -> io::Result<()>;
+}
+
+struct StdRenumberFileOps;
+
+impl RenumberFileOps for StdRenumberFileOps {
+    fn create_dir(&self, path: &Path) -> io::Result<()> {
+        fs::create_dir(path)
+    }
+
+    fn write_new_file(
+        &self,
+        path: &Path,
+        contents: &[u8],
+        permissions: Permissions,
+    ) -> io::Result<()> {
+        let mut file = OpenOptions::new().write(true).create_new(true).open(path)?;
+        file.write_all(contents)?;
+        file.sync_all()?;
+        file.set_permissions(permissions)
+    }
+
+    fn rename(&self, _step: RenumberRenameStep, from: &Path, to: &Path) -> io::Result<()> {
+        fs::rename(from, to)
+    }
+
+    fn remove_file(&self, path: &Path) -> io::Result<()> {
+        fs::remove_file(path)
+    }
+
+    fn remove_dir(&self, path: &Path) -> io::Result<()> {
+        fs::remove_dir(path)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum RenumberEntryLocation {
+    Source,
+    Staged,
+    Target,
+}
+
+struct RenumberEntry {
+    plan: RenumberPlan,
+    staged_path: PathBuf,
+    location: RenumberEntryLocation,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum RenumberConfigState {
+    Original,
+    BackedUp,
+    Installed,
+    Committed,
+}
+
+struct RenumberTransaction<'a, O> {
+    file_ops: &'a O,
+    entries: Vec<RenumberEntry>,
+    staging_directories: Vec<PathBuf>,
+    config_path: PathBuf,
+    staged_config_path: PathBuf,
+    backup_config_path: PathBuf,
+    config_state: RenumberConfigState,
+}
+
+fn apply_renumber_transaction<O>(
+    plans: &[RenumberPlan],
+    config_path: &Path,
+    rendered_config: &[u8],
+    file_ops: &O,
+) -> Result<(), ChapterError>
+where
+    O: RenumberFileOps,
+{
+    let config_permissions = fs::metadata(config_path)
+        .map_err(|source| ChapterError::WriteConfig {
+            path: config_path.to_path_buf(),
+            source,
+        })?
+        .permissions();
+    let mut staging_by_parent = HashMap::new();
+    let mut staging_directories = Vec::new();
+    let mut entries = Vec::new();
+
+    for (index, plan) in plans
+        .iter()
+        .filter(|plan| plan.from_repo != plan.to_repo)
+        .enumerate()
+    {
+        let parent = plan
+            .from_fs
+            .parent()
+            .expect("chapter path should have a parent directory");
+        let staging_directory = match staging_directory_for_parent(
+            parent,
+            &mut staging_by_parent,
+            &mut staging_directories,
+            file_ops,
+        ) {
+            Ok(path) => path,
+            Err(primary) => {
+                let rollback_failures =
+                    remove_empty_staging_directories(file_ops, &staging_directories);
+                return Err(with_rollback_failures(primary, rollback_failures));
+            }
+        };
+        entries.push(RenumberEntry {
+            plan: plan.clone(),
+            staged_path: staging_directory.join(format!("chapter-{index}")),
+            location: RenumberEntryLocation::Source,
+        });
+    }
+
+    let config_parent = config_path
+        .parent()
+        .expect("book config path should have a parent directory");
+    let config_staging_directory = match staging_directory_for_parent(
+        config_parent,
+        &mut staging_by_parent,
+        &mut staging_directories,
+        file_ops,
+    ) {
+        Ok(path) => path,
+        Err(primary) => {
+            let rollback_failures =
+                remove_empty_staging_directories(file_ops, &staging_directories);
+            return Err(with_rollback_failures(primary, rollback_failures));
+        }
+    };
+    let staged_config_path = config_staging_directory.join("book-config.new");
+    let backup_config_path = config_staging_directory.join("book-config.original");
+
+    let mut transaction = RenumberTransaction {
+        file_ops,
+        entries,
+        staging_directories,
+        config_path: config_path.to_path_buf(),
+        staged_config_path,
+        backup_config_path,
+        config_state: RenumberConfigState::Original,
+    };
+
+    if let Err(source) = transaction.file_ops.write_new_file(
+        &transaction.staged_config_path,
+        rendered_config,
+        config_permissions,
+    ) {
+        let primary = ChapterError::WriteConfig {
+            path: transaction.config_path.clone(),
+            source,
+        };
+        return Err(transaction.rollback_after(primary));
+    }
+
+    transaction.run()
+}
+
+impl<O> RenumberTransaction<'_, O>
+where
+    O: RenumberFileOps,
+{
+    fn run(mut self) -> Result<(), ChapterError> {
+        if let Err(primary) = self.stage_chapters() {
+            return Err(self.rollback_after(primary));
+        }
+        if let Err(primary) = self.publish_chapters() {
+            return Err(self.rollback_after(primary));
+        }
+
+        if let Err(source) = self.file_ops.rename(
+            RenumberRenameStep::BackupConfig,
+            &self.config_path,
+            &self.backup_config_path,
+        ) {
+            let primary = ChapterError::RenameChapterConfig {
+                from: self.config_path.clone(),
+                to: self.backup_config_path.clone(),
+                source,
+            };
+            return Err(self.rollback_after(primary));
+        }
+        self.config_state = RenumberConfigState::BackedUp;
+
+        if let Err(source) = self.file_ops.rename(
+            RenumberRenameStep::InstallConfig,
+            &self.staged_config_path,
+            &self.config_path,
+        ) {
+            let primary = ChapterError::RenameChapterConfig {
+                from: self.staged_config_path.clone(),
+                to: self.config_path.clone(),
+                source,
+            };
+            return Err(self.rollback_after(primary));
+        }
+        self.config_state = RenumberConfigState::Installed;
+
+        if let Err(source) = self.file_ops.remove_file(&self.backup_config_path) {
+            let primary = ChapterError::RemoveRenumberTemporaryPath {
+                path: self.backup_config_path.clone(),
+                source,
+            };
+            return Err(self.rollback_after(primary));
+        }
+        self.config_state = RenumberConfigState::Committed;
+
+        // The data transaction is committed once the original config backup is removed.
+        // Empty-directory cleanup is best effort and never removes recursively, so a
+        // recovery copy cannot be deleted by cleanup.
+        let _ = remove_empty_staging_directories(self.file_ops, &self.staging_directories);
+        Ok(())
+    }
+
+    fn stage_chapters(&mut self) -> Result<(), ChapterError> {
+        for index in 0..self.entries.len() {
+            let from = self.entries[index].plan.from_fs.clone();
+            let to = self.entries[index].staged_path.clone();
+            self.file_ops
+                .rename(RenumberRenameStep::StageChapter, &from, &to)
+                .map_err(|source| ChapterError::RenameChapterFile { from, to, source })?;
+            self.entries[index].location = RenumberEntryLocation::Staged;
+        }
+        Ok(())
+    }
+
+    fn publish_chapters(&mut self) -> Result<(), ChapterError> {
+        for index in 0..self.entries.len() {
+            let from = self.entries[index].staged_path.clone();
+            let to = self.entries[index].plan.to_fs.clone();
+            self.file_ops
+                .rename(RenumberRenameStep::PublishChapter, &from, &to)
+                .map_err(|source| ChapterError::RenameChapterFile { from, to, source })?;
+            self.entries[index].location = RenumberEntryLocation::Target;
+        }
+        Ok(())
+    }
+
+    fn rollback_after(&mut self, primary: ChapterError) -> ChapterError {
+        let mut rollback_failures = Vec::new();
+        self.rollback_config(&mut rollback_failures);
+        self.rollback_chapters(&mut rollback_failures);
+
+        if self.config_state == RenumberConfigState::Original {
+            match self.file_ops.remove_file(&self.staged_config_path) {
+                Ok(()) => {}
+                Err(source) if source.kind() == io::ErrorKind::NotFound => {}
+                Err(source) => rollback_failures.push(format!(
+                    "remove {}: {source}",
+                    self.staged_config_path.display()
+                )),
+            }
+        }
+        rollback_failures.extend(remove_empty_staging_directories(
+            self.file_ops,
+            &self.staging_directories,
+        ));
+
+        with_rollback_failures(primary, rollback_failures)
+    }
+
+    fn rollback_config(&mut self, rollback_failures: &mut Vec<String>) {
+        if self.config_state == RenumberConfigState::Installed {
+            match self.file_ops.rename(
+                RenumberRenameStep::UninstallConfig,
+                &self.config_path,
+                &self.staged_config_path,
+            ) {
+                Ok(()) => self.config_state = RenumberConfigState::BackedUp,
+                Err(source) => {
+                    rollback_failures.push(format!(
+                        "restore staged config {} -> {}: {source}",
+                        self.config_path.display(),
+                        self.staged_config_path.display()
+                    ));
+                    return;
+                }
+            }
+        }
+
+        if self.config_state == RenumberConfigState::BackedUp {
+            match self.file_ops.rename(
+                RenumberRenameStep::RestoreConfig,
+                &self.backup_config_path,
+                &self.config_path,
+            ) {
+                Ok(()) => self.config_state = RenumberConfigState::Original,
+                Err(source) => rollback_failures.push(format!(
+                    "restore config {} -> {}: {source}",
+                    self.backup_config_path.display(),
+                    self.config_path.display()
+                )),
+            }
+        }
+    }
+
+    fn rollback_chapters(&mut self, rollback_failures: &mut Vec<String>) {
+        // Targets must first return to their unique staging slots. Moving a target
+        // directly to its source can collide when the rename plan contains a cycle.
+        for index in 0..self.entries.len() {
+            if self.entries[index].location != RenumberEntryLocation::Target {
+                continue;
+            }
+            let from = self.entries[index].plan.to_fs.clone();
+            let to = self.entries[index].staged_path.clone();
+            match self
+                .file_ops
+                .rename(RenumberRenameStep::RestageChapter, &from, &to)
+            {
+                Ok(()) => self.entries[index].location = RenumberEntryLocation::Staged,
+                Err(source) => rollback_failures.push(format!(
+                    "restage chapter {} -> {}: {source}",
+                    from.display(),
+                    to.display()
+                )),
+            }
+        }
+
+        for index in (0..self.entries.len()).rev() {
+            if self.entries[index].location != RenumberEntryLocation::Staged {
+                continue;
+            }
+            let from = self.entries[index].staged_path.clone();
+            let to = self.entries[index].plan.from_fs.clone();
+            match self
+                .file_ops
+                .rename(RenumberRenameStep::RestoreChapter, &from, &to)
+            {
+                Ok(()) => self.entries[index].location = RenumberEntryLocation::Source,
+                Err(source) => rollback_failures.push(format!(
+                    "restore chapter {} -> {}: {source}",
+                    from.display(),
+                    to.display()
+                )),
+            }
+        }
+    }
+}
+
+fn staging_directory_for_parent<O>(
+    parent: &Path,
+    staging_by_parent: &mut HashMap<PathBuf, PathBuf>,
+    staging_directories: &mut Vec<PathBuf>,
+    file_ops: &O,
+) -> Result<PathBuf, ChapterError>
+where
+    O: RenumberFileOps,
+{
+    if let Some(path) = staging_by_parent.get(parent) {
+        return Ok(path.clone());
+    }
+
+    let path = reserve_staging_directory_with(parent, file_ops, || {
+        NEXT_STAGING_DIRECTORY_ID.fetch_add(1, Ordering::Relaxed)
+    })?;
+    staging_by_parent.insert(parent.to_path_buf(), path.clone());
+    staging_directories.push(path.clone());
+    Ok(path)
+}
+
+fn reserve_staging_directory_with<O, F>(
+    parent: &Path,
+    file_ops: &O,
+    mut next_id: F,
+) -> Result<PathBuf, ChapterError>
+where
+    O: RenumberFileOps,
+    F: FnMut() -> u64,
+{
+    let mut last_candidate = None;
+    for _ in 0..MAX_STAGING_DIRECTORY_ATTEMPTS {
+        let candidate = parent.join(format!(
+            ".shosei-renumber-{}-{}",
+            std::process::id(),
+            next_id()
+        ));
+        match file_ops.create_dir(&candidate) {
+            Ok(()) => return Ok(candidate),
+            Err(source) if source.kind() == io::ErrorKind::AlreadyExists => {
+                last_candidate = Some(candidate);
+            }
+            Err(source) => {
+                return Err(ChapterError::CreateRenumberStagingDirectory {
+                    path: candidate,
+                    source,
+                });
+            }
+        }
+    }
+
+    let path = last_candidate.unwrap_or_else(|| parent.to_path_buf());
+    Err(ChapterError::CreateRenumberStagingDirectory {
+        path,
+        source: io::Error::new(
+            io::ErrorKind::AlreadyExists,
+            "could not reserve a unique chapter renumber staging directory",
+        ),
+    })
+}
+
+fn remove_empty_staging_directories<O>(file_ops: &O, staging_directories: &[PathBuf]) -> Vec<String>
+where
+    O: RenumberFileOps,
+{
+    let mut failures = Vec::new();
+    for path in staging_directories.iter().rev() {
+        match file_ops.remove_dir(path) {
+            Ok(()) => {}
+            Err(source) if source.kind() == io::ErrorKind::NotFound => {}
+            Err(source) => failures.push(format!("remove directory {}: {source}", path.display())),
+        }
+    }
+    failures
+}
+
+fn with_rollback_failures(primary: ChapterError, rollback_failures: Vec<String>) -> ChapterError {
+    if rollback_failures.is_empty() {
+        primary
+    } else {
+        ChapterError::RenumberRollbackFailed {
+            primary: Box::new(primary),
+            rollback_failures: rollback_failures.join("; "),
+        }
+    }
 }
 
 fn rename_map(plans: &[RenumberPlan]) -> HashMap<String, String> {
@@ -766,8 +1264,328 @@ fn render_renumber_lines(plans: &[RenumberPlan], verb: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{parse_markdown_repo_path, placement_index, renumber_suffix, renumbered_repo_path};
-    use crate::domain::RepoPath;
+    use std::{
+        cell::{Cell, RefCell},
+        collections::HashMap,
+        fs, io,
+        path::{Path, PathBuf},
+        sync::atomic::{AtomicU64, Ordering},
+    };
+
+    use super::{
+        ChapterError, ChapterRenumberOptions, RenumberFileOps, RenumberRenameStep,
+        StdRenumberFileOps, chapter_renumber_with, parse_markdown_repo_path, placement_index,
+        renumber_suffix, renumbered_repo_path, reserve_staging_directory_with,
+    };
+    use crate::{cli_api::CommandContext, domain::RepoPath};
+
+    static NEXT_TEST_DIRECTORY_ID: AtomicU64 = AtomicU64::new(0);
+
+    #[derive(Default)]
+    struct FaultingRenumberFileOps {
+        fail_rename: Option<(RenumberRenameStep, usize)>,
+        fail_staged_config_write: bool,
+        rename_counts: RefCell<HashMap<RenumberRenameStep, usize>>,
+    }
+
+    impl FaultingRenumberFileOps {
+        fn failing_rename(step: RenumberRenameStep, occurrence: usize) -> Self {
+            Self {
+                fail_rename: Some((step, occurrence)),
+                ..Self::default()
+            }
+        }
+
+        fn failing_staged_config_write() -> Self {
+            Self {
+                fail_staged_config_write: true,
+                ..Self::default()
+            }
+        }
+    }
+
+    impl RenumberFileOps for FaultingRenumberFileOps {
+        fn create_dir(&self, path: &Path) -> io::Result<()> {
+            StdRenumberFileOps.create_dir(path)
+        }
+
+        fn write_new_file(
+            &self,
+            path: &Path,
+            contents: &[u8],
+            permissions: fs::Permissions,
+        ) -> io::Result<()> {
+            if self.fail_staged_config_write {
+                return Err(io::Error::other("injected staged config write failure"));
+            }
+            StdRenumberFileOps.write_new_file(path, contents, permissions)
+        }
+
+        fn rename(&self, step: RenumberRenameStep, from: &Path, to: &Path) -> io::Result<()> {
+            let occurrence = {
+                let mut counts = self.rename_counts.borrow_mut();
+                let count = counts.entry(step).or_insert(0);
+                *count += 1;
+                *count
+            };
+            if self.fail_rename == Some((step, occurrence)) {
+                return Err(io::Error::other(format!(
+                    "injected {step:?} rename failure"
+                )));
+            }
+            StdRenumberFileOps.rename(step, from, to)
+        }
+
+        fn remove_file(&self, path: &Path) -> io::Result<()> {
+            StdRenumberFileOps.remove_file(path)
+        }
+
+        fn remove_dir(&self, path: &Path) -> io::Result<()> {
+            StdRenumberFileOps.remove_dir(path)
+        }
+    }
+
+    fn transaction_test_dir(name: &str) -> PathBuf {
+        let id = NEXT_TEST_DIRECTORY_ID.fetch_add(1, Ordering::Relaxed);
+        let root = std::env::temp_dir().join(format!(
+            "shosei-chapter-transaction-{name}-{}-{id}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(root.join("manuscript")).unwrap();
+        root
+    }
+
+    fn write_transaction_book(root: &Path, chapters: &[&str]) -> Vec<u8> {
+        let chapter_lines = chapters
+            .iter()
+            .map(|chapter| format!("    - {chapter}"))
+            .collect::<Vec<_>>()
+            .join("\n");
+        let book = format!(
+            r#"project:
+  type: novel
+  vcs: git
+book:
+  title: "Sample"
+  authors:
+    - "Author"
+  reading_direction: rtl
+layout:
+  binding: right
+manuscript:
+  chapters:
+{chapter_lines}
+outputs:
+  kindle:
+    enabled: true
+    target: kindle-ja
+validation:
+  strict: true
+git:
+  lfs: true
+"#
+        );
+        fs::write(root.join("book.yml"), book.as_bytes()).unwrap();
+        book.into_bytes()
+    }
+
+    fn run_renumber_with_ops<O>(root: &Path, file_ops: &O) -> Result<(), ChapterError>
+    where
+        O: RenumberFileOps,
+    {
+        chapter_renumber_with(
+            &CommandContext::new(root, None, None),
+            ChapterRenumberOptions {
+                start_at: 1,
+                width: 2,
+                dry_run: false,
+            },
+            file_ops,
+            serde_yaml::to_string,
+        )
+        .map(|_| ())
+    }
+
+    fn assert_original_files(root: &Path, expected: &[(&str, &str)], original_config: &[u8]) {
+        assert_eq!(fs::read(root.join("book.yml")).unwrap(), original_config);
+        for (path, contents) in expected {
+            assert_eq!(
+                fs::read_to_string(root.join(path)).unwrap(),
+                *contents,
+                "unexpected contents for {path}"
+            );
+        }
+        assert_no_staging_directories(root);
+    }
+
+    fn assert_no_staging_directories(root: &Path) {
+        fn visit(path: &Path) {
+            for entry in fs::read_dir(path).unwrap() {
+                let entry = entry.unwrap();
+                let file_type = entry.file_type().unwrap();
+                if !file_type.is_dir() {
+                    continue;
+                }
+                assert!(
+                    !entry
+                        .file_name()
+                        .to_string_lossy()
+                        .starts_with(".shosei-renumber-"),
+                    "staging directory remained at {}",
+                    entry.path().display()
+                );
+                visit(&entry.path());
+            }
+        }
+        visit(root);
+    }
+
+    #[test]
+    fn staging_directory_reservation_retries_without_touching_collision() {
+        let root = transaction_test_dir("staging-collision");
+        let first_id = 41;
+        let collision = root.join(format!(
+            ".shosei-renumber-{}-{first_id}",
+            std::process::id()
+        ));
+        fs::create_dir(&collision).unwrap();
+        fs::write(collision.join("sentinel"), "keep me").unwrap();
+        let next_id = Cell::new(first_id);
+
+        let reserved = reserve_staging_directory_with(&root, &StdRenumberFileOps, || {
+            let id = next_id.get();
+            next_id.set(id + 1);
+            id
+        })
+        .unwrap();
+
+        assert_ne!(reserved, collision);
+        assert_eq!(
+            fs::read_to_string(collision.join("sentinel")).unwrap(),
+            "keep me"
+        );
+        fs::remove_dir(&reserved).unwrap();
+        fs::remove_dir_all(&collision).unwrap();
+    }
+
+    #[test]
+    fn renumber_rolls_back_first_phase_failure() {
+        let root = transaction_test_dir("first-phase-failure");
+        let original_config = write_transaction_book(
+            &root,
+            &["manuscript/chapter-a.md", "manuscript/chapter-b.md"],
+        );
+        fs::write(root.join("manuscript/chapter-a.md"), "chapter a").unwrap();
+        fs::write(root.join("manuscript/chapter-b.md"), "chapter b").unwrap();
+        let file_ops = FaultingRenumberFileOps::failing_rename(RenumberRenameStep::StageChapter, 2);
+
+        let error = run_renumber_with_ops(&root, &file_ops).unwrap_err();
+
+        assert!(matches!(error, ChapterError::RenameChapterFile { .. }));
+        assert_original_files(
+            &root,
+            &[
+                ("manuscript/chapter-a.md", "chapter a"),
+                ("manuscript/chapter-b.md", "chapter b"),
+            ],
+            &original_config,
+        );
+        assert!(!root.join("manuscript/01-chapter-a.md").exists());
+        assert!(!root.join("manuscript/02-chapter-b.md").exists());
+    }
+
+    #[test]
+    fn renumber_rolls_back_second_phase_failure_through_staging() {
+        let root = transaction_test_dir("second-phase-failure");
+        let original_config =
+            write_transaction_book(&root, &["manuscript/02-same.md", "manuscript/01-same.md"]);
+        fs::write(root.join("manuscript/02-same.md"), "first chapter").unwrap();
+        fs::write(root.join("manuscript/01-same.md"), "second chapter").unwrap();
+        let file_ops =
+            FaultingRenumberFileOps::failing_rename(RenumberRenameStep::PublishChapter, 2);
+
+        let error = run_renumber_with_ops(&root, &file_ops).unwrap_err();
+
+        assert!(matches!(error, ChapterError::RenameChapterFile { .. }));
+        assert_original_files(
+            &root,
+            &[
+                ("manuscript/02-same.md", "first chapter"),
+                ("manuscript/01-same.md", "second chapter"),
+            ],
+            &original_config,
+        );
+    }
+
+    #[test]
+    fn renumber_rolls_back_config_install_failure_and_rename_cycle() {
+        let root = transaction_test_dir("config-install-failure");
+        let original_config =
+            write_transaction_book(&root, &["manuscript/02-same.md", "manuscript/01-same.md"]);
+        fs::write(root.join("manuscript/02-same.md"), "first chapter").unwrap();
+        fs::write(root.join("manuscript/01-same.md"), "second chapter").unwrap();
+        let file_ops =
+            FaultingRenumberFileOps::failing_rename(RenumberRenameStep::InstallConfig, 1);
+
+        let error = run_renumber_with_ops(&root, &file_ops).unwrap_err();
+
+        assert!(matches!(error, ChapterError::RenameChapterConfig { .. }));
+        assert_original_files(
+            &root,
+            &[
+                ("manuscript/02-same.md", "first chapter"),
+                ("manuscript/01-same.md", "second chapter"),
+            ],
+            &original_config,
+        );
+    }
+
+    #[test]
+    fn renumber_staged_config_write_failure_leaves_sources_unchanged() {
+        let root = transaction_test_dir("config-write-failure");
+        let original_config = write_transaction_book(&root, &["manuscript/chapter.md"]);
+        fs::write(root.join("manuscript/chapter.md"), "chapter").unwrap();
+        let file_ops = FaultingRenumberFileOps::failing_staged_config_write();
+
+        let error = run_renumber_with_ops(&root, &file_ops).unwrap_err();
+
+        assert!(matches!(error, ChapterError::WriteConfig { .. }));
+        assert_original_files(
+            &root,
+            &[("manuscript/chapter.md", "chapter")],
+            &original_config,
+        );
+        assert!(!root.join("manuscript/01-chapter.md").exists());
+    }
+
+    #[test]
+    fn renumber_serialization_failure_leaves_sources_unchanged() {
+        let root = transaction_test_dir("serialization-failure");
+        let original_config = write_transaction_book(&root, &["manuscript/chapter.md"]);
+        fs::write(root.join("manuscript/chapter.md"), "chapter").unwrap();
+        let serialization_error = serde_yaml::from_str::<serde_yaml::Value>("[").unwrap_err();
+
+        let error = chapter_renumber_with(
+            &CommandContext::new(&root, None, None),
+            ChapterRenumberOptions {
+                start_at: 1,
+                width: 2,
+                dry_run: false,
+            },
+            &StdRenumberFileOps,
+            move |_| Err(serialization_error),
+        )
+        .unwrap_err();
+
+        assert!(matches!(error, ChapterError::SerializeConfig { .. }));
+        assert_original_files(
+            &root,
+            &[("manuscript/chapter.md", "chapter")],
+            &original_config,
+        );
+        assert!(!root.join("manuscript/01-chapter.md").exists());
+    }
 
     #[test]
     fn placement_index_appends_without_reference() {

@@ -15,3 +15,6 @@ serde_yaml.workspace = true
 thiserror.workspace = true
 time.workspace = true
 zip.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+windows-sys.workspace = true

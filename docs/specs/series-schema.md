@@ -154,7 +154,9 @@ books:
 - `path` 先には `book.yml` が存在すること
 - `id` は series 内で一意
 - `books` 配列の順序はシリーズ内の正順序とみなす
-- `number` と `title` は将来の `shosei series sync` で巻一覧や既刊案内を生成する際の基準になる
+- `number` と `title` は `shosei series sync` で巻一覧や既刊案内を生成する際の基準になる
+- `title` を省略した場合、`shosei series sync` は対象 `book.yml` の `book.title` を catalog 表示に使う
+- `shosei series sync` は全 `books[].path`、`book.yml` の存在、repo 内包含、更新対象の型を mutation 前に検証し、1 件でも不正なら catalog や book config を変更しない
 
 ## 10. 最小例
 

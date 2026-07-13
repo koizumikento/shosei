@@ -30,7 +30,8 @@
 
 - 区切り文字は `/` を使う
 - `.` から始まるカレントディレクトリ表現は不要
-- 絶対パスは許可しない
+- `..` segment は許可しない
+- Unix の絶対パス、Windows の drive absolute path（`C:/...`）、drive-relative path（`C:...`）は実行 OS に関係なく許可しない
 - 実装時に Windows でも `/` を受け取り、内部で正規化する
 - 生成時も config 上は `/` 表記を維持する
 

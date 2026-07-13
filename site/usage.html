@@ -170,6 +170,7 @@ shosei validate --book vol-01</code></pre>
           <pre><code>shosei build --target print
 shosei validate --target kindle
 shosei preview --target print</code></pre>
+          <p><code>build</code> は外部 producer の出力を実行固有の一時 path で確認してから最終成果物へ昇格します。producer が成功終了しても今回の成果物を生成しなかった場合は失敗となり、前回の成果物を今回の成功結果や handoff 対象にはしません。</p>
           <p><code>validate</code> では target / profile の組み合わせに対する実務上の warning も出します。</p>
           <ul>
             <li><code>project.type: manga</code> では <code>outputs.kindle.target: kindle-comic</code> を推奨し、<code>kindle-ja</code> は将来互換扱いとして warning にします</li>
@@ -178,7 +179,7 @@ shosei preview --target print</code></pre>
             <li><code>book.profile: conference-preprint</code> では <code>outputs.print.target: print-jp-pdfx4</code> を推奨し、それ以外は warning にします</li>
             <li>prose print で <code>pdf.engine: typst|lualatex</code> を使う場合は、v0.2 では追加 proof を勧める warning を出します</li>
           </ul>
-          <p><code>series sync</code> は <code>series.yml</code> を正として shared metadata を更新し、prose book では生成 backmatter を同期します。</p>
+          <p><code>series sync</code> は <code>series.yml</code> を正として shared metadata を更新し、prose book では生成 backmatter を同期します。<code>books[].title</code> 省略時は対象 <code>book.yml</code> の <code>book.title</code> を使い、全巻の path、<code>book.yml</code> の存在、repo 内包含、更新対象の型を確認してから一括更新を始めます。</p>
           <pre><code>shosei series sync
 shosei series sync --path ./my-series</code></pre>
           <p><code>page check</code> は manga project 向けで、ページ順や見開き候補を確認します。</p>
@@ -222,7 +223,7 @@ shosei chapter remove manuscript/03.md
 shosei chapter renumber
 shosei chapter add books/vol-01/manuscript/02.md --book vol-01 --title "Chapter 2"</code></pre>
           <p><code>page check</code> とは別系統で、<code>manga/pages/</code> や manga metadata には触れません。</p>
-          <p><code>renumber</code> は章順を変えずに filename prefix だけを整えます。<code>book.yml</code> の <code>manuscript.chapters</code> と対応する <code>sections.file</code> は更新しますが、Markdown 本文中の link destination は自動 rewrite しません。</p>
+          <p><code>renumber</code> は章順を変えずに filename prefix だけを整えます。<code>book.yml</code> の <code>manuscript.chapters</code> と対応する <code>sections.file</code> は更新しますが、Markdown 本文中の link destination は自動 rewrite しません。rename または config 更新に失敗した場合は rollback し、rollback が完了すれば一時 file を残しません。rollback 自体も失敗したときは回収用 data を残して未復旧 path を報告します。</p>
         </section>
 
         <section>

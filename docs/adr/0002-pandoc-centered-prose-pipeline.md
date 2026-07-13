@@ -21,9 +21,11 @@
 - アセット管理
 - 検証
 - handoff
+- 外部 producer の出力を実行固有 path で検証し、今回生成された成果物だけを最終 path へ原子的に昇格する build orchestration
 
 ## Consequences
 
 - prose 系の build は Pandoc の制約に乗る
 - CLI の価値は変換器そのものではなく orchestration に寄る
+- producer が成功終了しても成果物を生成しなかった場合は build を失敗させ、前回成果物を今回の結果や handoff に流さない
 - fixed-layout や漫画のような別原稿モデルは Pandoc 以外の経路が必要になる
