@@ -25,6 +25,8 @@
 - CLI の主要ロジックは Rust 本体に置く
 - 外部ツール呼び出しは Rust からプロセス実行する
 - 設定ファイル上のパスは repo-relative かつ `/` 区切りで統一する
+- Unix absolute path、Windows drive absolute / drive-relative path、UNC、`..` は host OS に関係なく同じ `RepoPath` 境界で拒否する
+- 既存成果物の置換は同一 filesystem 上の atomic rename を使い、Windows では同等の platform API を使う
 - doctor, build, validate の振る舞いは 3 OS で可能な限り揃える
 
 ## Consequences
@@ -32,4 +34,5 @@
 - 3 OS を対象にした CI とスモークテストが必要になる
 - 実行ファイル名や PATH 解決など OS 差異を吸収する実装が必要になる
 - Windows でも破綻しないパス・文字コード・ログ処理が必要になる
+- platform 固有の atomic file operation が必要な箇所は、target-specific dependency と cross-target check を維持する必要がある
 - Bash 前提の補助スクリプトは必須経路に置けなくなる

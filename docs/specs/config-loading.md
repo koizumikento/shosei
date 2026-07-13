@@ -156,8 +156,9 @@ config に現れるパスはすべて `RepoPath` として扱う。
 
 - `/` 区切り
 - repo root 基準
-- 絶対パス禁止
-- `..` を含む場合は repo 外へ出ないこと
+- `..` segment 禁止
+- Unix の絶対パス、Windows の drive absolute path（`C:/...`）、drive-relative path（`C:...`）は禁止
+- portable config として、上記の path は実行 OS に関係なく同じように拒否する
 
 ### 8.2 実行時変換
 

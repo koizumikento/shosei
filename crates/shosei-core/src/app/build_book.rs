@@ -1,6 +1,7 @@
 use std::{
-    fs,
+    fs, io,
     path::{Path, PathBuf},
+    sync::atomic::{AtomicU64, Ordering},
 };
 
 use crate::{
@@ -505,6 +506,45 @@ fn manga_body_mode_label(mode: config::MangaBodyMode) -> &'static str {
     }
 }
 
+static BUILD_STAGING_SEQUENCE: AtomicU64 = AtomicU64::new(0);
+
+struct BuildStagingDir {
+    path: PathBuf,
+}
+
+impl BuildStagingDir {
+    fn create(parent: &Path) -> io::Result<Self> {
+        loop {
+            let sequence = BUILD_STAGING_SEQUENCE.fetch_add(1, Ordering::Relaxed);
+            let path = parent.join(format!(".shosei-build-{}-{sequence}", std::process::id()));
+            match fs::create_dir(&path) {
+                Ok(()) => return Ok(Self { path }),
+                Err(error) if error.kind() == io::ErrorKind::AlreadyExists => continue,
+                Err(error) => return Err(error),
+            }
+        }
+    }
+
+    fn path_for(&self, destination: &Path) -> io::Result<PathBuf> {
+        let file_name = destination.file_name().ok_or_else(|| {
+            io::Error::new(
+                io::ErrorKind::InvalidInput,
+                format!(
+                    "build output path has no file name: {}",
+                    destination.display()
+                ),
+            )
+        })?;
+        Ok(self.path.join(file_name))
+    }
+}
+
+impl Drop for BuildStagingDir {
+    fn drop(&mut self) {
+        let _ = fs::remove_dir_all(&self.path);
+    }
+}
+
 fn execute_build_outputs(
     resolved: &config::ResolvedBookConfig,
     plan: &pipeline::BuildPlan,
@@ -518,6 +558,36 @@ fn execute_build_outputs(
         .expect("book context must exist for build");
 
     for output in &plan.outputs {
+        prepare_artifact_dir(
+            &output.artifact_path,
+            &resolved.repo.repo_root,
+            &book.id,
+            &output.target,
+        )?;
+        let artifact_dir = output
+            .artifact_path
+            .parent()
+            .expect("build artifact path must have a parent directory");
+        let staging = BuildStagingDir::create(artifact_dir).map_err(|error| {
+            execution_failed_with_message(
+                &resolved.repo.repo_root,
+                &book.id,
+                &output.target,
+                format!(
+                    "failed to create build staging directory for {}: {error}",
+                    output.target
+                ),
+            )
+        })?;
+        let staged_artifact = staging.path_for(&output.artifact_path).map_err(|error| {
+            execution_failed_with_message(
+                &resolved.repo.repo_root,
+                &book.id,
+                &output.target,
+                error.to_string(),
+            )
+        })?;
+
         match output.channel {
             "kindle" => {
                 let pandoc = available_tool_path(toolchain, "pandoc").ok_or_else(|| {
@@ -526,19 +596,13 @@ fn execute_build_outputs(
                         target: output.target.clone(),
                     }
                 })?;
-                prepare_artifact_dir(
-                    &output.artifact_path,
-                    &resolved.repo.repo_root,
-                    &book.id,
-                    &output.target,
-                )?;
                 let epub_stylesheets = generated_epub_stylesheets(resolved, output)?;
                 let run_output = toolchain::run_pandoc_epub(
                     pandoc,
                     &plan.manuscript_files,
                     &toolchain::PandocEpubOptions {
                         working_dir: &book.root,
-                        output: &output.artifact_path,
+                        output: &staged_artifact,
                         title: &resolved.effective.book.title,
                         language: &resolved.effective.book.language,
                         stylesheets: &epub_stylesheets,
@@ -558,8 +622,15 @@ fn execute_build_outputs(
                     &book.id,
                     &output.target,
                     "pandoc",
-                    &output.artifact_path,
+                    &staged_artifact,
                     run_output,
+                )?;
+                promote_staged_path(
+                    &resolved.repo.repo_root,
+                    &book.id,
+                    &output.target,
+                    &staged_artifact,
+                    &output.artifact_path,
                 )?;
                 artifacts.push(output.artifact_path.clone());
             }
@@ -575,12 +646,6 @@ fn execute_build_outputs(
                     .pdf
                     .as_ref()
                     .expect("pdf settings must exist for prose print build");
-                prepare_artifact_dir(
-                    &output.artifact_path,
-                    &resolved.repo.repo_root,
-                    &book.id,
-                    &output.target,
-                )?;
                 match pdf.engine {
                     config::PdfEngine::Chromium => {
                         let chromium =
@@ -591,7 +656,8 @@ fn execute_build_outputs(
                                 }
                             })?;
                         let stylesheets = generated_print_stylesheets(resolved, output)?;
-                        let html_path = generated_print_html_path(&output.artifact_path);
+                        let html_path = generated_print_html_path(&staged_artifact);
+                        let published_html_path = generated_print_html_path(&output.artifact_path);
                         let pandoc_output = toolchain::run_pandoc_html(
                             pandoc,
                             &plan.manuscript_files,
@@ -621,26 +687,33 @@ fn execute_build_outputs(
                             pandoc_output,
                         )?;
 
-                        let chromium_output = toolchain::run_chromium_pdf(
-                            chromium,
-                            &html_path,
-                            &output.artifact_path,
-                        )
-                        .map_err(|error| {
-                            execution_failed_with_message(
-                                &resolved.repo.repo_root,
-                                &book.id,
-                                &output.target,
-                                format!("failed to start chromium for {}: {error}", output.target),
-                            )
-                        })?;
+                        let chromium_output =
+                            toolchain::run_chromium_pdf(chromium, &html_path, &staged_artifact)
+                                .map_err(|error| {
+                                    execution_failed_with_message(
+                                        &resolved.repo.repo_root,
+                                        &book.id,
+                                        &output.target,
+                                        format!(
+                                            "failed to start chromium for {}: {error}",
+                                            output.target
+                                        ),
+                                    )
+                                })?;
                         ensure_path_written(
                             &resolved.repo.repo_root,
                             &book.id,
                             &output.target,
                             "chromium",
-                            &output.artifact_path,
+                            &staged_artifact,
                             chromium_output,
+                        )?;
+                        promote_staged_path(
+                            &resolved.repo.repo_root,
+                            &book.id,
+                            &output.target,
+                            &html_path,
+                            &published_html_path,
                         )?;
                     }
                     config::PdfEngine::Weasyprint
@@ -657,7 +730,7 @@ fn execute_build_outputs(
                             pandoc,
                             &book.root,
                             &plan.manuscript_files,
-                            &output.artifact_path,
+                            &staged_artifact,
                             &resolved.effective.book.title,
                             &resolved.effective.book.language,
                             &pdf_options,
@@ -675,11 +748,18 @@ fn execute_build_outputs(
                             &book.id,
                             &output.target,
                             "pandoc",
-                            &output.artifact_path,
+                            &staged_artifact,
                             run_output,
                         )?;
                     }
                 }
+                promote_staged_path(
+                    &resolved.repo.repo_root,
+                    &book.id,
+                    &output.target,
+                    &staged_artifact,
+                    &output.artifact_path,
+                )?;
                 artifacts.push(output.artifact_path.clone());
             }
             _ => {
@@ -1209,6 +1289,72 @@ fn prepare_artifact_dir(
     Ok(())
 }
 
+fn promote_staged_path(
+    repo_root: &Path,
+    book_id: &str,
+    target: &str,
+    staged_path: &Path,
+    destination: &Path,
+) -> Result<(), BuildBookError> {
+    replace_staged_path(staged_path, destination).map_err(|error| {
+        execution_failed_with_message(
+            repo_root,
+            book_id,
+            target,
+            format!(
+                "failed to publish staged build output {} to {}: {error}",
+                staged_path.display(),
+                destination.display()
+            ),
+        )
+    })
+}
+
+#[cfg(not(windows))]
+fn replace_staged_path(staged_path: &Path, destination: &Path) -> io::Result<()> {
+    fs::rename(staged_path, destination)
+}
+
+#[cfg(windows)]
+fn replace_staged_path(staged_path: &Path, destination: &Path) -> io::Result<()> {
+    use std::{iter, os::windows::ffi::OsStrExt, ptr};
+
+    use windows_sys::Win32::Storage::FileSystem::ReplaceFileW;
+
+    if !destination.exists() {
+        return fs::rename(staged_path, destination);
+    }
+
+    let destination_wide = destination
+        .as_os_str()
+        .encode_wide()
+        .chain(iter::once(0))
+        .collect::<Vec<_>>();
+    let staged_wide = staged_path
+        .as_os_str()
+        .encode_wide()
+        .chain(iter::once(0))
+        .collect::<Vec<_>>();
+
+    // ReplaceFileW performs the existing-file replacement as one filesystem
+    // operation, avoiding the missing-destination window of a backup/install pair.
+    let replaced = unsafe {
+        ReplaceFileW(
+            destination_wide.as_ptr(),
+            staged_wide.as_ptr(),
+            ptr::null(),
+            0,
+            ptr::null(),
+            ptr::null(),
+        )
+    };
+    if replaced == 0 {
+        Err(io::Error::last_os_error())
+    } else {
+        Ok(())
+    }
+}
+
 fn execution_failed_with_message(
     repo_root: &std::path::Path,
     book_id: &str,
@@ -1236,15 +1382,24 @@ fn ensure_path_written(
     }
 
     let log_path = build_log_path(repo_root, book_id, target);
+    let output_error = if run_output.status.success() {
+        format!(
+            "\nerror: tool exited successfully but did not create the expected output for this run: {}\n",
+            expected_path.display()
+        )
+    } else {
+        String::new()
+    };
     let log_contents = format!(
-        "tool: pandoc\nstatus: {}\nstdout:\n{}\n\nstderr:\n{}\n",
+        "tool: pandoc\nstatus: {}\nstdout:\n{}\n\nstderr:\n{}\n{}",
         run_output
             .status
             .code()
             .map(|code| code.to_string())
             .unwrap_or_else(|| "signal".to_string()),
         run_output.stdout,
-        run_output.stderr
+        run_output.stderr,
+        output_error
     );
     let log_contents = log_contents.replacen("tool: pandoc", &format!("tool: {tool_name}"), 1);
     let _ = write_build_log(&log_path, &log_contents);
@@ -1420,6 +1575,39 @@ endobj
                 },
             ],
         }
+    }
+
+    fn write_executable_script(path: &std::path::Path, contents: &str) {
+        fs::write(path, contents).unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mut permissions = fs::metadata(path).unwrap().permissions();
+            permissions.set_mode(0o755);
+            fs::set_permissions(path, permissions).unwrap();
+        }
+    }
+
+    fn assert_no_build_staging_dirs(root: &std::path::Path) {
+        let dist = root.join("dist");
+        if !dist.is_dir() {
+            return;
+        }
+        let staging_dirs = fs::read_dir(dist)
+            .unwrap()
+            .filter_map(Result::ok)
+            .filter(|entry| {
+                entry
+                    .file_name()
+                    .to_string_lossy()
+                    .starts_with(".shosei-build-")
+            })
+            .map(|entry| entry.path())
+            .collect::<Vec<_>>();
+        assert!(
+            staging_dirs.is_empty(),
+            "build staging directories were not cleaned up: {staging_dirs:?}"
+        );
     }
 
     fn write_book(root: &std::path::Path) {
@@ -1816,6 +2004,81 @@ printf 'fake epub' > "$out"
 
         assert_eq!(result.artifacts.len(), 1);
         assert!(result.artifacts[0].is_file());
+    }
+
+    #[test]
+    fn staged_output_replaces_an_existing_artifact() {
+        let root = temp_dir("replace-staged-output");
+        let dist = root.join("dist");
+        fs::create_dir_all(&dist).unwrap();
+        let destination = dist.join("artifact.epub");
+        fs::write(&destination, "stale artifact").unwrap();
+        let staging = BuildStagingDir::create(&dist).unwrap();
+        let staged_path = staging.path_for(&destination).unwrap();
+        fs::write(&staged_path, "fresh artifact").unwrap();
+
+        replace_staged_path(&staged_path, &destination).unwrap();
+
+        assert_eq!(fs::read_to_string(destination).unwrap(), "fresh artifact");
+        drop(staging);
+        assert_no_build_staging_dirs(&root);
+    }
+
+    #[test]
+    fn build_rejects_stale_epub_when_pandoc_writes_no_output() {
+        if !cfg!(unix) {
+            return;
+        }
+
+        let root = temp_dir("stale-epub-no-output");
+        write_book(&root);
+        let artifact = root.join("dist/default-kindle-ja.epub");
+        fs::create_dir_all(artifact.parent().unwrap()).unwrap();
+        fs::write(&artifact, "stale epub").unwrap();
+        let pandoc = root.join("pandoc");
+        write_executable_script(&pandoc, "#!/bin/sh\nexit 0\n");
+
+        let error = build_book_with_toolchain(
+            &CommandContext::new(&root, None, None),
+            &fake_toolchain(Some(pandoc)),
+        )
+        .unwrap_err();
+
+        let BuildBookError::ExecutionFailed { log_path, .. } = error else {
+            panic!("unexpected error: {error}");
+        };
+        assert_eq!(fs::read_to_string(artifact).unwrap(), "stale epub");
+        assert!(
+            fs::read_to_string(log_path)
+                .unwrap()
+                .contains("did not create the expected output for this run")
+        );
+        assert_no_build_staging_dirs(&root);
+    }
+
+    #[test]
+    fn build_rejects_stale_direct_pdf_when_pandoc_writes_no_output() {
+        if !cfg!(unix) {
+            return;
+        }
+
+        let root = temp_dir("stale-direct-pdf-no-output");
+        write_print_book(&root);
+        let artifact = root.join("dist/default-print-jp-pdfx1a.pdf");
+        fs::create_dir_all(artifact.parent().unwrap()).unwrap();
+        fs::write(&artifact, "stale pdf").unwrap();
+        let pandoc = root.join("pandoc");
+        write_executable_script(&pandoc, "#!/bin/sh\nexit 0\n");
+
+        let error = build_book_with_toolchain(
+            &CommandContext::new(&root, None, None),
+            &fake_toolchain(Some(pandoc)),
+        )
+        .unwrap_err();
+
+        assert!(matches!(error, BuildBookError::ExecutionFailed { .. }));
+        assert_eq!(fs::read_to_string(artifact).unwrap(), "stale pdf");
+        assert_no_build_staging_dirs(&root);
     }
 
     #[test]
@@ -2453,6 +2716,90 @@ printf 'fake pdf' > "$out"
             BuildBookError::UnsupportedVerticalWeasyprint { target }
                 if target == "print-jp-pdfx1a"
         ));
+    }
+
+    #[test]
+    fn build_rejects_stale_chromium_html_when_pandoc_writes_no_output() {
+        if !cfg!(unix) {
+            return;
+        }
+
+        let root = temp_dir("stale-chromium-html-no-output");
+        write_chromium_print_book(&root);
+        let artifact = root.join("dist/default-print-jp-pdfx1a.pdf");
+        let html = artifact.with_extension("print.html");
+        fs::create_dir_all(artifact.parent().unwrap()).unwrap();
+        fs::write(&artifact, "stale pdf").unwrap();
+        fs::write(&html, "stale html").unwrap();
+
+        let pandoc = root.join("pandoc");
+        write_executable_script(&pandoc, "#!/bin/sh\nexit 0\n");
+        let chromium = root.join("chromium");
+        let chromium_invoked = root.join("chromium-invoked");
+        write_executable_script(
+            &chromium,
+            &format!(
+                "#!/bin/sh\nprintf invoked > '{}'\nexit 0\n",
+                chromium_invoked.display()
+            ),
+        );
+
+        let error = build_book_with_toolchain(
+            &CommandContext::new(&root, None, None),
+            &fake_toolchain_with_chromium(Some(pandoc), Some(chromium)),
+        )
+        .unwrap_err();
+
+        assert!(matches!(error, BuildBookError::ExecutionFailed { .. }));
+        assert!(!chromium_invoked.exists());
+        assert_eq!(fs::read_to_string(artifact).unwrap(), "stale pdf");
+        assert_eq!(fs::read_to_string(html).unwrap(), "stale html");
+        assert_no_build_staging_dirs(&root);
+    }
+
+    #[test]
+    fn build_rejects_stale_chromium_pdf_when_chromium_writes_no_output() {
+        if !cfg!(unix) {
+            return;
+        }
+
+        let root = temp_dir("stale-chromium-pdf-no-output");
+        write_chromium_print_book(&root);
+        let artifact = root.join("dist/default-print-jp-pdfx1a.pdf");
+        let html = artifact.with_extension("print.html");
+        fs::create_dir_all(artifact.parent().unwrap()).unwrap();
+        fs::write(&artifact, "stale pdf").unwrap();
+        fs::write(&html, "stale html").unwrap();
+
+        let pandoc = root.join("pandoc");
+        write_executable_script(
+            &pandoc,
+            r#"#!/bin/sh
+out=""
+prev=""
+for arg in "$@"; do
+  if [ "$prev" = "--output" ]; then
+    out="$arg"
+  fi
+  prev="$arg"
+done
+mkdir -p "$(dirname "$out")"
+printf '<!doctype html><html><body>fresh</body></html>' > "$out"
+"#,
+        );
+        let chromium = root.join("chromium");
+        write_executable_script(&chromium, "#!/bin/sh\nexit 0\n");
+
+        let error = build_book_with_toolchain(
+            &CommandContext::new(&root, None, None),
+            &fake_toolchain_with_chromium(Some(pandoc), Some(chromium)),
+        )
+        .unwrap_err();
+
+        assert!(matches!(error, BuildBookError::ExecutionFailed { .. }));
+        assert_eq!(fs::read_to_string(artifact).unwrap(), "stale pdf");
+        assert_eq!(fs::read_to_string(html).unwrap(), "stale html");
+        assert_no_build_staging_dirs(&root);
     }
 
     #[test]

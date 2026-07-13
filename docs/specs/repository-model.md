@@ -253,6 +253,8 @@ shosei series sync
 - `series.yml` を正として巻一覧、巻番号、既刊案内を同期する
 - 手書き原稿本文を直接 rewrite するのではなく、派生 metadata や backmatter 生成を優先する
 - v0.2 では `shared/metadata/series-catalog.yml` と `shared/metadata/series-catalog.md` を生成し、prose book では `manuscript.backmatter` に generated catalog を同期する
+- `books[].title` がない巻は対象 `book.yml` の `book.title` を catalog 表示に使う
+- 全巻の repo-relative path、`book.yml` の存在、repo 内包含、更新対象の型を先に検証し、1 件でも不正なら何も変更しない
 - 巻固有 `book.yml` の明示 override は保持する
 
 ## 10. `init` の扱い

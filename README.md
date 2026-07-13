@@ -220,6 +220,8 @@ repo/
 | `shosei doctor` | 依存解決結果と導入ヒントを表示する | 利用可能 |
 | `shosei handoff <kindle|print|proof>` | handoff package を生成する | 利用可能 |
 
+`build` は外部 producer の出力を実行固有の一時 path で確認してから最終成果物へ昇格します。producer が今回の成果物を生成しなかった場合、前回の成果物を成功結果や handoff 対象にはしません。
+
 ## 生成される初期構成
 
 `init` はテンプレートに応じて、以下のような土台を生成します。
@@ -241,7 +243,7 @@ Kindle を含む scaffold では、`cover.ebook_image` と placeholder の `asse
 
 prose scaffold では `images.epub_figure_layout: auto` も生成します。`auto` は `light-novel` の Kindle / EPUB build では図版単独ページを意図する generated stylesheet を追加し、それ以外の prose profile では従来どおり本文中の図版として扱います。
 
-この `01-` prefix は初期命名の慣例です。prose の章順は filename prefix ではなく `book.yml` の `manuscript.chapters` で決まります。prefix を整えたい場合は `shosei chapter renumber` を明示的に使います。
+この `01-` prefix は初期命名の慣例です。prose の章順は filename prefix ではなく `book.yml` の `manuscript.chapters` で決まります。prefix を整えたい場合は `shosei chapter renumber` を明示的に使います。rename または config 更新に失敗した場合は rollback し、rollback 自体も失敗したときは回収用 data を残して未復旧 path を報告します。
 
 生成される config field の意味は [docs/config-reference.md](docs/config-reference.md) にまとめています。正式な schema や制約は `docs/specs/` を参照してください。
 
@@ -249,7 +251,7 @@ prose scaffold では `images.epub_figure_layout: auto` も生成します。`au
 
 物語補助を使いたい場合は、初期 scaffold の後で `shosei story scaffold` を明示実行して `story/` または series 用の story workspace を生成します。scaffold には日本語中心の `_template.md` と `scene-template.md` に加えて、book scope の `structures/` に `起承転結`、`三幕構成`、`Save the Cat! 15ビート`、`ヒーローズ・ジャーニー` の叩き台も含まれます。structure template の frontmatter には `scene_seeds` を置けるので、`shosei story seed --template kishotenketsu` のように実行すると `scenes.yml` と `scene-notes/*.md` の下書きを起こせます。CLI が読む frontmatter / YAML key は `id`, `characters`, `locations`, `terms`, `factions`, `scenes`, `file`, `title` のように英語の canonical key のままで、`structures/` 配下は自由記述メモとして扱います。scene 一覧は `shosei story map`、軽い整合チェックは `shosei story check` で `scenes.yml` と scene/entity frontmatter から report 化できます。series では book-scoped story data に加えて `shared/metadata/story/` の canon も参照解決に使い、scope 間の衝突は `shosei story drift --book <book-id>` で確認できます。scope 間で 1 entity を明示同期するときは `shosei story sync --book <book-id> --from shared --kind <kind> --id <id>` または `shosei story sync --book <book-id> --to shared --kind <kind> --id <id>` を使い、`story drift` report の `drifts` 配列をまとめて反映したいときは `shosei story sync --book <book-id> --from shared --report dist/reports/<book-id>-story-drift.json --force` のように batch 適用できます。
 
-`shosei series sync` は `series.yml` を正として `shared/metadata/series-catalog.yml` と `shared/metadata/series-catalog.md` を生成します。prose book では `shared/metadata/series-catalog.md` を `manuscript.backmatter` に同期します。
+`shosei series sync` は `series.yml` を正として `shared/metadata/series-catalog.yml` と `shared/metadata/series-catalog.md` を生成します。prose book では `shared/metadata/series-catalog.md` を `manuscript.backmatter` に同期します。`books[].title` 省略時は対象 `book.yml` の `book.title` を使い、全巻の path、`book.yml` の存在、repo 内包含、更新対象の型を確認してから一括更新を始めます。
 
 ## ドキュメント
 

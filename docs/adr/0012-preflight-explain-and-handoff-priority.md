@@ -32,6 +32,8 @@
    - 変更監視しながら preview を継続更新する
 4. `shosei series sync`
    - `series.yml` を正として巻一覧、既刊案内、派生 metadata を同期する
+   - `books[].title` 省略時は対象 `book.yml` の `book.title` を表示値に使う
+   - 全巻の path、`book.yml` の存在、repo 内包含、更新対象の型を preflight してから mutation を始める
 5. `shosei page check`
    - manga のページ順、見開き、panel metadata を検査する
 6. `shosei handoff proof`
@@ -42,5 +44,6 @@
 - CLI の価値は format conversion 単体より、explainability、preflight、handoff に寄る
 - 既存コマンドの責務は深くなるが、日常コマンド数はむやみに増やさない
 - `series` 補助機能は `series.yml` を正とする
+- `series sync` は一部だけ同期された成功を避け、不正な巻が 1 件でもあれば catalog や book config を変更せず失敗する
 - `page check` や `series sync` は、手書き原稿を無断で大きく rewrite しない保守的方針を取る
 - ストアへの直接アップロード、WYSIWYG、リアルタイム共同編集は後順位のまま残す

@@ -176,7 +176,7 @@ editorial:
 | `books[].id` | `--book` で指定する巻 ID |
 | `books[].path` | 巻ディレクトリの repo-relative path |
 | `books[].number` | 巻番号 |
-| `books[].title` | 巻タイトル |
+| `books[].title` | 巻タイトル。省略時は対象 `book.yml` の `book.title` を使用 |
 
 ## 6. `manga` の項目
 
@@ -208,7 +208,7 @@ editorial:
 
 ## 8. 注意点
 
-- config の path は repo-relative
+- config の path は repo-relative とし、`..`、絶対 path、Windows drive path（`C:/...`, `C:...`）は実行 OS に関係なく使えない
 - path 区切りは `/`
 - prose の章順は `manuscript.chapters` の配列順で決まる
 - EPUB で図とキャプションを同じページに保持したい場合は、Markdown 画像の `[]` に表示キャプションを入れる。画像直後の `*図：...*` 段落は `figure` 外に出るため、`images.epub_figure_layout: standalone` とは相性が悪い

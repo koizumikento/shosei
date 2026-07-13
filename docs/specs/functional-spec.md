@@ -267,6 +267,8 @@ v0.2 の現行質問項目:
 - 引数なしで実行できる
 - 個別指定は例外的に `--target kindle|print` など最小限に留める
 - prose と manga でパイプラインを切り替える
+- 外部 producer の成果物は実行固有の一時 path に生成し、その実行で成果物が作られたことを確認してから最終 path へ原子的に昇格する
+- producer が成功終了しても成果物を生成しなかった場合は失敗とし、前回の成果物を今回の成功結果や handoff 対象として扱わない
 
 ### 7.3 `shosei explain`
 
@@ -468,6 +470,8 @@ v0.2 の最小要件:
 - `move` は `book.yml` を更新するだけで、既定では file rename を行わない
 - `remove` は既定では config から外すだけとし、物理削除は明示 opt-in に限る
 - `renumber` は `manuscript.chapters` の順序を保ったまま chapter file path と対応する `sections.file` を更新する
+- `renumber` は source、target、一時 path と更新後 config を mutation 前に検証し、rename または config 更新に失敗した場合は章ファイルと `book.yml` を実行前の状態へ rollback する
+- rollback が完了した場合は一時 file を残さない。rollback 自体が filesystem error で完了できない場合は、回収用 data を削除せず、一次 error と未復旧 path を合わせて報告する
 
 ### 7.9 `shosei page check`
 
@@ -497,6 +501,8 @@ v0.2 の最小要件:
 - `shared/metadata/series-catalog.yml` を生成する
 - `shared/metadata/series-catalog.md` を生成する
 - prose book では `shared/metadata/series-catalog.md` を `manuscript.backmatter` に同期する
+- `series.language` 省略時は `ja` を使い、`books[].title` 省略時は対象 `book.yml` の `book.title` を catalog 表示に使う
+- 全 `books[].path`、`book.yml` の存在、repo 内包含、更新対象の型を mutation 前に検証し、1 件でも不正なら catalog、report、book config を変更しない
 - 手書き本文 Markdown を直接 rewrite しない
 
 ### 7.11 `shosei story scaffold`

@@ -39,6 +39,9 @@ repo mode は対象 `book.yml` の解決方法を決める。
 - `move` は既定で file rename や renumber を行わない
 - `remove` は既定で config から外すだけに留め、物理削除は明示 opt-in にする
 - filename prefix を整えたい場合は、順序変更とは別責務の明示 `renumber` コマンドとして扱う
+- `renumber` は更新後 config を先に serialize し、章 file と `book.yml` を同一 filesystem 上の staging 経由で更新する
+- rename または config install が失敗した場合は、cycle を含む rename plan も staging 経由で rollback する
+- rollback 自体が filesystem error で完了できない場合は回収用 data を保持し、一次 error と未復旧 path を合わせて報告する
 - `manga` の page order、chapter / episode metadata、`manga/pages/` の操作は `chapter` コマンドの責務に含めない
 
 ## Consequences
@@ -46,6 +49,7 @@ repo mode は対象 `book.yml` の解決方法を決める。
 - `series` 対応は repo discovery の問題として閉じ、prose / manga の構造差と混同しにくくなる
 - 章順の変更は YAML 配列の再配置だけで成立し、filename prefix の renumber を強制しない
 - prefix 整形は opt-in の別操作として追加でき、順序変更と file rename を分離できる
+- `renumber` の通常の失敗では章 file と config の整合を実行前へ戻し、rollback 不完全時も recovery path を失わない
 - scaffold が生成する `01-chapter-1.md` 形式は維持できるが、順序の source of truth は config に一本化される
 - `manga` 側は page-based model をそのまま維持できる
 - 将来、見た目の prefix を整える `renumber` 系コマンドを別責務として追加しやすくなる
