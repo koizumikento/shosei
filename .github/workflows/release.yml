@@ -52,6 +52,11 @@ jobs:
 
           with open("editors/vscode/package.json", "r", encoding="utf-8") as fh:
               extension_version = json.load(fh)["version"]
+          if extension_version != cli_version:
+              raise SystemExit(
+                  "VS Code extension version "
+                  f"{extension_version} does not match shosei CLI version {cli_version}."
+              )
 
           default_tag = f"v{cli_version}"
           tag = os.environ.get("INPUT_TAG") or default_tag
@@ -125,18 +130,22 @@ jobs:
             rust_target: x86_64-unknown-linux-gnu
             archive_suffix: x86_64-unknown-linux-gnu
             archive_format: tar.gz
+            binary_name: shosei
           - runner: macos-15-intel
             rust_target: x86_64-apple-darwin
             archive_suffix: x86_64-apple-darwin
             archive_format: tar.gz
-          - runner: macos-14
+            binary_name: shosei
+          - runner: macos-15
             rust_target: aarch64-apple-darwin
             archive_suffix: aarch64-apple-darwin
             archive_format: tar.gz
+            binary_name: shosei
           - runner: windows-latest
             rust_target: x86_64-pc-windows-msvc
             archive_suffix: x86_64-pc-windows-msvc
             archive_format: zip
+            binary_name: shosei.exe
 
     steps:
       - name: Checkout
@@ -189,7 +198,99 @@ jobs:
             shosei-${{ needs.meta.outputs.tag }}-${{ matrix.archive_suffix }}.${{ matrix.archive_format }}.sha256
           if-no-files-found: error
 
-  build-vscode:
+      - name: Stage CLI binary for VSIX packaging (Unix)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          mkdir -p bundled-cli
+          cp target/${{ matrix.rust_target }}/release/${{ matrix.binary_name }} bundled-cli/
+
+      - name: Stage CLI binary for VSIX packaging (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path bundled-cli | Out-Null
+          Copy-Item target/${{ matrix.rust_target }}/release/${{ matrix.binary_name }} bundled-cli/
+
+      - name: Upload CLI binary for VSIX packaging
+        uses: actions/upload-artifact@v7
+        with:
+          name: bundled-cli-${{ matrix.rust_target }}
+          path: bundled-cli/${{ matrix.binary_name }}
+          if-no-files-found: error
+
+  build-vscode-platform:
+    needs:
+      - meta
+      - quality
+      - build-cli
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-latest
+            rust_target: x86_64-unknown-linux-gnu
+            vscode_target: linux-x64
+            binary_name: shosei
+          - runner: macos-15-intel
+            rust_target: x86_64-apple-darwin
+            vscode_target: darwin-x64
+            binary_name: shosei
+          - runner: macos-15
+            rust_target: aarch64-apple-darwin
+            vscode_target: darwin-arm64
+            binary_name: shosei
+          - runner: windows-latest
+            rust_target: x86_64-pc-windows-msvc
+            vscode_target: win32-x64
+            binary_name: shosei.exe
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - name: Install VS Code adapter dependencies
+        working-directory: editors/vscode
+        run: npm ci
+
+      - name: Download matching CLI binary
+        uses: actions/download-artifact@v8
+        with:
+          name: bundled-cli-${{ matrix.rust_target }}
+          path: bundled-cli
+
+      - name: Package platform VSIX and run package smoke (Linux)
+        if: runner.os == 'Linux'
+        working-directory: editors/vscode
+        env:
+          SHOSEI_VSCE_TARGET: ${{ matrix.vscode_target }}
+          SHOSEI_BUNDLED_CLI: ${{ github.workspace }}/bundled-cli/${{ matrix.binary_name }}
+          SHOSEI_VSIX_PATH: ${{ github.workspace }}/editors/vscode/shosei-vscode-${{ needs.meta.outputs.extension_version }}-${{ matrix.vscode_target }}.vsix
+        run: xvfb-run -a npm run test:package-smoke
+
+      - name: Package platform VSIX and run package smoke (macOS/Windows)
+        if: runner.os != 'Linux'
+        working-directory: editors/vscode
+        env:
+          SHOSEI_VSCE_TARGET: ${{ matrix.vscode_target }}
+          SHOSEI_BUNDLED_CLI: ${{ github.workspace }}/bundled-cli/${{ matrix.binary_name }}
+          SHOSEI_VSIX_PATH: ${{ github.workspace }}/editors/vscode/shosei-vscode-${{ needs.meta.outputs.extension_version }}-${{ matrix.vscode_target }}.vsix
+        run: npm run test:package-smoke
+
+      - name: Upload platform VSIX artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: shosei-vscode-${{ needs.meta.outputs.extension_version }}-${{ matrix.vscode_target }}.vsix
+          path: editors/vscode/shosei-vscode-${{ needs.meta.outputs.extension_version }}-${{ matrix.vscode_target }}.vsix
+          if-no-files-found: error
+
+  build-vscode-universal:
     needs:
       - meta
       - quality
@@ -208,11 +309,11 @@ jobs:
         working-directory: editors/vscode
         run: npm ci
 
-      - name: Package VSIX and run package smoke
+      - name: Package universal VSIX and run package smoke
         working-directory: editors/vscode
         run: xvfb-run -a npm run test:package-smoke
 
-      - name: Upload VSIX artifact
+      - name: Upload universal VSIX artifact
         uses: actions/upload-artifact@v7
         with:
           name: ${{ needs.meta.outputs.vsix_name }}
@@ -223,7 +324,8 @@ jobs:
     needs:
       - meta
       - build-cli
-      - build-vscode
+      - build-vscode-platform
+      - build-vscode-universal
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -234,6 +336,7 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           path: release-assets
+          pattern: shosei-v*
 
       - name: Create or update GitHub release
         env:
@@ -261,7 +364,8 @@ jobs:
   publish-openvsx:
     needs:
       - meta
-      - build-vscode
+      - build-vscode-platform
+      - build-vscode-universal
       - release
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -271,17 +375,18 @@ jobs:
         with:
           node-version: 22
 
-      - name: Download VSIX artifact
+      - name: Download VSIX artifacts
         uses: actions/download-artifact@v8
         with:
-          name: ${{ needs.meta.outputs.vsix_name }}
+          pattern: shosei-vscode-*
           path: dist
+          merge-multiple: true
 
-      - name: Publish VSIX to Open VSX
+      - name: Publish universal and platform VSIX files to Open VSX
         shell: bash
         env:
           OVSX_PAT: ${{ secrets.OPEN_VSX_TOKEN }}
-          VSIX_NAME: ${{ needs.meta.outputs.vsix_name }}
+          UNIVERSAL_VSIX_NAME: ${{ needs.meta.outputs.vsix_name }}
         run: |
           set -euo pipefail
 
@@ -290,7 +395,16 @@ jobs:
             exit 0
           fi
 
-          npx --yes ovsx@0.10.11 publish "dist/${VSIX_NAME}" --skip-duplicate
+          mapfile -t vsix_files < <(find dist -maxdepth 1 -type f -name '*.vsix' | sort)
+          if [[ "${#vsix_files[@]}" -ne 5 ]]; then
+            echo "Expected universal plus four platform VSIX files, found ${#vsix_files[@]}." >&2
+            exit 1
+          fi
+          if [[ ! -f "dist/${UNIVERSAL_VSIX_NAME}" ]]; then
+            echo "Universal VSIX dist/${UNIVERSAL_VSIX_NAME} was not found." >&2
+            exit 1
+          fi
+          npx --yes ovsx@0.10.11 publish --packagePath "${vsix_files[@]}" --skip-duplicate
 
   publish-package-repo:
     needs:
@@ -319,6 +433,7 @@ jobs:
         with:
           path: dist
           merge-multiple: true
+          pattern: shosei-v*
 
       - name: Generate package manager manifests
         shell: bash

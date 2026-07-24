@@ -47,8 +47,19 @@ VS Code 拡張は `shosei` を外部プロセスとして実行する。
 
 設定項目:
 
-- `shosei.cli.command`: 既定値 `shosei`
+- `shosei.cli.command`: 既定値は空文字。値を設定した場合は bundled CLI より優先する
 - `shosei.cli.args`: 既定値 `[]`
+
+CLI runner は次の順で解決する。
+
+1. `shosei.cli.command` / `shosei.cli.args` で明示された external runner
+2. Extension Development Host の repo-local `cargo run` fallback
+3. platform-specific VSIX に同梱された `shosei` CLI
+4. bundled CLI がない universal VSIX または未対応 platform では `PATH` 上の `shosei`
+
+`shosei.cli.command` が空でも `shosei.cli.args` だけが設定されている既存 workspace では、互換性のため `PATH` 上の `shosei` にその引数を付けてよい。
+
+bundled CLI も external process として実行する。拡張側へ repo discovery、config merge、publishing logic、toolchain inspection を移さない。
 
 ローカル開発で source tree の CLI を直接使いたい場合は、対象 repo の `cwd` からでも起動できるよう `--manifest-path` を付けて設定する。
 
@@ -197,7 +208,11 @@ v0.2 の拡張は Marketplace 公開を前提にしなくてよい。開発中�
 
 - VSIX には runtime に必要な file だけを含めてよい
 - test や repo 運用用 metadata を同梱必須にしない
-- install 後も実処理は `shosei` CLI に委譲し、拡張単体で publishing logic を持たない
+- 対応する platform-specific VSIX は同じ release version の `shosei` CLI binary を同梱する
+- bundled target は `linux-x64`, `darwin-x64`, `darwin-arm64`, `win32-x64` とする
+- unsupported target 向けには CLI binary を含まない universal VSIX を fallback として配布してよい
+- install 後も実処理は bundled または明示設定された `shosei` CLI に委譲し、拡張単体で publishing logic を持たない
+- Pandoc、Chromium、epubcheck、qpdf、Kindle Previewer などの外部 toolchain は同梱せず、`shosei doctor` の検出と案内を利用する
 - 同じ extension id の新しい VSIX を再 install したときは update とみなしてよい
 - CI / release 前の extension check は `npm ci`, `npm run check`, `npm test`, `npm run test:host` を基本にしてよい
 - package 済み VSIX の smoke は `npm run test:package-smoke` で確認してよい
@@ -208,13 +223,15 @@ v0.2 では Marketplace 公開の代わりに、GitHub Release に VSIX asset �
 
 ルール:
 
-- release asset は `shosei-vscode-<version>.vsix` とする
+- release asset は `shosei-vscode-<version>-<target>.vsix` と universal fallback の `shosei-vscode-<version>.vsix` とする
 - release は repo 全体の tag `v<shosei-cli-version>` にぶら下げてよい
 - release workflow は package 前に `npm ci`, `npm run check`, `npm test`, `npm run test:host` と CLI の check を通す
-- Ubuntu では package 後の VSIX に対して `npm run test:package-smoke` を通してから release asset に載せてよい
+- platform-specific VSIX は対応する runner で package smoke を通してから release asset に載せる
+- package smoke は bundled binary の存在、target の一致、実行権限、`shosei --version`、extension version との一致を確認する
+- platform-specific VSIX をすべて生成できるまで publish job を開始しない
 - 同じ GitHub Release に CLI binary archive が同居してよい
 - GitHub Release は VSIX の配布チャネルであり、publish logic の source of truth ではない
-- GitHub Release の VSIX は VS Code と Cursor の手動 install / update 導線として使ってよい
+- GitHub Release の VSIX は VS Code と Cursor の手動 install / update 導線として使ってよい。manual install では利用者が platform に合う asset を選ぶ
 
 ## 7.3 Open VSX 表示内容
 
@@ -224,9 +241,9 @@ Open VSX に publish される VSIX には `editors/vscode/README.md` が拡張�
 
 - `editors/vscode/README.md` は extension 利用者向けの説明に絞る
 - release operator 向けの tag / secret / workflow / package smoke 手順は VSIX に含まれない maintainer docs に置く
-- public README では `shosei` CLI への委譲、拡張が CLI binary / publishing engine を同梱しないこと、CLI requirement、CLI verification command、主要 commands、settings、manual VSIX install 導線を説明してよい
-- public README では extension install 後の文脈に合わせ、CLI を「別途導入する」ことを強調するよりも、拡張が既存または設定済みの CLI を呼び出すことを説明する
-- public README では CLI が `PATH` にない場合に `shosei.cli.command` / `shosei.cli.args` で明示設定できることを案内する
+- public README では `shosei` CLI への委譲、対応 platform では CLI が同梱されること、publishing engine を JavaScript 側へ複製しないこと、外部 toolchain requirement、主要 commands、settings、manual VSIX install 導線を説明してよい
+- public README では bundled CLI が既定であり、custom binary や source checkout を使う場合だけ `shosei.cli.command` / `shosei.cli.args` で明示設定できることを案内する
+- public README では universal VSIX と unsupported platform は `PATH` 上の `shosei` へ fallback することを案内してよい
 - Open VSX の published page に repo 内部の release secret 名、tag push 手順、CI implementation detail を主説明として載せない
 
 ## 8. 非目標

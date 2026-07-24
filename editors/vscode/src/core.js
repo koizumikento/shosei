@@ -98,12 +98,20 @@ function sanitizeCliArgs(value) {
 function resolveCliTooling(options = {}) {
   const cliCommand = typeof options.cliCommand === "string" && options.cliCommand.trim()
     ? options.cliCommand.trim()
-    : "shosei";
+    : "";
   const cliArgs = sanitizeCliArgs(options.cliArgs);
+
+  if (cliCommand || cliArgs.length > 0) {
+    return {
+      command: cliCommand || "shosei",
+      args: cliArgs,
+      source: "configured"
+    };
+  }
 
   if (
     options.enableDevelopmentFallback &&
-    cliCommand === "shosei" &&
+    !cliCommand &&
     cliArgs.length === 0
   ) {
     const manifestPath = findRepoCliManifest(options.extensionPath);
@@ -117,15 +125,61 @@ function resolveCliTooling(options = {}) {
           "--bin",
           "shosei",
           "--"
-        ]
+        ],
+        source: "development"
       };
     }
   }
 
+  const bundledCommand = findBundledCli(
+    options.extensionPath,
+    options.platform,
+    options.arch
+  );
+  if (bundledCommand) {
+    return {
+      command: bundledCommand,
+      args: [],
+      source: "bundled"
+    };
+  }
+
   return {
-    command: cliCommand,
-    args: cliArgs
+    command: "shosei",
+    args: [],
+    source: "path"
   };
+}
+
+function findBundledCli(
+  extensionPath,
+  platform = process.platform,
+  arch = process.arch
+) {
+  if (typeof extensionPath !== "string" || !extensionPath.trim()) {
+    return null;
+  }
+
+  const executableName = bundledCliExecutableName(platform, arch);
+  if (!executableName) {
+    return null;
+  }
+
+  const executablePath = path.join(extensionPath, "bin", executableName);
+  return fileExists(executablePath) ? executablePath : null;
+}
+
+function bundledCliExecutableName(platform, arch) {
+  if (platform === "win32" && arch === "x64") {
+    return "shosei.exe";
+  }
+  if (platform === "linux" && arch === "x64") {
+    return "shosei";
+  }
+  if (platform === "darwin" && (arch === "x64" || arch === "arm64")) {
+    return "shosei";
+  }
+  return null;
 }
 
 function findRepoCliManifest(extensionPath) {
@@ -160,7 +214,8 @@ function buildCliInvocation(options) {
   return {
     command: cliCommand,
     args,
-    cwd: options.cwd || options.repoRoot || process.cwd()
+    cwd: options.cwd || options.repoRoot || process.cwd(),
+    source: options.cliSource || "unknown"
   };
 }
 
@@ -279,10 +334,12 @@ function classifyCommandResult(result, options = {}) {
 }
 
 module.exports = {
+  bundledCliExecutableName,
   buildCliInvocation,
   buildInitCommandParts,
   classifyCommandResult,
   extractReportPath,
+  findBundledCli,
   findRepoCliManifest,
   findRepoRoot,
   inferSeriesBookId,

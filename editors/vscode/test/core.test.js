@@ -52,12 +52,14 @@ test("buildCliInvocation appends --book and --path", () => {
   const invocation = core.buildCliInvocation({
     cliCommand: "cargo",
     cliArgs: ["run", "-p", "shosei-cli", "--bin", "shosei", "--"],
+    cliSource: "configured",
     commandParts: ["validate"],
     bookId: "vol-01",
     repoRoot: "/tmp/project"
   });
 
   assert.equal(invocation.command, "cargo");
+  assert.equal(invocation.source, "configured");
   assert.deepEqual(invocation.args, [
     "run",
     "-p",
@@ -184,7 +186,7 @@ test("resolveCliTooling falls back to repo cargo manifest in development", () =>
   fs.writeFileSync(manifestPath, "[package]\nname = \"shosei-cli\"\n");
 
   const tooling = core.resolveCliTooling({
-    cliCommand: "shosei",
+    cliCommand: "",
     cliArgs: [],
     extensionPath,
     enableDevelopmentFallback: true
@@ -199,7 +201,8 @@ test("resolveCliTooling falls back to repo cargo manifest in development", () =>
       "--bin",
       "shosei",
       "--"
-    ]
+    ],
+    source: "development"
   });
 });
 
@@ -220,8 +223,69 @@ test("resolveCliTooling keeps explicit CLI settings over development fallback", 
 
   assert.deepEqual(tooling, {
     command: "custom-shosei",
-    args: ["--flag"]
+    args: ["--flag"],
+    source: "configured"
   });
+});
+
+test("resolveCliTooling uses a bundled CLI when settings are empty", () => {
+  const root = tempDir("bundled-cli");
+  const executable = path.join(root, "bin", "shosei");
+  fs.mkdirSync(path.dirname(executable), { recursive: true });
+  fs.writeFileSync(executable, "fixture");
+
+  const tooling = core.resolveCliTooling({
+    cliCommand: "",
+    cliArgs: [],
+    extensionPath: root,
+    platform: "darwin",
+    arch: "arm64"
+  });
+
+  assert.deepEqual(tooling, {
+    command: executable,
+    args: [],
+    source: "bundled"
+  });
+});
+
+test("resolveCliTooling uses shosei on PATH when no bundle is available", () => {
+  const tooling = core.resolveCliTooling({
+    cliCommand: "",
+    cliArgs: [],
+    extensionPath: tempDir("missing-bundle"),
+    platform: "linux",
+    arch: "arm64"
+  });
+
+  assert.deepEqual(tooling, {
+    command: "shosei",
+    args: [],
+    source: "path"
+  });
+});
+
+test("resolveCliTooling keeps args-only settings compatible with shosei on PATH", () => {
+  const tooling = core.resolveCliTooling({
+    cliCommand: "",
+    cliArgs: ["--flag"],
+    extensionPath: tempDir("args-only")
+  });
+
+  assert.deepEqual(tooling, {
+    command: "shosei",
+    args: ["--flag"],
+    source: "configured"
+  });
+});
+
+test("bundledCliExecutableName maps supported VS Code targets", () => {
+  assert.equal(core.bundledCliExecutableName("darwin", "arm64"), "shosei");
+  assert.equal(core.bundledCliExecutableName("darwin", "x64"), "shosei");
+  assert.equal(core.bundledCliExecutableName("linux", "x64"), "shosei");
+  assert.equal(core.bundledCliExecutableName("win32", "x64"), "shosei.exe");
+  assert.equal(core.bundledCliExecutableName("linux", "arm64"), null);
+  assert.equal(core.bundledCliExecutableName("win32", "arm64"), null);
 });
 
 test("extractReportPath picks the final report path from command output", () => {

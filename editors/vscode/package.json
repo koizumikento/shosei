@@ -1,7 +1,7 @@
 {
   "name": "shosei-vscode",
   "displayName": "shosei",
-  "description": "Run shosei publishing workflows from VS Code using the real shosei CLI.",
+  "description": "Run shosei publishing workflows from VS Code using the bundled or configured shosei CLI.",
   "version": "0.2.16",
   "publisher": "straydog",
   "icon": "media/shosei-icon.png",
@@ -30,6 +30,7 @@
   "files": [
     "extension.js",
     "src/**",
+    "bin/**",
     "media/**",
     "README.md",
     "LICENSE.txt"
@@ -198,8 +199,8 @@
       "properties": {
         "shosei.cli.command": {
           "type": "string",
-          "default": "shosei",
-          "description": "Executable used to run shosei. Set this to cargo to run the local source checkout."
+          "default": "",
+          "description": "Optional external executable used instead of the bundled shosei CLI. Leave empty to use the bundled CLI, the development fallback, or shosei on PATH."
         },
         "shosei.cli.args": {
           "type": "array",
@@ -253,7 +254,8 @@
     "test": "node --test ./test/**/*.test.js",
     "test:host": "node ./test/run-host-tests.js",
     "test:package-smoke": "node ./test/run-package-smoke.js",
-    "package": "npx @vscode/vsce@3.8.0 package"
+    "package": "npx @vscode/vsce@3.8.0 package",
+    "package:platform": "node ./scripts/package-platform-vsix.js"
   },
   "devDependencies": {
     "@vscode/test-electron": "^2.5.2",

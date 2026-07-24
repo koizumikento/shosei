@@ -32,7 +32,7 @@ EPUB / PDF / Kindle / 印刷入稿を視野に入れつつ、文章書籍と漫�
 | Repository model | supported | `single-book` と `series`、`book.yml` / `series.yml` の探索と解決を実装 |
 | Delivery validation | supported with readiness evidence | local lint、`epubcheck`、`qpdf`、opt-in Kindle Previewer conversion check、manual evidence gaps を `validators[]` と `delivery_evidence` に記録 |
 | Handoff package | supported | artifact、`reports/validate.json`、readiness 付き `delivery_evidence` を含む `manifest.json`、proof review packet、editorial sidecar を package 化 |
-| VS Code adapter | supported thin adapter | CLI に実処理を委譲し、adapter check / unit / host smoke / packaged VSIX smoke を CI で継続確認 |
+| VS Code adapter | supported thin adapter | platform 別 VSIX に同 version の CLI を同梱し、adapter check / unit / host smoke / packaged VSIX smoke を CI で継続確認 |
 | Store/device-specific validation beyond Kindle Previewer | advisory future work | Kindle Previewer 以外の深い device / store-specific validator は `unsupported_checks[]` に advisory として記録 |
 
 主な user-facing surface:
@@ -59,7 +59,7 @@ README のコマンド例は、今の CLI surface に合わせています。`ca
 
 ## インストール
 
-tag 付き GitHub Release では CLI archive と VSIX を配布します。Homebrew / Scoop 向け manifest は package repository publish が通ったときに更新されます。VSIX は Open VSX に publish され、VS Code と Cursor の手動 install / update にも使えます。source install も引き続き使えます。
+tag 付き GitHub Release では CLI archive、platform 別 VSIX、universal fallback VSIX を配布します。対応する VSIX には同じ release version の `shosei` CLI が含まれるため、拡張利用のために CLI 本体を別 install する必要はありません。Homebrew / Scoop 向け manifest は package repository publish が通ったときに更新されます。VSIX は Open VSX に publish され、VS Code と Cursor の手動 install / update にも使えます。source install も引き続き使えます。
 
 ### Homebrew (macOS)
 
@@ -100,7 +100,7 @@ cargo run -p shosei-cli --bin shosei -- --help
 
 ### VS Code 互換拡張の更新
 
-Open VSX 対応 editor では Open VSX から更新できます。手動 install / update では GitHub Release の `shosei-vscode-<version>.vsix` を使います。既存の拡張を更新するときも、新しい VSIX を選んで再 install すれば置き換わります。
+Open VSX 対応 editor では、現在の platform に対応する VSIX が選ばれ、拡張更新時に bundled CLI も同時に更新されます。手動 install / update では GitHub Release の `shosei-vscode-<version>-<target>.vsix` を使います。`shosei-vscode-<version>.vsix` は bundled CLI を持たない universal fallback です。既存の拡張を更新するときも、新しい VSIX を選んで再 install すれば置き換わります。
 
 - VS Code: `Extensions: Install from VSIX...`
 - Cursor: `Extensions: Install from VSIX...`
@@ -352,7 +352,7 @@ npm run test:host
 npm run test:package-smoke
 ```
 
-GitHub Actions では CLI smoke を `ubuntu-latest`, `macos-latest`, `windows-latest` の 3 OS matrix で回す。`epubcheck`, `qpdf`, Kindle Previewer の validator contract smoke も platform-specific fake tool fixture で 3 OS すべて継続確認する。VS Code adapter は `npm ci` の後に `npm run check`, `npm test`, `npm run test:host` を 3 OS で、`npm run test:package-smoke` を Ubuntu で継続確認する。
+GitHub Actions では CLI smoke を `ubuntu-latest`, `macos-latest`, `windows-latest` の 3 OS matrix で回す。`epubcheck`, `qpdf`, Kindle Previewer の validator contract smoke も platform-specific fake tool fixture で 3 OS すべて継続確認する。VS Code adapter は `linux-x64`, `darwin-x64`, `darwin-arm64`, `win32-x64` の各 runner で `npm run check`, `npm test`, `npm run test:host`, bundled CLI 付き `npm run test:package-smoke` を継続確認し、Linux では universal fallback VSIX も確認する。
 
 ## コントリビュート
 
