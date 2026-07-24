@@ -29,7 +29,7 @@ function run(command, args, options = {}) {
     ...options,
     encoding: "utf8",
     stdio: options.stdio || "pipe",
-    shell: false
+    shell: options.shell ?? false
   });
   if (result.error) {
     throw result.error;
@@ -117,7 +117,11 @@ function main() {
         "--out",
         path.resolve(options.out)
       ],
-      { cwd: extensionRoot, stdio: "inherit" }
+      {
+        cwd: extensionRoot,
+        stdio: "inherit",
+        shell: process.platform === "win32"
+      }
     );
   } finally {
     if (staged) {
