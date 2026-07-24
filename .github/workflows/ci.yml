@@ -160,16 +160,29 @@ jobs:
         run: cargo run -p shosei-cli --bin shosei -- --help
 
   vscode:
-    name: VS Code adapter checks (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 20
+    name: VS Code adapter checks (${{ matrix.vscode_target }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
-        os:
-          - ubuntu-latest
-          - macos-latest
-          - windows-latest
+        include:
+          - runner: ubuntu-latest
+            rust_target: x86_64-unknown-linux-gnu
+            vscode_target: linux-x64
+            binary_name: shosei
+          - runner: macos-15-intel
+            rust_target: x86_64-apple-darwin
+            vscode_target: darwin-x64
+            binary_name: shosei
+          - runner: macos-15
+            rust_target: aarch64-apple-darwin
+            vscode_target: darwin-arm64
+            binary_name: shosei
+          - runner: windows-latest
+            rust_target: x86_64-pc-windows-msvc
+            vscode_target: win32-x64
+            binary_name: shosei.exe
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -178,6 +191,14 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version: 22
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust_target }}
+
+      - name: Cache Rust build artifacts
+        uses: Swatinem/rust-cache@v2
 
       - name: Install VS Code adapter dependencies
         working-directory: editors/vscode
@@ -192,16 +213,37 @@ jobs:
         run: npm test
 
       - name: Run VS Code adapter host smoke (Linux)
-        if: matrix.os == 'ubuntu-latest'
+        if: runner.os == 'Linux'
         working-directory: editors/vscode
         run: xvfb-run -a npm run test:host
 
       - name: Run VS Code adapter host smoke (macOS/Windows)
-        if: matrix.os != 'ubuntu-latest'
+        if: runner.os != 'Linux'
         working-directory: editors/vscode
         run: npm run test:host
 
-      - name: Run packaged VSIX smoke
-        if: matrix.os == 'ubuntu-latest'
+      - name: Build CLI for platform VSIX
+        run: cargo build --release -p shosei-cli --target ${{ matrix.rust_target }}
+
+      - name: Run platform VSIX smoke (Linux)
+        if: runner.os == 'Linux'
+        working-directory: editors/vscode
+        env:
+          SHOSEI_VSCE_TARGET: ${{ matrix.vscode_target }}
+          SHOSEI_BUNDLED_CLI: ${{ github.workspace }}/target/${{ matrix.rust_target }}/release/${{ matrix.binary_name }}
+          SHOSEI_VSIX_PATH: ${{ github.workspace }}/editors/vscode/shosei-vscode-${{ matrix.vscode_target }}.vsix
+        run: xvfb-run -a npm run test:package-smoke
+
+      - name: Run platform VSIX smoke (macOS/Windows)
+        if: runner.os != 'Linux'
+        working-directory: editors/vscode
+        env:
+          SHOSEI_VSCE_TARGET: ${{ matrix.vscode_target }}
+          SHOSEI_BUNDLED_CLI: ${{ github.workspace }}/target/${{ matrix.rust_target }}/release/${{ matrix.binary_name }}
+          SHOSEI_VSIX_PATH: ${{ github.workspace }}/editors/vscode/shosei-vscode-${{ matrix.vscode_target }}.vsix
+        run: npm run test:package-smoke
+
+      - name: Run universal VSIX smoke
+        if: runner.os == 'Linux'
         working-directory: editors/vscode
         run: xvfb-run -a npm run test:package-smoke

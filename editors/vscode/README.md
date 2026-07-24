@@ -2,24 +2,20 @@
 
 `shosei` is a VS Code-compatible extension for working with shosei publishing repositories.
 
-This extension does not include the publishing engine. It is a thin editor adapter over the real `shosei` CLI: command palette actions, a project sidebar, output channel integration, and Problems reporting all shell out to the configured CLI.
+This extension does not reimplement the publishing engine. It is a thin editor adapter over the real `shosei` CLI: command palette actions, a project sidebar, output channel integration, and Problems reporting all shell out to the bundled or explicitly configured CLI.
 
-## CLI Requirement
+## Bundled CLI
 
-The extension runs the `shosei` CLI you already use in your shell. By default it calls `shosei` from `PATH`.
+The `linux-x64`, `darwin-x64`, `darwin-arm64`, and `win32-x64` extension packages include the matching `shosei` CLI. On these platforms, installing the extension is enough to provide the `shosei` executable used by editor commands.
 
-Check that the command is available:
+The universal VSIX and unsupported platforms fall back to `shosei` from `PATH`. You can also select a custom binary or source checkout with `shosei.cli.command` and `shosei.cli.args`.
 
-```bash
-shosei --help
-```
-
-If that command is not available yet, follow the [shosei CLI setup guide](https://github.com/koizumikento/shosei#install). If you use a custom binary path or a source checkout, configure `shosei.cli.command` and `shosei.cli.args` in the extension settings.
+Pandoc, Chromium, epubcheck, qpdf, Kindle Previewer, and other publishing tools are not bundled. Run `Shosei: Doctor` to see which tools are required for the current repository and output targets.
 
 ## Requirements
 
 - A VS Code-compatible editor such as VS Code or Cursor
-- The `shosei` CLI available on `PATH` or configured in extension settings
+- A platform-specific extension package, or the `shosei` CLI available on `PATH` for the universal package
 - A shosei repository with either `book.yml` or `series.yml`
 
 ## What You Can Do
@@ -78,16 +74,16 @@ For series repositories, use `Shosei: Select Book` when the active file is outsi
 
 ## Settings
 
-By default, the extension runs `shosei` from `PATH`.
+Leave the CLI settings empty to use the bundled CLI. Development hosts use the repo-local Cargo fallback, and packages without a bundled binary fall back to `shosei` from `PATH`.
 
 ```json
 {
-  "shosei.cli.command": "shosei",
+  "shosei.cli.command": "",
   "shosei.cli.args": []
 }
 ```
 
-If the CLI is installed somewhere else, set `shosei.cli.command` to that executable path and keep `shosei.cli.args` empty.
+To override the bundled CLI, set `shosei.cli.command` to an executable path and keep `shosei.cli.args` empty.
 
 To run a local source checkout of the CLI, set `shosei.cli.command` to `cargo` and pass the CLI crate with `--manifest-path`.
 
@@ -109,9 +105,9 @@ For series repositories, set `shosei.series.defaultBookId` when commands should 
 
 ## Manual VSIX Install
 
-Open VSX-compatible editors can update from Open VSX. For manual installs, use the `shosei-vscode-<version>.vsix` asset from the GitHub Release page.
+Open VSX-compatible editors select and update the package matching the current platform. For manual installs, choose `shosei-vscode-<version>-<target>.vsix` from the GitHub Release page. Use the unqualified `shosei-vscode-<version>.vsix` only as the universal fallback that requires a CLI on `PATH`.
 
 - VS Code: run `Extensions: Install from VSIX...`
 - Cursor: run `Extensions: Install from VSIX...`
 
-After installing the extension, the actual publishing work is still performed by the configured `shosei` CLI.
+After installing the extension, the actual publishing work is performed by the bundled or explicitly configured `shosei` CLI.

@@ -1,5 +1,9 @@
 /target/
 editors/vscode/*.vsix
+editors/vscode/bin/shosei
+editors/vscode/bin/shosei.exe
+editors/vscode/node_modules/
+editors/vscode/.vscode-test/
 
 # OS / editor noise
 .DS_Store

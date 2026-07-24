@@ -36,6 +36,7 @@ Architecture Decision Record の一覧。
 - [ADR-0032: delivery evidence exposes submission readiness](0032-delivery-evidence-readiness-contract.md)
 - [ADR-0033: prose image paths follow Pandoc book-root resolution](0033-prose-image-paths-follow-pandoc-book-root.md)
 - [ADR-0034: light-novel EPUB figure layout uses generated CSS](0034-light-novel-epub-figure-layout.md)
+- [ADR-0035: VS Code 拡張は platform 別 `shosei` CLI を同梱する](0035-vscode-extension-bundles-platform-cli.md)
 
 記法:
 

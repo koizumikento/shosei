@@ -325,6 +325,7 @@ async function runPreviewWatchTask(vscode, output, extensionContext) {
 
   output.show(true);
   output.appendLine(`[shosei] starting preview watch in terminal`);
+  output.appendLine(`[shosei] cli source: ${invocation.source}`);
   output.appendLine(`[shosei] command: ${invocation.command} ${invocation.args.join(" ")}`);
 
   const execution = new vscode.ProcessExecution(invocation.command, invocation.args, {
@@ -430,6 +431,7 @@ function buildInvocation(vscode, resolved, descriptor) {
   return core.buildCliInvocation({
     cliCommand: tooling.command,
     cliArgs: tooling.args,
+    cliSource: tooling.source,
     commandParts: descriptor.commandParts,
     bookId: resolved.bookId,
     repoRoot: resolved.repoRoot,
@@ -445,6 +447,7 @@ async function runProcess(vscode, output, title, resolved, descriptor) {
   output.show(true);
   output.appendLine(`[shosei] ${title}`);
   output.appendLine(`[shosei] cwd: ${invocation.cwd}`);
+  output.appendLine(`[shosei] cli source: ${invocation.source}`);
   output.appendLine(`[shosei] command: ${invocation.command} ${invocation.args.join(" ")}`);
 
   try {
@@ -3266,7 +3269,7 @@ function getWorkspaceFolder(vscode, repoRoot) {
 
 function renderSpawnError(command, error) {
   if (error && error.code === "ENOENT") {
-    return `Failed to launch ${command}. Check shosei.cli.command and shosei.cli.args in VS Code settings.`;
+    return `Failed to launch ${command}. Install the platform-specific VSIX or configure shosei.cli.command and shosei.cli.args in VS Code settings.`;
   }
   return `Failed to launch ${command}: ${error.message}`;
 }

@@ -22,6 +22,7 @@ const COMMAND_IDS = [
 
 const ALL_TESTS = [
   ["registers the published command surface", testRegisteredCommands],
+  ["runs explain through the bundled CLI", testBundledCliExplain],
   ["loads validate reports into Problems", testValidateDiagnostics],
   ["starts preview watch as a process task", testPreviewWatchTask],
   ["reuses the selected series book for later commands", testSeriesBookSelection],
@@ -32,7 +33,8 @@ const ALL_TESTS = [
 const PACKAGE_SCOPE_TESTS = new Set([
   "registers the published command surface",
   "loads validate reports into Problems",
-  "starts preview watch as a process task"
+  "starts preview watch as a process task",
+  "runs explain through the bundled CLI"
 ]);
 
 async function run() {
@@ -42,8 +44,13 @@ async function run() {
 
   const tests =
     process.env.SHOSEI_HOST_TEST_SCOPE === "package"
-      ? ALL_TESTS.filter(([name]) => PACKAGE_SCOPE_TESTS.has(name))
-      : ALL_TESTS;
+      ? ALL_TESTS.filter(
+          ([name]) =>
+            PACKAGE_SCOPE_TESTS.has(name) &&
+            (name !== "runs explain through the bundled CLI" ||
+              process.env.SHOSEI_EXPECT_BUNDLED_CLI === "1")
+        )
+      : ALL_TESTS.filter(([name]) => name !== "runs explain through the bundled CLI");
 
   for (const [name, testFn] of tests) {
     console.log(`BEGIN ${name}`);
@@ -260,6 +267,40 @@ function prepareSingleBookRepo() {
   return repoRoot;
 }
 
+function prepareBundledCliRepo() {
+  const repoRoot = makeTempDir("bundled-cli");
+  fs.mkdirSync(path.join(repoRoot, "manuscript"), { recursive: true });
+  fs.writeFileSync(path.join(repoRoot, "manuscript", "01.md"), "# Chapter 1\n\nText\n");
+  fs.writeFileSync(
+    path.join(repoRoot, "book.yml"),
+    [
+      "project:",
+      "  type: novel",
+      "  vcs: git",
+      "book:",
+      '  title: "Bundled CLI Host Test"',
+      "  authors:",
+      '    - "Test Author"',
+      "  reading_direction: rtl",
+      "layout:",
+      "  binding: right",
+      "manuscript:",
+      "  chapters:",
+      "    - manuscript/01.md",
+      "outputs:",
+      "  kindle:",
+      "    enabled: true",
+      "    target: kindle-ja",
+      "validation:",
+      "  strict: true",
+      "git:",
+      "  lfs: true",
+      ""
+    ].join("\n")
+  );
+  return repoRoot;
+}
+
 function prepareSeriesRepo() {
   const repoRoot = makeTempDir("series");
   const bookRoot = path.join(repoRoot, "books", "vol-02");
@@ -294,6 +335,32 @@ async function testRegisteredCommands() {
   const commands = await vscode.commands.getCommands(true);
   for (const commandId of COMMAND_IDS) {
     assert.ok(commands.includes(commandId), `${commandId} should be registered`);
+  }
+}
+
+async function testBundledCliExplain() {
+  const config = vscode.workspace.getConfiguration("shosei");
+  const previousCommand = config.inspect("cli.command")?.workspaceValue;
+  const previousArgs = config.inspect("cli.args")?.workspaceValue;
+  const repoRoot = prepareBundledCliRepo();
+  try {
+    await config.update("cli.command", undefined, vscode.ConfigurationTarget.Workspace);
+    await config.update("cli.args", undefined, vscode.ConfigurationTarget.Workspace);
+    await clearEditors();
+    await openFile(path.join(repoRoot, "manuscript", "01.md"));
+
+    await vscode.commands.executeCommand("shosei.explain");
+    await waitFor(
+      () => {
+        const text = vscode.window.activeTextEditor?.document?.getText();
+        return typeof text === "string" && text.includes("explain for default");
+      },
+      "bundled CLI explain output"
+    );
+  } finally {
+    await config.update("cli.command", previousCommand, vscode.ConfigurationTarget.Workspace);
+    await config.update("cli.args", previousArgs, vscode.ConfigurationTarget.Workspace);
+    fs.rmSync(repoRoot, { recursive: true, force: true });
   }
 }
 

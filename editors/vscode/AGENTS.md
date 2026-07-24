@@ -23,7 +23,8 @@ Rules in this file apply to `editors/vscode/`.
 - Keep `Shosei: Init` prompt collection aligned with the implemented `shosei init <path> --non-interactive ...` flags and defaults, including `paper` profile and `series` initial book id handling.
 - Keep `Shosei: Init` aligned with the current post-scaffold choice to run `shosei doctor` immediately after scaffold generation.
 - Keep `Shosei: Preview (Watch)` aligned with the implemented `shosei preview --watch` flow; do not document it as a separate rendering path.
-- Keep `shosei.cli.command` / `shosei.cli.args` guidance aligned with the configured runner flow and the repo-local `cargo run --manifest-path <repo>/crates/shosei-cli/Cargo.toml --bin shosei --` fallback.
+- Keep `shosei.cli.command` / `shosei.cli.args` guidance aligned with the runner order: explicit external runner, repo-local development fallback, bundled platform CLI, then `PATH` fallback.
+- Keep bundled CLI targets aligned across `package.json`, package scripts, CI, release automation, `README.md`, and `DEVELOPMENT.md`: `linux-x64`, `darwin-x64`, `darwin-arm64`, and `win32-x64`.
 - Keep prose `validate` handling aligned with the current `manuscript_stats` report payload and only show the character summary when the CLI returned it.
 - For `series` repos, keep `Shosei: Select Book` and `shosei.series.defaultBookId` aligned with CLI `--book` requirements when the active file is outside `books/<book-id>/`.
 - Keep `Shosei: Story Seed` aligned with the implemented `shosei story seed --template <template> [--force]` flow, including template selection from the current book-scoped `story/structures/` workspace.
@@ -37,7 +38,7 @@ Rules in this file apply to `editors/vscode/`.
 - Keep `README.md` in this directory aligned with `../../docs/specs/vscode-extension.md`.
 - Treat `README.md` as the packaged extension README shown on Open VSX. Keep it user-facing; put maintainer release, CI, token, and development-host details in `DEVELOPMENT.md` or docs outside the VSIX package.
 - If guided flows change, update the corresponding README examples and wording in the same change.
-- Keep adapter behavior consistent with ADR-0025 and do not fork logic that belongs in Rust.
+- Keep adapter behavior consistent with ADR-0025 and ADR-0035; bundled CLI execution must not fork logic that belongs in Rust.
 - Keep `package.json` scripts, `DEVELOPMENT.md` local packaging steps, and `../../.github/workflows/ci.yml` / `../../.github/workflows/release.yml` aligned when VSIX packaging, Open VSX publish, or release checks change.
 
 ## Validation
@@ -55,4 +56,4 @@ When changing the extension, use these checks as appropriate:
 - `node --check src/view.js`
 - `node --test ./test/**/*.test.js`
 
-CI runs `npm run test:host` on Ubuntu, macOS, and Windows. Ubuntu CI wraps host/package smoke with `xvfb-run -a`; use the same wrapper locally on headless Linux.
+CI runs host and platform package smoke for `linux-x64`, `darwin-x64`, `darwin-arm64`, and `win32-x64`, plus the universal package smoke on Linux. Linux CI wraps host/package smoke with `xvfb-run -a`; use the same wrapper locally on headless Linux.
