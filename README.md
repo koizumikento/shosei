@@ -237,6 +237,8 @@ repo/
 - `.agents/skills/shosei-project/SKILL.md`
 - `.agents/skills/shosei-content-review/SKILL.md`
 
+生成スキルは、設定・原稿編集・出力を扱う `shosei-project` と、作品タイプに合う観点で指摘を返す `shosei-content-review` です。依頼された創作を扱えます。`series` の guidance では `<book-id>` を依頼対象の巻に置き換え、handoff 宛先も依頼から選びます。説明文は用途を短く記述します。
+
 prose 系テンプレートでは、最初の原稿ファイルも生成します。`paper` / `conference-preprint` は `manuscript/01-main.md`、その他の prose は `manuscript/01-chapter-1.md` です。対話で選んだ場合だけ、追加で `manuscript/00-introduction.md` と `manuscript/99-afterword.md` も scaffold します。
 
 Kindle を含む scaffold では、`cover.ebook_image` と placeholder の `assets/cover/front.png` も初期生成します。`series` では各巻の `books/<book-id>/assets/cover/front.png` を使います。

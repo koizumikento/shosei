@@ -25,7 +25,7 @@ This repository is a `shosei` publishing project initialized as `{{REPO_MODE}}` 
 4. Build, preview, or package only when the task calls for it.
    - Build artifacts with `{{BUILD_COMMAND}}`.
    - Generate local previews with `{{PREVIEW_COMMAND}}`.
-   - Prepare handoff packages with `{{HANDOFF_COMMAND}}`.
+   - Prepare handoff packages with `{{HANDOFF_COMMAND}}`; choose `kindle`, `print`, or `proof` from the requested destination.
 
 ## Optional Workspaces
 
