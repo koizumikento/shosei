@@ -87,6 +87,8 @@ Homebrew / Scoop manifest publishing only happens when the package repository pu
 
 ## Development Host
 
+Host tests use `@vscode/test-electron` 3.1 or later and Node.js 22 or later. The updated runner resolves the current macOS app executable; older runners look for `Contents/MacOS/Electron` and fail before tests start ([upstream issue](https://github.com/microsoft/vscode-test/issues/349)).
+
 Open the repository root in VS Code and run the `.vscode/launch.json` configuration `shosei: Extension Development Host`.
 
 The development host starts with `--disable-extensions` to isolate activation errors from unrelated local extensions.
