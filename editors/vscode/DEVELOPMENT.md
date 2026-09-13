@@ -26,13 +26,13 @@ npm run package
 This creates the universal fallback without a bundled CLI:
 
 ```text
-editors/vscode/shosei-vscode-0.2.17.vsix
+editors/vscode/shosei-vscode-0.2.18.vsix
 ```
 
 Install options:
 
 - VS Code: run `Extensions: Install from VSIX...` and select the `.vsix`
-- `code` CLI: `code --install-extension editors/vscode/shosei-vscode-0.2.17.vsix`
+- `code` CLI: `code --install-extension editors/vscode/shosei-vscode-0.2.18.vsix`
 - Cursor: run `Extensions: Install from VSIX...` and select the same `.vsix`
 
 After local install, real work is still delegated to the configured `shosei` CLI. To use the source tree CLI, set `shosei.cli.command` / `shosei.cli.args` as shown in the public README.
@@ -63,22 +63,22 @@ The workflow that attaches a VSIX to GitHub Releases is `.github/workflows/relea
 Example:
 
 ```bash
-git tag v0.2.17
-git push origin v0.2.17
+git tag v0.2.18
+git push origin v0.2.18
 ```
 
 Release assets:
 
 ```text
-shosei-vscode-0.2.17.vsix
-shosei-vscode-0.2.17-linux-x64.vsix
-shosei-vscode-0.2.17-darwin-x64.vsix
-shosei-vscode-0.2.17-darwin-arm64.vsix
-shosei-vscode-0.2.17-win32-x64.vsix
-shosei-v0.2.17-x86_64-unknown-linux-gnu.tar.gz
-shosei-v0.2.17-x86_64-apple-darwin.tar.gz
-shosei-v0.2.17-aarch64-apple-darwin.tar.gz
-shosei-v0.2.17-x86_64-pc-windows-msvc.zip
+shosei-vscode-0.2.18.vsix
+shosei-vscode-0.2.18-linux-x64.vsix
+shosei-vscode-0.2.18-darwin-x64.vsix
+shosei-vscode-0.2.18-darwin-arm64.vsix
+shosei-vscode-0.2.18-win32-x64.vsix
+shosei-v0.2.18-x86_64-unknown-linux-gnu.tar.gz
+shosei-v0.2.18-x86_64-apple-darwin.tar.gz
+shosei-v0.2.18-aarch64-apple-darwin.tar.gz
+shosei-v0.2.18-x86_64-pc-windows-msvc.zip
 ```
 
 Open VSX publishing uses the repository Actions secret `OPEN_VSX_TOKEN`. The `straydog` namespace from `package.json` must exist in Open VSX before publishing. The publish job passes all five VSIX files to `ovsx publish --packagePath`; release reruns use `--skip-duplicate`.
