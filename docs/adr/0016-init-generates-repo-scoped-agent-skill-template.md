@@ -23,7 +23,7 @@ root の `AGENTS.md` は repo-wide な運用ルールを共有する場所とし
 - skill は instruction-only を既定とし、`scripts/`, `references/`, `agents/openai.yaml` は生成しない
 - `shosei-project` の責務は「`shosei` 管理下の出版リポジトリを運用すること」に絞る
 - `shosei-content-review` の責務は「`shosei` 管理下の manuscript / editorial / story / reference / proof packet を内容レビューすること」に絞る
-- frontmatter の `description` には trigger になりやすい語を含める
+- frontmatter の `description` は capability と trigger を短く肯定形で書き、対象外の作業を列挙しない。内容レビューは作品タイプに合う観点を選ぶ
 - `shosei-project` の本文には少なくとも次を含める
   - `single-book` / `series` の見分け方
   - `series` での `--book <book-id>` 利用ルール
@@ -35,10 +35,17 @@ root の `AGENTS.md` は repo-wide な運用ルールを共有する場所とし
   - reference workspace がある場合は `reference map` を先に使い、source-backed review では reference entry を主要な review aid として扱うこと
   - `series` で reference を使う review では book-scoped と shared の scope を見分け、必要なら `reference drift` で source of truth の衝突を確認すること
   - findings-first で内容上の問題や review readiness を見ること
-  - コードレビューではないこと
   - rewrite ではなく指摘を返すこと
 - templates には init 時点の `project.type` と `repo_mode` を埋め込む
 - 利用者が後から project 固有ルールを追記しやすいよう、repo note を含める
+
+### 2026-09-13: 継続利用する guidance の見直し
+
+初期巻や初期出力先を command に固定すると、後続巻や別の納品先の依頼を誤誘導しうる。生成する `AGENTS.md` と両 skill では対象巻を依頼または作業ディレクトリから選び、command の `<book-id>` を置き換える。handoff 宛先も依頼から選ぶ。`init` 完了時の次コマンド例は初期巻を指すままとする。
+
+創作を含む運用 skill で既存にない原稿を一律禁止すると、執筆依頼を妨げる。依頼された創作は許容し、事実・出典の捏造と未承認の設定確定を区別して扱う。説明文の除外列挙と本文の重複した対象外リストは取り除く。共通の基本導線と instruction-only の構成は維持する。
+
+参考: [OpenAI Build skills](https://learn.chatgpt.com/docs/build-skills)、[Rethinking skills and prompts](https://learn.chatgpt.com/blog/rethinking-skills-and-prompts-for-gpt-6-astra)。
 
 ## Consequences
 

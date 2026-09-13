@@ -6,7 +6,7 @@ compatibility: "Requires a repository initialized by `shosei init` and a local `
 
 # Shosei Content Review
 
-Use this skill for reviewing content in this repository instead of implementing edits or rewrites. It is repo-scoped on purpose: keep the review grounded in the initialized project layout and the current `project.type` / `repo_mode`.
+Review the requested manuscript, chapter, volume, outline, or proof packet using the project-specific lens below.
 
 ## Repo Notes
 
@@ -17,27 +17,11 @@ Use this skill for reviewing content in this repository instead of implementing 
 - Review lens: {{REVIEW_FOCUS}}
 - {{REPO_MODE_RULES}}
 
-## Use For
-
-- user requests like "review this chapter", "does this volume read cleanly?", "check the claims in this section", "is the proof packet ready to hand off?", or "sanity-check the page order"
-- chapter, manuscript, volume, proof package, or outline reviews
-- fiction: scene goal, causality, character knowledge drift, POV / voice drift, pacing, and setup/payoff
-- source-backed nonfiction or business-book content: unsupported claims, stale facts, weak structure, and source-to-text mismatch
-- release-readiness checks where the proof packet, editorial sidecars, and manuscript should agree
-- manga: page-turn flow, spread logic, dialogue order, and metadata/read-order consistency
-
-## Do Not Use For
-
-- rewriting or line-editing the content before review findings are returned
-- generic code review or CLI implementation work
-- inventing facts, sources, scenes, or canon not already present in the repo
-- broad editorial change requests that are really asking for a rewrite
-
 ## Workflow
 
 1. Establish the review scope first.
    - whole book, chapter, volume, proof packet, or a specific manuscript section
-   - review goal: continuity, factual rigor, structure, release-readiness, or manga flow
+   - use the review lens above and the user's requested focus
 2. Inspect the repo shape before judging.
    - Use `{{EXPLAIN_COMMAND}}` when resolved config or scope matters.
    - Read the relevant content paths and any nearby editorial sidecars before commenting.
@@ -49,7 +33,7 @@ Use this skill for reviewing content in this repository instead of implementing 
    - {{REFERENCE_CHECK_COMMAND}}
    - {{REFERENCE_ALIGNMENT_COMMAND}}
 4. Review for substantive issues first.
-   - confirm whether the text matches the requested `project.type`
+   - assess the requested content using the review lens above
    - for source-backed sections, treat the relevant reference entries and editorial claims as the primary review aids before judging wording, structure, or release-readiness
    - call out source-to-text mismatch, unsupported claims, stale support, and conclusions that outrun the available notes
    - in `series`, distinguish book-scoped references from shared references and flag source-of-truth ambiguity when the same topic appears in both scopes
@@ -77,4 +61,3 @@ Use this skill for reviewing content in this repository instead of implementing 
 - do not treat `reference check` as a substitute for reading the relevant reference entries when judging claim support or release-readiness
 - in `series`, do not assume book-scoped and shared reference entries agree; call out drift or source-of-truth ambiguity explicitly
 - keep the findings ordered by severity and anchored to the repo files or sections under review
-- do not turn a review request into a rewrite request

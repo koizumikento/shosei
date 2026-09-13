@@ -455,7 +455,8 @@ dist/
 - 出力先は `AGENTS.md`
 - 本文には init 時点の `project.type` と `repo_mode` を埋め込む
 - 本文には `shosei explain` を先に使う方針、`validate`, `build`, `preview`, `handoff` の基本導線を含める
-- `series` では `--book <book-id>` を使う導線を含める
+- `series` では依頼または現在の作業ディレクトリから対象巻を特定し、`--book <book-id>` の placeholder をその巻の ID に置き換える。継続利用する guidance の command は初期巻に固定しない
+- `handoff` の宛先は依頼に応じて `kindle` / `print` / `proof` から選ぶ
 - config path を repo-relative かつ `/` 区切りで保つルールを含める
 - optional な `reference` / `story` workspace は repo scope に合う明示 command で scaffold / map するものとして説明する
 
@@ -467,7 +468,8 @@ dist/
 
 - 出力先は `.agents/skills/shosei-project/SKILL.md` と `.agents/skills/shosei-content-review/SKILL.md`
 - `SKILL.md` は instruction-first を既定とし、`scripts/`, `references/`, `agents/openai.yaml` は生成しない
-- frontmatter の `description` は、何をする skill かと、いつ使うかを両方書く
+- frontmatter の `description` は、何をする skill かと、いつ使うかを短く肯定形で書く。対象外の作業を列挙しない
+- 内容レビューの description と review lens は作品タイプに合わせ、小説 / 実用書・論文 / 漫画の観点を選ぶ
 - `shosei-project` の本文には少なくとも次を含める
   - `single-book` / `series` の判定方法
   - `series` repo での `--book <book-id>` 利用ルール
@@ -479,8 +481,9 @@ dist/
   - reference workspace がある場合は `reference map` を先に使い、source-backed review では reference entry を主要な review aid として扱うこと
   - `series` で reference を使う review では book-scoped と shared の scope を見分け、必要なら `reference drift` で source of truth の衝突を確認すること
   - findings-first で内容上の問題や review readiness を見ること
-  - コードレビューや CLI 実装レビューではないこと
   - rewrite ではなく指摘を返すこと
+- 依頼された原稿・シーンの創作を許容する。事実や出典の捏造、提案を無断で確定設定として扱うことは避ける
+- command の対象巻と handoff 宛先は root guidance と同じ規則で選ぶ
 - init 時点の `project.type` と `repo_mode` を両 skill に埋め込み、利用者があとから project 固有メモを追記できる形にする
 
 ## 13. 実行前チェック

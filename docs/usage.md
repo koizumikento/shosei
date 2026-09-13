@@ -515,6 +515,8 @@ standalone figure layout は `figure` コンテナに改ページ指定を当て
 - prose 系では `single-book` に原稿ファイルと `editorial/*.yml`、`series` に `books/<book-id>/manuscript/` と `books/<book-id>/editorial/*.yml`
 - manga 系では `single-book` に `manga/`、`series` に `books/<book-id>/manga/`
 
+生成スキルは、設定・原稿編集・出力を扱う `shosei-project` と、作品タイプに合う観点で指摘を返す `shosei-content-review` です。依頼された創作を扱えます。`series` の guidance では `<book-id>` を依頼対象の巻に置き換え、handoff 宛先も依頼から選びます。説明文は用途を短く記述します。
+
 prose 系テンプレートでは、最初の原稿ファイルとして `paper` / `conference-preprint` は `single-book` で `manuscript/01-main.md`、`series` で `books/<book-id>/manuscript/01-main.md` を生成する。その他の prose は `01-chapter-1.md` を生成する。この `01-` prefix は初期命名の慣例で、章順の source of truth ではない。対話で opt-in した場合だけ、`single-book` では `manuscript/00-introduction.md` と `manuscript/99-afterword.md`、`series` では `books/<book-id>/manuscript/00-introduction.md` と `books/<book-id>/manuscript/99-afterword.md` も追加する。
 
 Kindle を含む scaffold では、`single-book` に `cover.ebook_image: assets/cover/front.png` と `assets/cover/front.png` を生成する。`series` では各巻の `book.yml` に `cover.ebook_image: books/<book-id>/assets/cover/front.png` を書き、対応する placeholder cover asset も `books/<book-id>/assets/cover/front.png` に置く。

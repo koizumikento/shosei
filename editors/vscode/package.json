@@ -2,7 +2,7 @@
   "name": "shosei-vscode",
   "displayName": "shosei",
   "description": "Run shosei publishing workflows from VS Code using the bundled or configured shosei CLI.",
-  "version": "0.2.17",
+  "version": "0.2.18",
   "publisher": "straydog",
   "icon": "media/shosei-icon.png",
   "license": "MIT",
@@ -258,7 +258,7 @@
     "package:platform": "node ./scripts/package-platform-vsix.js"
   },
   "devDependencies": {
-    "@vscode/test-electron": "^2.5.2",
+    "@vscode/test-electron": "^3.1.0",
     "adm-zip": "^0.6.0"
   }
 }
